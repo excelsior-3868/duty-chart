@@ -33,12 +33,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     href: ROUTES.DASHBOARD,
     icon: 'Home'
   },
-  {
-    title: 'Duty Chart',
-    href: ROUTES.DUTY_CHART,
-    icon: 'Calendar',
-    permission: 'duties.view_chart'
-  },
+  // {
+  //   title: 'Duty Chart',
+  //   href: ROUTES.DUTY_CHART,
+  //   icon: 'Calendar',
+  //   permission: 'duties.view_chart'
+  // },
   {
     title: 'Duty Calendar',
     href: ROUTES.DUTY_CALENDAR,

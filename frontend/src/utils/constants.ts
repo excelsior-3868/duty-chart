@@ -7,6 +7,7 @@ export const ROUTES = {
   HOME: '/',
   DASHBOARD: '/dashboard',
   DUTY_CHART: '/duty-chart',
+  DUTY_CALENDER: '/duty-calendar',
   EMPLOYEES: '/employees',
   ATTENDANCE: '/attendance',
   TEMPLATE_SCHEDULE: '/schedule-management/templates',

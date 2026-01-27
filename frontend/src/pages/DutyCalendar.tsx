@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail } from "lucide-react";
@@ -125,6 +126,16 @@ const DutyCalendar = () => {
     const [selectedDateForDetail, setSelectedDateForDetail] = useState<Date | null>(null);
 
     const { hasPermission, canManageOffice } = useAuth();
+    const location = useLocation();
+
+    // --- 0. Handle Preselection from Navigation State ---
+    useEffect(() => {
+        const state = location.state as { preselect?: { officeId: string; dutyChartId: string } };
+        if (state?.preselect) {
+            setSelectedOfficeId(state.preselect.officeId);
+            setSelectedDutyChartId(state.preselect.dutyChartId);
+        }
+    }, [location.state]);
 
     // --- 1. Load Offices ---
     useEffect(() => {
@@ -153,14 +164,21 @@ const DutyCalendar = () => {
         const loadCharts = async () => {
             try {
                 const res = await getDutyCharts(parseInt(selectedOfficeId));
-                setDutyCharts(res.map((c: any) => ({
+                const formattedCharts = res.map((c: any) => ({
                     id: String(c.id),
                     name: c.name
-                })));
-                if (res.length > 0) {
-                    setSelectedDutyChartId(String(res[0].id));
-                } else {
-                    setSelectedDutyChartId("");
+                }));
+                setDutyCharts(formattedCharts);
+
+                // Only auto-select first chart if current selectedDutyChartId 
+                // is NOT in the new list (or is empty)
+                const isCurrentChartValid = formattedCharts.some(c => c.id === selectedDutyChartId);
+                if (!isCurrentChartValid) {
+                    if (formattedCharts.length > 0) {
+                        setSelectedDutyChartId(formattedCharts[0].id);
+                    } else {
+                        setSelectedDutyChartId("");
+                    }
                 }
             } catch (e) {
                 console.error("Failed to load charts", e);
@@ -400,8 +418,8 @@ const DutyCalendar = () => {
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Duty Calendar</h1>
-                        <p className="text-sm text-muted-foreground">Manage events and duty schedules.</p>
+                        <h1 className="text-3xl font-bold text-primary">Duty Calendar</h1>
+                        <p className="text-muted-foreground">Manage events and duty schedules.</p>
                     </div>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
@@ -432,13 +450,13 @@ const DutyCalendar = () => {
                 </div>
 
                 {/* Filters & Navigation */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-2 rounded-lg border shadow-sm flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-4 rounded-xl border shadow-sm flex-wrap">
+                    <div className="flex items-center gap-4 flex-wrap">
                         {/* Office Selector */}
                         <Popover open={officeOpen} onOpenChange={setOfficeOpen}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="w-[220px] justify-between h-9 text-xs bg-[#ef4444] text-white hover:bg-[#dc2626] hover:text-white border-none transition-colors">
-                                    {selectedOfficeId ? offices.find((o) => o.id === Number(selectedOfficeId))?.name : "Select Office"}
+                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="w-full md:w-[240px] justify-between h-9 text-xs bg-[#ef4444] text-white hover:bg-[#dc2626] hover:text-white border-2 border-[#ef4444] transition-colors">
+                                    <span className="truncate">{selectedOfficeId ? offices.find((o) => o.id === Number(selectedOfficeId))?.name : "Select Office"}</span>
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
                                 </Button>
                             </PopoverTrigger>
@@ -487,7 +505,7 @@ const DutyCalendar = () => {
 
                         {/* Duty Chart Selector */}
                         <Select value={selectedDutyChartId} onValueChange={setSelectedDutyChartId} disabled={!selectedOfficeId}>
-                            <SelectTrigger className="w-[200px] h-9 text-xs">
+                            <SelectTrigger className="w-full md:w-[220px] h-9 text-xs">
                                 <SelectValue placeholder="Select Chart" />
                             </SelectTrigger>
                             <SelectContent>
@@ -500,7 +518,7 @@ const DutyCalendar = () => {
                         {/* Shift Filter - Only in Calendar Tab */}
                         {activeTab === "calendar" && (
                             <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={!selectedDutyChartId}>
-                                <SelectTrigger className="w-[220px] h-9 text-xs border-blue-200 bg-blue-50/30">
+                                <SelectTrigger className="w-full md:w-[280px] h-9 text-xs border-blue-200 bg-blue-50/30">
                                     <SelectValue placeholder="All Shifts" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -513,8 +531,8 @@ const DutyCalendar = () => {
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="flex bg-slate-100/50 border rounded-md p-1 items-center">
+                    <div className="flex items-center gap-4 flex-wrap ml-auto">
+                        <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
                             <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>BS</button>
                             <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>AD</button>
                         </div>
@@ -652,14 +670,14 @@ const DutyCalendar = () => {
                                                         </span>
                                                     </div>
 
-                                                    <div className="space-y-0.5 overflow-y-auto max-h-[82px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                                    <div className="space-y-1.5 overflow-y-auto max-h-[82px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                                                         {dayAssignments.map((assignment) => {
                                                             const shiftColor = getShiftColor(assignment.schedule_id);
                                                             return selectedScheduleId === "all" ? (
                                                                 <div
                                                                     key={assignment.id}
                                                                     className={cn(
-                                                                        "flex items-center p-1 bg-white rounded-md border shadow-sm transition-all",
+                                                                        "flex items-center p-1.5 bg-white rounded-md border shadow-sm transition-all hover:shadow-md",
                                                                         shiftColor.border
                                                                     )}
                                                                 >
@@ -872,13 +890,13 @@ const DutyCalendar = () => {
                                 <span>Assignments for {selectedDateForDetail ? (dateMode === "BS" ? new NepaliDate(selectedDateForDetail).format("MMMM D, YYYY") : format(selectedDateForDetail, "MMMM d, yyyy")) : ""}</span>
                             </DialogTitle>
                             <DialogDescription>
-                                Total {selectedDateForDetail ? assignments.filter(a => isSameDay(a.date, selectedDateForDetail)).length : 0} employees assigned.
+                                Total {selectedDateForDetail ? assignments.filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)).length : 0} employees assigned.
                             </DialogDescription>
                         </DialogHeader>
 
                         <div className="max-h-[60vh] overflow-y-auto space-y-3 py-4 pr-2 scrollbar-thin">
                             {selectedDateForDetail && assignments
-                                .filter(a => isSameDay(a.date, selectedDateForDetail))
+                                .filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId))
                                 .map((a) => {
                                     const shiftColor = getShiftColor(a.schedule_id);
                                     return (

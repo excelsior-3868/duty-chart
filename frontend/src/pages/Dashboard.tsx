@@ -28,7 +28,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    document.title = "Dashboard - INOC Duty Roster";
+    document.title = "Dashboard - Duty Roster";
     let mounted = true;
     setLoading(true);
     setError(null);
@@ -284,7 +284,7 @@ const Dashboard = () => {
                     type="button"
                     className="w-full flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors text-left"
                     onClick={() =>
-                      navigate(ROUTES.DUTY_CHART, {
+                      navigate(ROUTES.DUTY_CALENDAR, {
                         state: {
                           preselect: {
                             officeId: String(chart.office),

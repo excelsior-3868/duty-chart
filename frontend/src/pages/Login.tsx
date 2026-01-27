@@ -30,7 +30,7 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    document.title = "Login - INOC Duty Roster";
+    document.title = "Login - Duty Chart";
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,7 +47,7 @@ const Login = () => {
 
       localStorage.setItem("access", access);
       localStorage.setItem("refresh", refresh);
-      
+
       // Store first_login flag if present
       if (first_login !== undefined) {
         localStorage.setItem("first_login", String(first_login));
@@ -57,7 +57,7 @@ const Login = () => {
       await refreshUser();
 
       toast.success("Login successful");
-      
+
       // Navigate based on first_login flag
       if (first_login) {
         navigate(ROUTES.CHANGE_PASSWORD);
@@ -83,9 +83,9 @@ const Login = () => {
             {/* Logo Section */}
             <div className="flex justify-center mb-2 ">
               <div className="w-24 h-24 flex items-center justify-center">
-                <img 
-                  src={telecomLogo} 
-                  alt="Nepal Telecom Logo" 
+                <img
+                  src={telecomLogo}
+                  alt="Nepal Telecom Logo"
                   className="w-full h-full object-contain drop-shadow-lg"
                 />
               </div>
