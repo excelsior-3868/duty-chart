@@ -1,0 +1,596 @@
+[
+{
+  "model": "users.permission",
+  "pk": 1,
+  "fields": {
+    "slug": "duties.view_chart",
+    "name": "View Duty Chart",
+    "description": "Can view duty charts",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.273Z",
+    "updated_at": "2025-12-22T04:53:54.273Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 2,
+  "fields": {
+    "slug": "duties.create_chart",
+    "name": "Create Duty Chart",
+    "description": "Can create new duty charts",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.306Z",
+    "updated_at": "2025-12-22T04:53:54.306Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 3,
+  "fields": {
+    "slug": "duties.edit_chart",
+    "name": "Edit Duty Chart",
+    "description": "Can edit existing duty charts",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.312Z",
+    "updated_at": "2025-12-22T04:53:54.312Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 4,
+  "fields": {
+    "slug": "duties.delete_chart",
+    "name": "Delete Duty Chart",
+    "description": "Can delete duty charts",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.318Z",
+    "updated_at": "2025-12-22T04:53:54.318Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 5,
+  "fields": {
+    "slug": "duties.generate_rotation",
+    "name": "Generate Rotation",
+    "description": "Can trigger automated duty rotation",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.325Z",
+    "updated_at": "2025-12-22T04:53:54.325Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 6,
+  "fields": {
+    "slug": "users.view_employee",
+    "name": "View Employee",
+    "description": "Can view employee details",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.332Z",
+    "updated_at": "2025-12-22T04:53:54.332Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 7,
+  "fields": {
+    "slug": "users.create_employee",
+    "name": "Create Employee",
+    "description": "Can create new employees",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.340Z",
+    "updated_at": "2025-12-22T04:53:54.340Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 8,
+  "fields": {
+    "slug": "users.edit_employee",
+    "name": "Edit Employee",
+    "description": "Can edit employee details",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.347Z",
+    "updated_at": "2025-12-22T04:53:54.347Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 9,
+  "fields": {
+    "slug": "users.delete_employee",
+    "name": "Delete Employee",
+    "description": "Can delete employees",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.354Z",
+    "updated_at": "2025-12-22T04:53:54.354Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 10,
+  "fields": {
+    "slug": "org.view_office",
+    "name": "View Office",
+    "description": "Can view office details",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.361Z",
+    "updated_at": "2025-12-22T04:53:54.361Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 11,
+  "fields": {
+    "slug": "org.manage_office",
+    "name": "Manage Office",
+    "description": "Can manage office settings",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.368Z",
+    "updated_at": "2025-12-22T04:53:54.368Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 12,
+  "fields": {
+    "slug": "system.manage_rbac",
+    "name": "Manage RBAC",
+    "description": "Can manage roles and permissions",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.376Z",
+    "updated_at": "2025-12-22T04:53:54.376Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 13,
+  "fields": {
+    "slug": "duties.create_duty",
+    "name": "Create Duties",
+    "description": "Creating Duties for the Duty Charts",
+    "is_active": true,
+    "created_at": "2025-12-22T09:21:57.564Z",
+    "updated_at": "2025-12-22T09:21:57.564Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 14,
+  "fields": {
+    "slug": "duties.export_chart",
+    "name": "Export Chart",
+    "description": "Exporting Chart on Duties",
+    "is_active": true,
+    "created_at": "2025-12-22T10:08:32.369Z",
+    "updated_at": "2025-12-22T10:08:32.369Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 15,
+  "fields": {
+    "slug": "duties.view_schedule",
+    "name": "Viewing Schedule",
+    "description": "Viewing Schedule",
+    "is_active": true,
+    "created_at": "2025-12-23T08:14:13.041Z",
+    "updated_at": "2025-12-23T08:14:13.041Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 16,
+  "fields": {
+    "slug": "duties.manage_schedule",
+    "name": "Manage Schedule",
+    "description": "Managing Schedule",
+    "is_active": true,
+    "created_at": "2025-12-23T08:14:37.302Z",
+    "updated_at": "2025-12-23T08:14:37.302Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 17,
+  "fields": {
+    "slug": "schedules.create",
+    "name": "Schedule Create",
+    "description": "Creating a Schedule for the Office",
+    "is_active": true,
+    "created_at": "2025-12-23T09:35:36.719Z",
+    "updated_at": "2025-12-23T09:35:36.719Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 18,
+  "fields": {
+    "slug": "schedules.view",
+    "name": "View Schedule",
+    "description": "Viewing and Listing the Schedule",
+    "is_active": true,
+    "created_at": "2025-12-23T09:36:05.306Z",
+    "updated_at": "2025-12-23T09:36:05.306Z"
+  }
+},
+{
+  "model": "users.permission",
+  "pk": 19,
+  "fields": {
+    "slug": "schedules.edit",
+    "name": "Edit Schedule",
+    "description": "Editing Schedule",
+    "is_active": true,
+    "created_at": "2025-12-23T09:37:15.665Z",
+    "updated_at": "2025-12-23T09:37:15.665Z"
+  }
+},
+{
+  "model": "users.role",
+  "pk": 1,
+  "fields": {
+    "slug": "SUPERADMIN",
+    "name": "Super Admin",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.382Z",
+    "updated_at": "2025-12-22T04:53:54.382Z"
+  }
+},
+{
+  "model": "users.role",
+  "pk": 2,
+  "fields": {
+    "slug": "OFFICE_ADMIN",
+    "name": "Office Admin",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.390Z",
+    "updated_at": "2025-12-22T04:53:54.390Z"
+  }
+},
+{
+  "model": "users.role",
+  "pk": 3,
+  "fields": {
+    "slug": "USER",
+    "name": "Regular User",
+    "is_active": true,
+    "created_at": "2025-12-22T04:53:54.396Z",
+    "updated_at": "2025-12-22T04:53:54.396Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 1,
+  "fields": {
+    "role": 1,
+    "permission": 1,
+    "created_at": "2025-12-22T04:53:54.403Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 2,
+  "fields": {
+    "role": 1,
+    "permission": 2,
+    "created_at": "2025-12-22T04:53:54.411Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 3,
+  "fields": {
+    "role": 1,
+    "permission": 3,
+    "created_at": "2025-12-22T04:53:54.416Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 4,
+  "fields": {
+    "role": 1,
+    "permission": 4,
+    "created_at": "2025-12-22T04:53:54.422Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 5,
+  "fields": {
+    "role": 1,
+    "permission": 5,
+    "created_at": "2025-12-22T04:53:54.427Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 6,
+  "fields": {
+    "role": 1,
+    "permission": 6,
+    "created_at": "2025-12-22T04:53:54.432Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 7,
+  "fields": {
+    "role": 1,
+    "permission": 7,
+    "created_at": "2025-12-22T04:53:54.439Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 8,
+  "fields": {
+    "role": 1,
+    "permission": 8,
+    "created_at": "2025-12-22T04:53:54.443Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 9,
+  "fields": {
+    "role": 1,
+    "permission": 9,
+    "created_at": "2025-12-22T04:53:54.447Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 10,
+  "fields": {
+    "role": 1,
+    "permission": 10,
+    "created_at": "2025-12-22T04:53:54.454Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 11,
+  "fields": {
+    "role": 1,
+    "permission": 11,
+    "created_at": "2025-12-22T04:53:54.458Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 12,
+  "fields": {
+    "role": 1,
+    "permission": 12,
+    "created_at": "2025-12-22T04:53:54.463Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 13,
+  "fields": {
+    "role": 2,
+    "permission": 1,
+    "created_at": "2025-12-22T04:53:54.468Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 14,
+  "fields": {
+    "role": 2,
+    "permission": 2,
+    "created_at": "2025-12-22T04:53:54.474Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 15,
+  "fields": {
+    "role": 2,
+    "permission": 3,
+    "created_at": "2025-12-22T04:53:54.479Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 16,
+  "fields": {
+    "role": 2,
+    "permission": 5,
+    "created_at": "2025-12-22T04:53:54.487Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 17,
+  "fields": {
+    "role": 2,
+    "permission": 6,
+    "created_at": "2025-12-22T04:53:54.492Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 18,
+  "fields": {
+    "role": 2,
+    "permission": 7,
+    "created_at": "2025-12-22T04:53:54.497Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 19,
+  "fields": {
+    "role": 2,
+    "permission": 8,
+    "created_at": "2025-12-22T04:53:54.504Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 20,
+  "fields": {
+    "role": 2,
+    "permission": 10,
+    "created_at": "2025-12-22T04:53:54.509Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 21,
+  "fields": {
+    "role": 3,
+    "permission": 1,
+    "created_at": "2025-12-22T04:53:54.514Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 22,
+  "fields": {
+    "role": 3,
+    "permission": 6,
+    "created_at": "2025-12-22T04:53:54.520Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 23,
+  "fields": {
+    "role": 1,
+    "permission": 13,
+    "created_at": "2025-12-22T09:22:32.023Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 24,
+  "fields": {
+    "role": 2,
+    "permission": 13,
+    "created_at": "2025-12-22T09:23:19.718Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 25,
+  "fields": {
+    "role": 1,
+    "permission": 14,
+    "created_at": "2025-12-22T10:09:00.239Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 26,
+  "fields": {
+    "role": 2,
+    "permission": 14,
+    "created_at": "2025-12-22T10:09:07.650Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 27,
+  "fields": {
+    "role": 3,
+    "permission": 14,
+    "created_at": "2025-12-22T10:09:14.205Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 28,
+  "fields": {
+    "role": 3,
+    "permission": 15,
+    "created_at": "2025-12-23T09:20:16.658Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 29,
+  "fields": {
+    "role": 1,
+    "permission": 15,
+    "created_at": "2025-12-23T09:20:29.611Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 30,
+  "fields": {
+    "role": 1,
+    "permission": 16,
+    "created_at": "2025-12-23T09:20:44.441Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 31,
+  "fields": {
+    "role": 2,
+    "permission": 16,
+    "created_at": "2025-12-23T09:28:07.425Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 32,
+  "fields": {
+    "role": 1,
+    "permission": 17,
+    "created_at": "2025-12-23T09:37:33.771Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 33,
+  "fields": {
+    "role": 1,
+    "permission": 18,
+    "created_at": "2025-12-23T09:37:44.125Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 34,
+  "fields": {
+    "role": 1,
+    "permission": 19,
+    "created_at": "2025-12-23T09:37:52.422Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 35,
+  "fields": {
+    "role": 2,
+    "permission": 18,
+    "created_at": "2025-12-23T09:38:07.945Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 36,
+  "fields": {
+    "role": 2,
+    "permission": 17,
+    "created_at": "2025-12-23T09:38:25.371Z"
+  }
+},
+{
+  "model": "users.rolepermission",
+  "pk": 37,
+  "fields": {
+    "role": 3,
+    "permission": 18,
+    "created_at": "2025-12-23T09:38:34.237Z"
+  }
+}
+]

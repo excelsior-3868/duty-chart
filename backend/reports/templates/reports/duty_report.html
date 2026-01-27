@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 22px;
+    }
+
+    h2 {
+      margin-top: 40px;
+      margin-bottom: 5px;
+      font-size: 18px;
+    }
+
+    p.meta {
+      font-size: 13px;
+      margin-bottom: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 25px;
+    }
+
+    th, td {
+      border: 1px solid #999;
+      padding: 6px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    th {
+      background: #f2f2f2;
+    }
+
+    tr:nth-child(even) {
+      background: #fafafa;
+    }
+
+    .footer {
+      margin-top: 20px;
+      text-align: right;
+      font-size: 10px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Nepal Telecom<br>User Wise Duty Report</h1>
+
+  {% for g in groups %}
+    <h2>{{ g.user_name }} (Employee ID: {{ g.employee_id }})</h2>
+    <p class="meta">
+      <strong>Office:</strong> {{ g.office }} <br>
+      <strong>Date Range:</strong> {{ date_from }} to {{ date_to }}
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Weekday</th>
+          <th>Schedule</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Completed</th>
+          <th>Available</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if g.duties %}
+          {% for d in g.duties %}
+            <tr>
+              <td>{{ d.date }}</td>
+              <td>{{ d.weekday }}</td>
+              <td>{{ d.schedule }}</td>
+              <td>{{ d.start_time }}</td>
+              <td>{{ d.end_time }}</td>
+              <td>{{ d.is_completed }}</td>
+              <td>{{ d.currently_available }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7">No duties available.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+  {% endfor %}
+
+  <p class="footer">Generated on {{ generated_on }}</p>
+</body>
+</html>
