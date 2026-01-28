@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Calendar, Clock, FileText, BarChart3 } from 'lucide-react';
+import { format } from "date-fns";
+import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays } from 'lucide-react';
 import { useEffect, useMemo, useState } from "react";
 import { getDutiesFiltered, Duty } from "@/services/dutiesService";
 import { getUsers, User as AppUser } from "@/services/users";
@@ -8,15 +9,20 @@ import { getDutyCharts, DutyChart } from "@/services/dutichart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/utils/constants";
+import NepaliDate from "nepali-date-converter";
+import { useAuth } from "@/context/AuthContext";
+import { addDays, isAfter, isBefore, startOfDay } from "date-fns";
 
 const Dashboard = () => {
   // State
   const [duties, setDuties] = useState<Duty[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [dutyCharts, setDutyCharts] = useState<DutyChart[]>([]);
+  const [nextDuty, setNextDuty] = useState<Duty | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOffice, setExpandedOffice] = useState<Record<string, boolean>>({});
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const todayLocalISODate = useMemo(() => {
@@ -27,6 +33,15 @@ const Dashboard = () => {
     return `${year}-${month}-${day}`;
   }, []);
 
+  const formattedDates = useMemo(() => {
+    const now = new Date();
+    const nd = new NepaliDate(now);
+    return {
+      ad: format(now, "MMMM d, yyyy"),
+      bs: nd.format("MMMM D, YYYY")
+    };
+  }, []);
+
   useEffect(() => {
     document.title = "Dashboard - Duty Roster";
     let mounted = true;
@@ -35,13 +50,21 @@ const Dashboard = () => {
     Promise.all([
       getDutiesFiltered({ date: todayLocalISODate }),
       getUsers(),
-      getDutyCharts()
+      getDutyCharts(),
+      user?.id ? getDutiesFiltered({ user: user.id }) : Promise.resolve([])
     ])
-      .then(([dutiesRes, usersRes, dutyChartsRes]) => {
+      .then(([dutiesRes, usersRes, dutyChartsRes, myDutiesRes]) => {
         if (!mounted) return;
         setDuties(dutiesRes || []);
         setUsers(usersRes || []);
         setDutyCharts(dutyChartsRes || []);
+
+        if (myDutiesRes && myDutiesRes.length > 0) {
+          const sorted = myDutiesRes
+            .filter(d => d.date >= todayLocalISODate)
+            .sort((a, b) => a.date.localeCompare(b.date));
+          setNextDuty(sorted[0] || null);
+        }
       })
       .catch((e) => {
         if (!mounted) return;
@@ -58,18 +81,25 @@ const Dashboard = () => {
 
   // Computations
   const activeDutyCharts = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-
     return dutyCharts.filter(dc => {
-      // If end_date is present, check if it's in the future or today
-      if (!dc.end_date) return true;
-      const end = new Date(dc.end_date);
-      // We compare dates. end_date string format usually YYYY-MM-DD
-      // Parse safely
-      return end >= now;
+      const start = dc.effective_date;
+      const end = dc.end_date;
+
+      // Must be after or on effective date
+      const isStarted = start <= todayLocalISODate;
+      // Must be before or on end date (if end date exists)
+      const isNotEnded = !end || end >= todayLocalISODate;
+
+      return isStarted && isNotEnded;
     });
-  }, [dutyCharts]);
+  }, [dutyCharts, todayLocalISODate]);
+
+  const expiringChartsCount = useMemo(() => {
+    const nextWeek = format(addDays(new Date(), 7), "yyyy-MM-dd");
+    return activeDutyCharts.filter(chart =>
+      chart.end_date && chart.end_date <= nextWeek
+    ).length;
+  }, [activeDutyCharts]);
 
   const userById = useMemo(() => {
     const map = new Map<number, AppUser>();
@@ -128,25 +158,93 @@ const Dashboard = () => {
       icon: Users,
     },
     {
-      title: "Today's Duties",
+      title: "On Duty Today",
       value: duties.length.toString(),
-      description: "Total duties across different offices",
+      description: "Total staff across offices",
       icon: Calendar,
     },
     {
-      title: "Pending Approvals",
-      value: "8",
-      description: "Shift requests",
+      title: "Expiring Charts",
+      value: expiringChartsCount.toString(),
+      description: "Charts ending within 7 days",
       icon: Clock,
-      trend: "2 urgent"
+      trend: expiringChartsCount > 0 ? `${expiringChartsCount} ending soon` : "All charts healthy",
+      variant: expiringChartsCount > 0 ? "destructive" : "secondary"
     }
   ];
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome to Nepal Telecom Duty Chart Management</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome to Nepal Telecom Duty Chart Management</p>
+        </div>
+        <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm self-start md:self-auto">
+          <CalendarDays className="h-5 w-5 text-blue-500" />
+          <div className="flex flex-col items-end leading-tight">
+            <span className="text-sm font-bold text-slate-900">{formattedDates.bs}</span>
+            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{formattedDates.ad}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Featured Header Section: Next Duty or Welcome */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          {nextDuty ? (
+            <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-none shadow-lg">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2 text-blue-100 mb-1">
+                  <div className="p-1 rounded bg-blue-500/30">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider">My Next Duty</span>
+                </div>
+                <CardTitle className="text-2xl font-bold">
+                  {nextDuty.schedule_name || "Upcoming Shift"}
+                </CardTitle>
+                <CardDescription className="text-blue-100 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  {format(new Date(nextDuty.date), "EEEE, MMMM do")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-blue-50/80">Shift Time</p>
+                    <p className="text-xl font-bold">
+                      {nextDuty.start_time?.slice(0, 5) || "00:00"} - {nextDuty.end_time?.slice(0, 5) || "00:00"}
+                    </p>
+                  </div>
+                  <Badge className="bg-white/20 hover:bg-white/30 text-white border-none px-4 py-1 text-sm">
+                    {nextDuty.office_name}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="h-full flex flex-col justify-center border-dashed border-2 bg-slate-50/50">
+              <CardContent className="flex flex-col items-center py-10 text-center">
+                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                  <Calendar className="h-6 w-6 text-slate-400" />
+                </div>
+                <p className="text-slate-500 font-medium">No upcoming duties scheduled</p>
+                <p className="text-xs text-slate-400 mt-1">Check back later or contact your supervisor</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <Card className="bg-white shadow-sm border-slate-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-tight">Active Duty Charts</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-6">
+            <div className="text-2xl font-bold text-slate-900 mb-2">{activeDutyCharts.length}</div>
+            <p className="text-xs text-slate-500 font-medium text-center">Charts currently in operation across departments</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Stats Grid */}
@@ -154,16 +252,18 @@ const Dashboard = () => {
         {stats.map((stat) => {
           const IconComponent = stat.icon;
           return (
-            <Card key={stat.title}>
+            <Card key={stat.title} className="hover:border-blue-200 transition-colors">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <IconComponent className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-slate-500">{stat.title}</CardTitle>
+                <div className="p-2 rounded-lg bg-slate-50">
+                  <IconComponent className="h-5 w-5 text-blue-500" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">{stat.value}</div>
-                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
+                <p className="text-xs text-slate-500 mt-1">{stat.description}</p>
                 {stat.trend && (
-                  <Badge variant="secondary" className="mt-2 text-xs">
+                  <Badge variant={stat.variant as any || "secondary"} className="mt-2 text-[10px] font-bold">
                     {stat.trend}
                   </Badge>
                 )}
@@ -299,7 +399,7 @@ const Dashboard = () => {
                       <p className="text-xs text-muted-foreground">{chart.office_name || `Office ${chart.office}`}</p>
                     </div>
                     <Badge variant="outline" className="text-[10px]">
-                      {chart.end_date ? `Ends ${chart.end_date}` : 'Ongoing'}
+                      {chart.end_date ? `Ends ${new NepaliDate(new Date(chart.end_date)).format("YYYY-MM-DD")}` : 'Ongoing'}
                     </Badge>
                   </button>
                 ))

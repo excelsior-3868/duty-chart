@@ -14,13 +14,15 @@ interface DutyChartCardProps {
   dateMode?: "AD" | "BS";
   setDateMode?: (mode: "AD" | "BS") => void;
   hideHeader?: boolean;
+  hideFooter?: boolean;
 }
 
 export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   onCreated,
   dateMode: externalDateMode,
   setDateMode: setExternalDateMode,
-  hideHeader
+  hideHeader,
+  hideFooter
 }) => {
   const [internalDateMode, setInternalDateMode] = useState<"AD" | "BS">("BS");
   const dateMode = externalDateMode || internalDateMode;
@@ -233,6 +235,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 onChange={(val) => handleInputChange("end_date", val)}
               />
             )}
+            {errors.end_date && <div className={errorClass}>{errors.end_date}</div>}
           </div>
         </div>
 
@@ -262,15 +265,17 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-end pt-4">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-2 bg-[hsl(var(--inoc-blue))] text-white rounded-md hover:bg-[hsl(var(--inoc-blue))] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? "Creating..." : "Create Duty Chart"}
-          </button>
-        </div>
+        {!hideFooter && (
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-[hsl(var(--inoc-blue))] text-white rounded-md hover:bg-[hsl(var(--inoc-blue))] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Creating..." : "Create Duty Chart"}
+            </button>
+          </div>
+        )}
       </form>
     </section>
   );

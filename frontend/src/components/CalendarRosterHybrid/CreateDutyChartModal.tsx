@@ -48,6 +48,7 @@ const CreateDutyChartModal: React.FC<CreateDutyChartModalProps> = ({ open, onOpe
             dateMode={dateMode}
             setDateMode={setDateMode}
             hideHeader={true}
+            hideFooter={true}
           />
         </div>
 

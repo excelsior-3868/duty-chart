@@ -128,7 +128,8 @@ const DutyCalendar = () => {
     const { hasPermission, canManageOffice } = useAuth();
     const location = useLocation();
 
-    // --- 0. Handle Preselection from Navigation State ---
+    // --- 0. Handle Preselection from Navigation State (Removed to keep "Select Office" as default) ---
+    /*
     useEffect(() => {
         const state = location.state as { preselect?: { officeId: string; dutyChartId: string } };
         if (state?.preselect) {
@@ -136,6 +137,7 @@ const DutyCalendar = () => {
             setSelectedDutyChartId(state.preselect.dutyChartId);
         }
     }, [location.state]);
+    */
 
     // --- 1. Load Offices ---
     useEffect(() => {
@@ -155,21 +157,23 @@ const DutyCalendar = () => {
     }, []);
 
     // --- 2. Load Duty Charts when Office Changes ---
-    useEffect(() => {
+    const fetchDutyCharts = useCallback(async (autoSelectId?: string) => {
         if (!selectedOfficeId || selectedOfficeId === "0") {
             setDutyCharts([]);
             setSelectedDutyChartId("");
             return;
         }
-        const loadCharts = async () => {
-            try {
-                const res = await getDutyCharts(parseInt(selectedOfficeId));
-                const formattedCharts = res.map((c: any) => ({
-                    id: String(c.id),
-                    name: c.name
-                }));
-                setDutyCharts(formattedCharts);
+        try {
+            const res = await getDutyCharts(parseInt(selectedOfficeId));
+            const formattedCharts = res.map((c: any) => ({
+                id: String(c.id),
+                name: c.name
+            }));
+            setDutyCharts(formattedCharts);
 
+            if (autoSelectId) {
+                setSelectedDutyChartId(autoSelectId);
+            } else {
                 // Only auto-select first chart if current selectedDutyChartId 
                 // is NOT in the new list (or is empty)
                 const isCurrentChartValid = formattedCharts.some(c => c.id === selectedDutyChartId);
@@ -180,13 +184,16 @@ const DutyCalendar = () => {
                         setSelectedDutyChartId("");
                     }
                 }
-            } catch (e) {
-                console.error("Failed to load charts", e);
-                setDutyCharts([]);
             }
-        };
-        loadCharts();
-    }, [selectedOfficeId]);
+        } catch (e) {
+            console.error("Failed to load charts", e);
+            setDutyCharts([]);
+        }
+    }, [selectedOfficeId, selectedDutyChartId]);
+
+    useEffect(() => {
+        fetchDutyCharts();
+    }, [fetchDutyCharts]);
 
     // --- 3. Load Duties when Chart Changes ---
     const fetchDuties = useCallback(async () => {
@@ -413,9 +420,9 @@ const DutyCalendar = () => {
     };
 
     return (
-        <div className="p-6 space-y-6 bg-background min-h-screen">
+        <div className="p-4 space-y-4 bg-background min-h-screen">
             {/* Header: Title + Controls */}
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-primary">Duty Calendar</h1>
@@ -450,7 +457,7 @@ const DutyCalendar = () => {
                 </div>
 
                 {/* Filters & Navigation */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-4 rounded-xl border shadow-sm flex-wrap">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-3 rounded-xl border shadow-sm flex-wrap">
                     <div className="flex items-center gap-4 flex-wrap">
                         {/* Office Selector */}
                         <Popover open={officeOpen} onOpenChange={setOfficeOpen}>
@@ -473,7 +480,7 @@ const DutyCalendar = () => {
                                                     setOfficeOpen(false);
                                                 }}
                                                 className={cn(
-                                                    "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none",
+                                                    "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
                                                     !selectedOfficeId ? "bg-[#ef4444] text-white data-[selected='true']:bg-[#ef4444] data-[selected='true']:text-white" : "text-slate-700"
                                                 )}
                                             >
@@ -489,8 +496,8 @@ const DutyCalendar = () => {
                                                         setOfficeOpen(false);
                                                     }}
                                                     className={cn(
-                                                        "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none",
-                                                        selectedOfficeId === String(office.id) ? "bg-[#ef4444] text-white data-[selected='true']:bg-[#ef4444] data-[selected='true']:text-white" : "text-slate-700 hover:bg-slate-100"
+                                                        "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
+                                                        selectedOfficeId === String(office.id) ? "bg-[#ef4444] text-white data-[selected='true']:bg-[#ef4444] data-[selected='true']:text-white" : "text-slate-700"
                                                     )}
                                                 >
                                                     <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
@@ -528,6 +535,20 @@ const DutyCalendar = () => {
                                     ))}
                                 </SelectContent>
                             </Select>
+                        )}
+
+                        {/* Display Chart Dates */}
+                        {selectedDutyChartInfo && (
+                            <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all animate-in fade-in zoom-in duration-300">
+                                <CalendarIcon className="w-3.5 h-3.5 text-blue-500" />
+                                <span className="flex items-center gap-1.5">
+                                    <span className="text-slate-400">Duration:</span>
+                                    {dateMode === "BS"
+                                        ? `${new NepaliDate(new Date(selectedDutyChartInfo.effective_date)).format("YYYY/MM/DD")} - ${selectedDutyChartInfo.end_date ? new NepaliDate(new Date(selectedDutyChartInfo.end_date)).format("YYYY/MM/DD") : "Open"}`
+                                        : `${format(new Date(selectedDutyChartInfo.effective_date), "MMM d, yyyy")} - ${selectedDutyChartInfo.end_date ? format(new Date(selectedDutyChartInfo.end_date), "MMM d, yyyy") : "Open"}`
+                                    }
+                                </span>
+                            </div>
                         )}
                     </div>
 
@@ -630,7 +651,7 @@ const DutyCalendar = () => {
                                     </div>
 
                                     {/* Days Grid */}
-                                    <div className="grid grid-cols-7 auto-rows-[120px]">
+                                    <div className="grid grid-cols-7 auto-rows-[130px]">
                                         {calendarDays.map((date, idx) => {
                                             const nd = new NepaliDate(date);
                                             const isCurrentMonth = nd.getMonth() === monthBS;
@@ -670,14 +691,14 @@ const DutyCalendar = () => {
                                                         </span>
                                                     </div>
 
-                                                    <div className="space-y-1.5 overflow-y-auto max-h-[82px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                                    <div className="space-y-1 overflow-y-auto max-h-[90px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                                                         {dayAssignments.map((assignment) => {
                                                             const shiftColor = getShiftColor(assignment.schedule_id);
                                                             return selectedScheduleId === "all" ? (
                                                                 <div
                                                                     key={assignment.id}
                                                                     className={cn(
-                                                                        "flex items-center p-1.5 bg-white rounded-md border shadow-sm transition-all hover:shadow-md",
+                                                                        "flex items-center p-1 bg-white rounded-md border shadow-sm transition-all hover:shadow-md",
                                                                         shiftColor.border
                                                                     )}
                                                                 >
@@ -708,6 +729,21 @@ const DutyCalendar = () => {
                                                             className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-blue-600 text-white hover:bg-blue-700 opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
+
+                                                                // --- Validate if date is within chart range ---
+                                                                if (selectedDutyChartInfo) {
+                                                                    const dateStr = format(date, "yyyy-MM-dd");
+                                                                    const eff = selectedDutyChartInfo.effective_date;
+                                                                    const end = selectedDutyChartInfo.end_date;
+
+                                                                    if (dateStr < eff || (end && dateStr > end)) {
+                                                                        toast.error("Employee Cant be assigned", {
+                                                                            description: "The selected date is outside the duty chart's effective range."
+                                                                        });
+                                                                        return;
+                                                                    }
+                                                                }
+
                                                                 setCreateDutyContext({ dateISO: format(date, "yyyy-MM-dd") });
                                                                 setShowCreateDuty(true);
                                                             }}
@@ -769,7 +805,14 @@ const DutyCalendar = () => {
                 )}
 
                 {/* Modals */}
-                <CreateDutyChartModal open={showCreateDutyChart} onOpenChange={setShowCreateDutyChart} />
+                <CreateDutyChartModal
+                    open={showCreateDutyChart}
+                    onOpenChange={setShowCreateDutyChart}
+                    onCreated={(newChart) => {
+                        // Reload charts and automatically select the one just created
+                        fetchDutyCharts(String(newChart.id));
+                    }}
+                />
                 <EditDutyChartModal open={showEditDutyChart} onOpenChange={setShowEditDutyChart} />
 
                 {showCreateDuty && selectedOfficeId && selectedDutyChartId && createDutyContext && (
