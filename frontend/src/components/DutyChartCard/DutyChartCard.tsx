@@ -1,9 +1,9 @@
-import { Calendar, Building2, Layers, Check } from "lucide-react";
+import { createDutyChart, type DutyChart as DutyChartDTO, downloadImportTemplate, importDutyChartExcel } from "@/services/dutichart";
+import { toast } from "sonner";
+import { Download, Upload, FileSpreadsheet, Building2, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
-import { createDutyChart, type DutyChart as DutyChartDTO } from "@/services/dutichart";
-import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
@@ -39,6 +39,8 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -97,18 +99,32 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
     setErrors({});
 
     try {
-      const newChart = await createDutyChart({
-        name: formData.name,
-        office: parseInt(formData.office),
-        effective_date: formData.effective_date,
-        end_date: formData.end_date || undefined,
-        schedules: formData.shiftIds.map((id) => parseInt(id)),
-      });
-      onCreated?.(newChart);
-      toast.success("Duty Chart Created Successfully");
+      if (importFile) {
+        const formDataPayload = new FormData();
+        formDataPayload.append("file", importFile);
+        formDataPayload.append("office", formData.office);
+        formDataPayload.append("name", formData.name);
+        formDataPayload.append("effective_date", formData.effective_date);
+        if (formData.end_date) formDataPayload.append("end_date", formData.end_date);
+        formData.shiftIds.forEach((id) => formDataPayload.append("schedule_ids", id));
+
+        await importDutyChartExcel(formDataPayload);
+        toast.success("Duty Chart Imported Successfully from Excel");
+      } else {
+        const newChart = await createDutyChart({
+          name: formData.name,
+          office: parseInt(formData.office),
+          effective_date: formData.effective_date,
+          end_date: formData.end_date || undefined,
+          schedules: formData.shiftIds.map((id) => parseInt(id)),
+        });
+        onCreated?.(newChart);
+        toast.success("Duty Chart Created Successfully");
+      }
       setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [] });
+      setImportFile(null);
     } catch (error: any) {
-      console.error("Failed to create duty chart:", error);
+      console.error("Failed to process duty chart:", error);
       if (error.response?.data) {
         const apiErrors = error.response.data;
         const fieldErrors: Record<string, string> = {};
@@ -118,10 +134,39 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         });
         setErrors(fieldErrors);
       } else {
-        setErrors({ general: "Failed to create duty chart. Please try again." });
+        setErrors({ general: "Failed to process duty chart. Please try again." });
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    if (!formData.office || !formData.effective_date || !formData.end_date || formData.shiftIds.length === 0) {
+      toast.error("Please select Office, Dates, and at least one Shift first.");
+      return;
+    }
+
+    setIsDownloadingTemplate(true);
+    try {
+      await downloadImportTemplate({
+        office_id: parseInt(formData.office),
+        start_date: formData.effective_date,
+        end_date: formData.end_date,
+        schedule_ids: formData.shiftIds.map(id => parseInt(id))
+      });
+      toast.success("Template download started");
+    } catch (error) {
+      console.error("Failed to download template:", error);
+      toast.error("Failed to download template");
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImportFile(e.target.files[0]);
     }
   };
 
@@ -261,7 +306,63 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 );
               })}
             </div>
-            <Layers className="absolute right-3 top-3 h-4 w-4 text-[hsl(var(--gray-500))]" />
+          </div>
+        </div>
+
+        <div className="border-t border-[hsl(var(--gray-200))] pt-6 mt-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-[hsl(var(--title))] flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                Excel Import (Optional)
+              </h3>
+              <p className="text-xs text-[hsl(var(--muted-text))]">
+                Download a template pre-filled with your selections, assign users, and upload.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isDownloadingTemplate || !formData.office || !formData.effective_date || !formData.end_date || formData.shiftIds.length === 0}
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isDownloadingTemplate ? "Generating..." : "Download Template"}
+              <Download className="h-3 w-3" />
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <label className="relative group cursor-pointer block">
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <div className={`flex items-center justify-center gap-3 p-4 rounded-lg border-2 border-dashed transition-all ${importFile
+                ? "border-green-500 bg-green-50"
+                : "border-[hsl(var(--gray-300))] hover:border-[hsl(var(--inoc-blue))] hover:bg-slate-50"
+                }`}>
+                <Upload className={`h-5 w-5 ${importFile ? "text-green-600" : "text-[hsl(var(--gray-400))]"}`} />
+                <div className="text-left">
+                  <p className="text-sm font-medium text-[hsl(var(--title))]">
+                    {importFile ? importFile.name : "Select filled Excel file"}
+                  </p>
+                  <p className="text-xs text-[hsl(var(--muted-text))]">
+                    {importFile ? "File selected - Click Create to import" : "Click to browse or drag and drop"}
+                  </p>
+                </div>
+                {importFile && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setImportFile(null); }}
+                    className="ml-auto text-xs text-red-500 hover:text-red-700 font-medium"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </label>
           </div>
         </div>
 

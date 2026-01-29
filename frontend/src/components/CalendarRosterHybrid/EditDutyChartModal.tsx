@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { getDutyCharts, getDutyChartById, patchDutyChart, DutyChart as DutyChartDTO } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
-import { Building2, Calendar as CalendarIcon, Layers, Check } from "lucide-react";
+import { Building2, Calendar as CalendarIcon, Check } from "lucide-react";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
@@ -282,7 +282,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <label className={labelClass}>Shifts (Schedules)</label>
-                <Layers className="h-4 w-4 text-slate-400" />
+
               </div>
               <div className="space-y-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -294,8 +294,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
                         key={s.id}
                         onClick={() => toggleSchedule(String(s.id))}
                         className={`flex items-center justify-between px-3 py-2 rounded-md border text-left text-sm transition-all ${selected
-                            ? "border-blue-500 bg-blue-100 text-blue-900 ring-1 ring-blue-500/20"
-                            : "border-[hsl(var(--gray-300))] hover:border-blue-400 hover:bg-slate-50"
+                          ? "border-blue-500 bg-blue-100 text-blue-900 ring-1 ring-blue-500/20"
+                          : "border-[hsl(var(--gray-300))] hover:border-blue-400 hover:bg-slate-50"
                           }`}
                       >
                         <div className="flex flex-col items-start gap-1">

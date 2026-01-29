@@ -28,6 +28,8 @@ from duties.views import (
     ScheduleView,  # your updated Schedule API
     DutyChartExportPreview,
     DutyChartExportFile,
+    DutyChartImportTemplateView,
+    DutyChartImportView,
 )
 
 print("✅ URLs Configuration Loaded", flush=True)
@@ -104,6 +106,16 @@ urlpatterns = [
         "api/v1/export/duty-chart/download/",
         DutyChartExportFile.as_view(),
         name="duty_chart_export_download",
+    ),
+    path(
+        "api/v1/duty-chart/import-template/",
+        DutyChartImportTemplateView.as_view(),
+        name="duty_chart_import_template",
+    ),
+    path(
+        "api/v1/duty-chart/import/",
+        DutyChartImportView.as_view(),
+        name="duty_chart_import",
     ),
 
     path("admin/", admin.site.urls),

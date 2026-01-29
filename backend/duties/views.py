@@ -100,7 +100,12 @@ class ScheduleView(viewsets.ModelViewSet):
                 queryset = queryset.none()
             else:
                 from django.db.models import Q
-                queryset = queryset.filter(Q(office_id=office_id) | Q(office_id__isnull=True))
+                # Deduplicate: if an office has a schedule with the same name, hide the template
+                local_names = Schedule.objects.filter(office_id=office_id).values_list('name', flat=True)
+                queryset = queryset.filter(
+                    Q(office_id=office_id) |
+                    (Q(office_id__isnull=True) & ~Q(name__in=local_names))
+                )
 
         # Apply duty_chart filter if provided (via M2M on DutyChart.schedules)
         if duty_chart_id:
@@ -892,3 +897,234 @@ class DutyChartExportFile(APIView):
             return resp
 
         return Response({"detail": f"Unsupported format: {out_format}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DutyChartImportTemplateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Download Excel template for duty chart import.",
+        manual_parameters=[
+            openapi.Parameter("office_id", openapi.IN_QUERY, type=openapi.TYPE_INTEGER, required=True),
+            openapi.Parameter("start_date", openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter("end_date", openapi.IN_QUERY, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter("schedule_ids", openapi.IN_QUERY, type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_INTEGER), required=True),
+        ],
+    )
+    def get(self, request):
+        office_id = request.query_params.get("office_id")
+        start_date_str = request.query_params.get("start_date")
+        end_date_str = request.query_params.get("end_date")
+        # Handle both 'schedule_ids' and Axios-style 'schedule_ids[]'
+        schedule_ids = request.query_params.getlist("schedule_ids") or request.query_params.getlist("schedule_ids[]")
+
+        missing = []
+        if not office_id: missing.append("office_id")
+        if not start_date_str: missing.append("start_date")
+        if not end_date_str: missing.append("end_date")
+        if not schedule_ids: missing.append("schedule_ids")
+
+        if missing:
+            return Response({"detail": f"Missing parameters: {', '.join(missing)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        office = get_object_or_404(Office, pk=int(office_id))
+        start_date = parse_date(start_date_str)
+        end_date = parse_date(end_date_str)
+        schedules = Schedule.objects.filter(id__in=[int(sid) for sid in schedule_ids])
+
+        if not (start_date and end_date):
+            return Response({"detail": "Invalid dates"}, status=status.HTTP_400_BAD_REQUEST)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Duty Import Template"
+
+        headers = ["Date", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position"]
+        ws.append(headers)
+
+        days = (end_date - start_date).days + 1
+        row_idx = 2
+        for sch in schedules:
+            for i in range(days):
+                duty_date = start_date + timedelta(days=i)
+                # Formulas for lookup from Reference sheet
+                # Ref Sheet Col Order: Full Name (A), ID (B), Phone (C), Dir (D), Dept (E), Pos (F), Combined (G)
+                match_val = f"MATCH(B{row_idx}, 'Reference - Office Users'!$G$2:$G$1000, 0)"
+                
+                def get_f(col_idx):
+                    ref_col = f"'Reference - Office Users'!${chr(64+col_idx)}2:${chr(64+col_idx)}1000"
+                    return f'=IF(B{row_idx}<>"", IFERROR(INDEX({ref_col}, {match_val}), ""), "")'
+
+                f_name = get_f(1) # Full Name
+                f_phone = get_f(3)
+                f_dir = get_f(4)
+                f_dept = get_f(5)
+                f_pos = get_f(6)
+
+                ws.append([
+                    duty_date.isoformat(),
+                    "",       # Employee ID (Dropdown: ID - Name)
+                    f_name,   # Employee Name (Auto-populated)
+                    f_phone,
+                    f_dir,
+                    f_dept,
+                    office.name,
+                    sch.name,
+                    sch.start_time.strftime("%H:%M"),
+                    sch.end_time.strftime("%H:%M"),
+                    f_pos
+                ])
+                row_idx += 1
+
+        # Add Data Validation (Combined ID - Name Dropdown)
+        from openpyxl.worksheet.datavalidation import DataValidation
+        dv = DataValidation(type="list", formula1="'Reference - Office Users'!$G$2:$G$1000", allow_blank=True)
+        dv.add(f"B2:B{row_idx}")
+        ws.add_data_validation(dv)
+        
+        # Auto-adjust column width for Column B (Employee ID)
+        ws.column_dimensions['B'].width = 30
+
+        # Add a sheet for reference users from this office
+        ws_users = wb.create_sheet("Reference - Office Users")
+        # Column Order: Full Name, Employee ID, Phone, Directorate, Department, Position, ID - Name
+        ws_users.append(["Full Name", "Employee ID", "Phone", "Directorate", "Department", "Position", "ID - Name"])
+        from users.models import User
+        users = User.objects.filter(office=office)
+        for u in users:
+            ws_users.append([
+                u.full_name,
+                u.employee_id,
+                u.phone_number,
+                getattr(u.directorate, 'name', ''),
+                getattr(u.department, 'name', ''),
+                getattr(u.position, 'name', ''),
+                f"{u.employee_id} - {u.full_name}"
+            ])
+
+        bio = BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+
+        filename = f"duty_template_{office.name}_{start_date_str}.xlsx"
+        resp = HttpResponse(bio.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return resp
+
+
+class DutyChartImportView(APIView):
+    permission_classes = [AdminOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @swagger_auto_schema(
+        operation_description="Import duty chart from filled Excel template.",
+        manual_parameters=[
+            openapi.Parameter("office", openapi.IN_FORM, type=openapi.TYPE_INTEGER, required=True),
+            openapi.Parameter("name", openapi.IN_FORM, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter("effective_date", openapi.IN_FORM, type=openapi.TYPE_STRING, required=True),
+            openapi.Parameter("end_date", openapi.IN_FORM, type=openapi.TYPE_STRING, required=False),
+            openapi.Parameter("file", openapi.IN_FORM, type=openapi.TYPE_FILE, required=True),
+        ],
+    )
+    def post(self, request):
+        file_obj = request.FILES.get("file")
+        office_id = request.data.get("office")
+        name = request.data.get("name")
+        effective_date_str = request.data.get("effective_date")
+        end_date_str = request.data.get("end_date")
+        schedule_ids = request.data.getlist("schedule_ids") # Might be optional if inferred from file
+
+        if not (file_obj and office_id and effective_date_str):
+            return Response({"detail": "file, office, and effective_date are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            df = pd.read_excel(file_obj)
+        except Exception as e:
+            return Response({"detail": f"Invalid Excel file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        office = get_object_or_404(Office, pk=int(office_id))
+        
+        from users.models import User
+
+        # 1. Create Duty Chart
+        chart = DutyChart.objects.create(
+            office=office,
+            name=name,
+            effective_date=parse_date(effective_date_str),
+            end_date=parse_date(end_date_str) if end_date_str else None
+        )
+        if schedule_ids:
+            chart.schedules.set([int(sid) for sid in schedule_ids])
+
+        created_count = 0
+        errors = []
+
+        # 2. Parse Rows and Create Duties
+        for idx, row in df.iterrows():
+            row_date_val = row.get("Date")
+            emp_id = row.get("Employee ID")
+            emp_name = row.get("Employee Name")
+            sch_name = row.get("Schedule")
+            
+            # If both ID and Name are missing, skip
+            if (pd.isna(emp_id) or not str(emp_id).strip()) and (pd.isna(emp_name) or not str(emp_name).strip()):
+                continue
+
+            try:
+                # Find User - prioritize ID, fallback to Name
+                user = None
+                emp_id_str = str(emp_id).strip() if not pd.isna(emp_id) else ""
+                
+                # If Employee ID contains " - ", extract the ID part
+                if " - " in emp_id_str:
+                    emp_id_str = emp_id_str.split(" - ")[0].strip()
+
+                if emp_id_str:
+                    user = User.objects.filter(employee_id__iexact=emp_id_str).first()
+                
+                if not user and not pd.isna(emp_name) and str(emp_name).strip():
+                    user = User.objects.filter(full_name__iexact=str(emp_name).strip()).first() or \
+                           User.objects.filter(username__iexact=str(emp_name).strip()).first()
+
+                if not user:
+                    errors.append(f"Row {idx+2}: User '{emp_id or emp_name}' not found.")
+                    continue
+
+                # Find Schedule
+                schedule = Schedule.objects.filter(name=str(sch_name).strip(), office=office).first()
+                if not schedule:
+                    # Fallback to global schedule if not found in office
+                    schedule = Schedule.objects.filter(name=str(sch_name).strip(), office__isnull=True).first()
+                
+                if not schedule:
+                    errors.append(f"Row {idx+2}: Schedule '{sch_name}' not found.")
+                    continue
+
+                # Parse Date
+                if isinstance(row_date_val, datetime.datetime):
+                    duty_date = row_date_val.date()
+                else:
+                    duty_date = parse_date(str(row_date_val))
+
+                if not duty_date:
+                    errors.append(f"Row {idx+2}: Invalid date format.")
+                    continue
+
+                Duty.objects.create(
+                    user=user,
+                    office=office,
+                    schedule=schedule,
+                    date=duty_date,
+                    duty_chart=chart
+                )
+                created_count += 1
+            except Exception as e:
+                errors.append(f"Row {idx+2}: {str(e)}")
+
+        return Response({
+            "detail": "Import complete",
+            "chart_id": chart.id,
+            "created_duties": created_count,
+            "errors": errors[:10]
+        }, status=status.HTTP_201_CREATED)
+

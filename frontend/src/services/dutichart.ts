@@ -57,3 +57,40 @@ export const patchDutyChart = async (
 export const deleteDutyChart = async (id: number): Promise<void> => {
   await api.delete(`/duty-charts/${id}/`);
 };
+
+/**
+ * Downloads the Excel template for duty chart import.
+ */
+export const downloadImportTemplate = async (params: {
+  office_id: number;
+  start_date: string;
+  end_date: string;
+  schedule_ids: number[];
+}) => {
+  const response = await api.get("/duty-chart/import-template/", {
+    params,
+    responseType: "blob",
+  });
+
+  // Create download link
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `duty_template_${params.start_date}.xlsx`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
+
+/**
+ * Imports a duty chart via Excel.
+ */
+export const importDutyChartExcel = async (formData: FormData) => {
+  const response = await api.post("/duty-chart/import/", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+};
+
