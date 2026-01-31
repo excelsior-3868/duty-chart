@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -438,6 +438,10 @@ const DutyCalendar = () => {
 
                     <div className="flex items-center gap-3">
 
+                        <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
+                            <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>BS</button>
+                            <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>AD</button>
+                        </div>
                         {selectedDutyChartId && (
                             <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowExportModal(true)}>
                                 <Download className="w-3.5 h-3.5" /> Export
@@ -457,12 +461,12 @@ const DutyCalendar = () => {
                 </div>
 
                 {/* Filters & Navigation */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-3 rounded-xl border shadow-sm flex-wrap">
-                    <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center justify-between gap-1 bg-white p-1.5 rounded-xl border shadow-sm">
+                    <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
                         {/* Office Selector */}
                         <Popover open={officeOpen} onOpenChange={setOfficeOpen}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="w-full md:w-[240px] justify-between h-9 text-xs bg-[#ef4444] text-white hover:bg-[#dc2626] hover:text-white border-2 border-[#ef4444] transition-colors">
+                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="flex-1 min-w-0 justify-between h-9 text-xs bg-[#ef4444] text-white hover:bg-[#dc2626] hover:text-white border-2 border-[#ef4444] transition-colors">
                                     <span className="truncate">{selectedOfficeId ? offices.find((o) => o.id === Number(selectedOfficeId))?.name : "Select Office"}</span>
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
                                 </Button>
@@ -512,7 +516,7 @@ const DutyCalendar = () => {
 
                         {/* Duty Chart Selector */}
                         <Select value={selectedDutyChartId} onValueChange={setSelectedDutyChartId} disabled={!selectedOfficeId}>
-                            <SelectTrigger className="w-full md:w-[220px] h-9 text-xs">
+                            <SelectTrigger className="flex-1 min-w-0 h-9 text-xs">
                                 <SelectValue placeholder="Select Chart" />
                             </SelectTrigger>
                             <SelectContent>
@@ -525,7 +529,7 @@ const DutyCalendar = () => {
                         {/* Shift Filter - Only in Calendar Tab */}
                         {activeTab === "calendar" && (
                             <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={!selectedDutyChartId}>
-                                <SelectTrigger className="w-full md:w-[280px] h-9 text-xs border-blue-200 bg-blue-50/30">
+                                <SelectTrigger className="flex-1 min-w-0 h-9 text-xs border-blue-200 bg-blue-50/30">
                                     <SelectValue placeholder="All Shifts" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -539,10 +543,9 @@ const DutyCalendar = () => {
 
                         {/* Display Chart Dates */}
                         {selectedDutyChartInfo && (
-                            <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all animate-in fade-in zoom-in duration-300">
+                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all animate-in fade-in zoom-in duration-300 shrink-0">
                                 <CalendarIcon className="w-3.5 h-3.5 text-blue-500" />
                                 <span className="flex items-center gap-1.5">
-                                    <span className="text-slate-400">Duration:</span>
                                     {dateMode === "BS"
                                         ? `${new NepaliDate(new Date(selectedDutyChartInfo.effective_date)).format("YYYY/MM/DD")} - ${selectedDutyChartInfo.end_date ? new NepaliDate(new Date(selectedDutyChartInfo.end_date)).format("YYYY/MM/DD") : "Open"}`
                                         : `${format(new Date(selectedDutyChartInfo.effective_date), "MMM d, yyyy")} - ${selectedDutyChartInfo.end_date ? format(new Date(selectedDutyChartInfo.end_date), "MMM d, yyyy") : "Open"}`
@@ -552,17 +555,13 @@ const DutyCalendar = () => {
                         )}
                     </div>
 
-                    <div className="flex items-center gap-4 flex-wrap ml-auto">
-                        <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
-                            <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>BS</button>
-                            <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>AD</button>
-                        </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
 
                         <div className="flex items-center gap-2">
                             {dateMode === "BS" ? (
                                 <>
                                     <Select value={nepaliMonths[monthBS]} onValueChange={handleMonthChange}>
-                                        <SelectTrigger className="w-[110px] h-9 text-xs font-medium border-none bg-slate-50 hover:bg-slate-100 focus:ring-0">
+                                        <SelectTrigger className="w-[100px] h-9 text-xs font-medium border-none bg-slate-50 hover:bg-slate-100 focus:ring-0">
                                             <SelectValue>{nepaliMonths[monthBS]}</SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
@@ -571,7 +570,7 @@ const DutyCalendar = () => {
                                     </Select>
 
                                     <Select value={String(yearBS)} onValueChange={handleYearChange}>
-                                        <SelectTrigger className="w-[80px] h-9 text-xs font-medium border-none bg-slate-50 hover:bg-slate-100 focus:ring-0">
+                                        <SelectTrigger className="w-[70px] h-9 text-xs font-medium border-none bg-slate-50 hover:bg-slate-100 focus:ring-0">
                                             <SelectValue>{yearBS}</SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
@@ -610,7 +609,7 @@ const DutyCalendar = () => {
                                 </>
                             )}
 
-                            <div className="flex items-center border-l pl-2 gap-1">
+                            <div className="flex items-center border-l pl-2 gap-0.5">
                                 <Button variant="ghost" size="icon" onClick={handlePrevMonth} className="h-8 w-8"><ChevronLeft className="h-4 w-4" /></Button>
                                 <Button variant="outline" onClick={handleToday} className="h-8 text-xs px-2">Today</Button>
                                 <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8"><ChevronRight className="h-4 w-4" /></Button>
@@ -809,8 +808,16 @@ const DutyCalendar = () => {
                     open={showCreateDutyChart}
                     onOpenChange={setShowCreateDutyChart}
                     onCreated={(newChart) => {
-                        // Reload charts and automatically select the one just created
+                        // 1. If office is different, switch it
+                        if (newChart.office && String(newChart.office) !== selectedOfficeId) {
+                            setSelectedOfficeId(String(newChart.office));
+                        }
+                        // 2. Refresh charts and select the new one
                         fetchDutyCharts(String(newChart.id));
+                        // 3. Jump to the effective date
+                        if (newChart.effective_date) {
+                            setCurrentDate(new Date(newChart.effective_date));
+                        }
                     }}
                 />
                 <EditDutyChartModal open={showEditDutyChart} onOpenChange={setShowEditDutyChart} />

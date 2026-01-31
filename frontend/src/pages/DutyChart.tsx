@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getDutyCharts } from "@/services/dutichart";
 import { getOffices } from "@/services/offices";
 import { CalendarRosterHybrid, Office, DutyChart } from "@/components/CalendarRosterHybrid";
@@ -102,56 +102,72 @@ const DutyChartPage: React.FC = () => {
     });
   };
 
+  // Move fetchDutyCharts to useCallback so it can be called from multiple places
+  const fetchDutyCharts = useCallback(async (officeFilter: number, forceSelectId?: string) => {
+    try {
+      setError("");
+      const res = await getDutyCharts(officeFilter);
+      const transformedCharts: DutyChart[] = res.map((chart: any) => ({
+        id: String(chart.id),
+        name: chart.name || `Duty Chart ${chart.id}`,
+      }));
+      setDutyCharts(transformedCharts);
+
+      const officeIdStr = String(officeFilter);
+      const exists = (id: string) => transformedCharts.some((c) => String(c.id) === String(id));
+
+      let nextId: string | null = null;
+
+      // Prioritize forceSelectId (newly created chart)
+      if (forceSelectId && exists(forceSelectId)) {
+        nextId = forceSelectId;
+      } else if (selectedDutyChartId && exists(selectedDutyChartId)) {
+        nextId = String(selectedDutyChartId);
+      } else {
+        const remembered = lastSelectedByOffice[officeIdStr];
+        if (remembered && exists(remembered)) {
+          nextId = String(remembered);
+        }
+      }
+
+      if (!nextId && transformedCharts.length > 0) {
+        nextId = String(transformedCharts[0].id);
+      }
+
+      if (nextId) {
+        setSelectedDutyChartId(nextId);
+        rememberSelection(officeIdStr, nextId);
+      } else {
+        setSelectedDutyChartId("");
+      }
+    } catch (err) {
+      console.error("Error fetching duty charts:", err);
+      setError("Failed to load duty charts. Please try again.");
+    }
+  }, [selectedDutyChartId, lastSelectedByOffice]);
+
   // Load duty charts (filtered by office)
   useEffect(() => {
-    const fetchDutyCharts = async (officeFilter: number) => {
-      try {
-        setError("");
-        const res = await getDutyCharts(officeFilter);
-        const transformedCharts: DutyChart[] = res.map((chart: any) => ({
-          id: String(chart.id),
-          name: chart.name || `Duty Chart ${chart.id}`,
-        }));
-        setDutyCharts(transformedCharts);
-
-        const officeIdStr = String(officeFilter);
-        const exists = (id: string) => transformedCharts.some((c) => String(c.id) === String(id));
-
-        let nextId: string | null = null;
-
-        if (selectedDutyChartId && exists(selectedDutyChartId)) {
-          nextId = String(selectedDutyChartId);
-          rememberSelection(officeIdStr, nextId);
-        } else {
-          const remembered = lastSelectedByOffice[officeIdStr];
-          if (remembered && exists(remembered)) {
-            nextId = String(remembered);
-          }
-        }
-
-        if (!nextId && transformedCharts.length > 0) {
-          nextId = String(transformedCharts[0].id);
-          rememberSelection(officeIdStr, nextId);
-        }
-
-        if (nextId) {
-          setSelectedDutyChartId(nextId);
-        } else {
-          setSelectedDutyChartId("");
-        }
-      } catch (err) {
-        console.error("Error fetching duty charts:", err);
-        setError("Failed to load duty charts. Please try again.");
-      }
-    };
-
     if (selectedOfficeId) {
       fetchDutyCharts(parseInt(selectedOfficeId));
     } else {
       setDutyCharts([]);
       setSelectedDutyChartId("");
     }
-  }, [selectedOfficeId, lastSelectedByOffice]); // Removed offices from deps to avoid infinite loops if not needed, but keep it if expected
+  }, [selectedOfficeId, fetchDutyCharts]);
+
+  const handleDutyChartCreated = (chart: any) => {
+    const targetOfficeId = String(chart.office);
+    const targetChartId = String(chart.id);
+
+    // Always update office state if it differs
+    if (targetOfficeId !== selectedOfficeId) {
+      setSelectedOfficeId(targetOfficeId);
+    }
+
+    // Force a fetch for the target office and select the new chart
+    fetchDutyCharts(parseInt(targetOfficeId), targetChartId);
+  };
 
   const handleOfficeChange = (officeId: number) => {
     if (!officeId || officeId === 0) {
@@ -205,6 +221,7 @@ const DutyChartPage: React.FC = () => {
         selectedDutyChartId={selectedDutyChartId}
         onOfficeChange={handleOfficeChange}
         onDutyChartChange={handleDutyChartChange}
+        onDutyChartCreated={handleDutyChartCreated}
       />
     </div>
   );

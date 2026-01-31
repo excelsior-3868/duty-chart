@@ -119,7 +119,7 @@ class Schedule(models.Model):
     #)
 
     # Match RosterAssignment's required/optional fields
-    status = models.CharField(max_length=20, default="pending")
+    status = models.CharField(max_length=20, default="template")
 
     start_time = models.TimeField()
     end_time = models.TimeField()

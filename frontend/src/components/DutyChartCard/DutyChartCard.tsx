@@ -1,13 +1,41 @@
 import { createDutyChart, type DutyChart as DutyChartDTO, downloadImportTemplate, importDutyChartExcel } from "@/services/dutichart";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, Building2, Check } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
 import React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+interface PreviewDuty {
+  row: number;
+  date: string;
+  nepali_date: string;
+  employee_id: string;
+  employee_name: string;
+  schedule: string;
+  time: string;
+  office: string;
+}
 
 interface DutyChartCardProps {
   onCreated?: (chart: DutyChartDTO) => void;
@@ -37,10 +65,26 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
 
   const [offices, setOffices] = useState<Office[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+
+  // Preview Modal State
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<PreviewDuty[]>([]);
+  const [previewStats, setPreviewStats] = useState({ total: 0 });
+
+  // Manual Confirmation State
+  const [showManualConfirm, setShowManualConfirm] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync ref with state: if state is cleared, clear the input value so same file can be re-selected
+  useEffect(() => {
+    if (!importFile && fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [importFile]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -80,64 +124,124 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   const errorClass = "text-xs text-red-500 mt-1";
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.name.trim()) newErrors.name = "Duty Chart name is required";
-    if (!formData.effective_date) newErrors.effective_date = "Effective date is required";
-    if (!formData.office) newErrors.office = "Office is required";
-    if (formData.effective_date && formData.end_date && formData.effective_date > formData.end_date) {
-      newErrors.end_date = "End date cannot be before effective date";
+    if (!formData.name.trim()) {
+      toast.error("Duty Chart name is required");
+      return false;
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    if (!formData.office) {
+      toast.error("Office is required");
+      return false;
+    }
+    if (!formData.effective_date) {
+      toast.error("Effective date is required");
+      return false;
+    }
+    if (formData.effective_date && formData.end_date && formData.effective_date > formData.end_date) {
+      toast.error("End date cannot be before effective date");
+      return false;
+    }
+    return true;
+  };
+
+  const processImport = async (isDryRun: boolean) => {
+    setIsSubmitting(true);
+    try {
+      const formDataPayload = new FormData();
+      formDataPayload.append("file", importFile!);
+      formDataPayload.append("office", formData.office);
+      formDataPayload.append("name", formData.name);
+      formDataPayload.append("effective_date", formData.effective_date);
+      if (formData.end_date) formDataPayload.append("end_date", formData.end_date);
+      formData.shiftIds.forEach((id) => formDataPayload.append("schedule_ids", id));
+      if (isDryRun) formDataPayload.append("dry_run", "true");
+
+      const response = await importDutyChartExcel(formDataPayload);
+
+      if (isDryRun) {
+        setPreviewData(response.preview_data || []);
+        setPreviewStats({ total: response.created_duties });
+        setShowPreview(true);
+        return;
+      }
+
+      if (response && response.chart_id) {
+        onCreated?.({
+          id: response.chart_id,
+          office: parseInt(formData.office),
+          effective_date: response.effective_date
+        } as any);
+      }
+      toast.success("Duty Chart Imported Successfully from Excel");
+      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [] });
+      setImportFile(null);
+      setShowPreview(false);
+    } catch (error: any) {
+      setImportFile(null);
+      handleApiError(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const processManualCreation = async () => {
+    setIsSubmitting(true);
+    try {
+      const newChart = await createDutyChart({
+        name: formData.name,
+        office: parseInt(formData.office),
+        effective_date: formData.effective_date,
+        end_date: formData.end_date || undefined,
+        schedules: formData.shiftIds.map((id) => parseInt(id)),
+      });
+      onCreated?.(newChart);
+      toast.success("Duty Chart Created Successfully");
+      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [] });
+      setImportFile(null);
+      setShowManualConfirm(false);
+    } catch (error: any) {
+      handleApiError(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleApiError = (error: any) => {
+    console.error("Failed to process duty chart:", error);
+    if (error.response?.data) {
+      const apiErrors = error.response.data;
+
+      // If there are specific validation errors from the parser
+      if (apiErrors.errors) {
+        toast.error("Validation failed", {
+          description: apiErrors.errors.slice(0, 3).join(", ") + (apiErrors.errors.length > 3 ? "..." : "")
+        });
+      } else if (apiErrors.detail) {
+        toast.error(apiErrors.detail);
+      } else if (apiErrors.non_field_errors) {
+        toast.error(apiErrors.non_field_errors[0]);
+      } else {
+        // Handle field-specific errors if any
+        const firstKey = Object.keys(apiErrors)[0];
+        if (firstKey) {
+          const msg = Array.isArray(apiErrors[firstKey]) ? apiErrors[firstKey][0] : apiErrors[firstKey];
+          toast.error(`${firstKey}: ${msg}`);
+        } else {
+          toast.error("Failed to process duty chart. Please try again.");
+        }
+      }
+    } else {
+      toast.error("An unexpected error occurred. Please check your connection.");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
-    setErrors({});
-
-    try {
-      if (importFile) {
-        const formDataPayload = new FormData();
-        formDataPayload.append("file", importFile);
-        formDataPayload.append("office", formData.office);
-        formDataPayload.append("name", formData.name);
-        formDataPayload.append("effective_date", formData.effective_date);
-        if (formData.end_date) formDataPayload.append("end_date", formData.end_date);
-        formData.shiftIds.forEach((id) => formDataPayload.append("schedule_ids", id));
-
-        await importDutyChartExcel(formDataPayload);
-        toast.success("Duty Chart Imported Successfully from Excel");
-      } else {
-        const newChart = await createDutyChart({
-          name: formData.name,
-          office: parseInt(formData.office),
-          effective_date: formData.effective_date,
-          end_date: formData.end_date || undefined,
-          schedules: formData.shiftIds.map((id) => parseInt(id)),
-        });
-        onCreated?.(newChart);
-        toast.success("Duty Chart Created Successfully");
-      }
-      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [] });
-      setImportFile(null);
-    } catch (error: any) {
-      console.error("Failed to process duty chart:", error);
-      if (error.response?.data) {
-        const apiErrors = error.response.data;
-        const fieldErrors: Record<string, string> = {};
-        Object.keys(apiErrors).forEach(key => {
-          if (Array.isArray(apiErrors[key])) fieldErrors[key] = apiErrors[key][0];
-          else fieldErrors[key] = apiErrors[key];
-        });
-        setErrors(fieldErrors);
-      } else {
-        setErrors({ general: "Failed to process duty chart. Please try again." });
-      }
-    } finally {
-      setIsSubmitting(false);
+    if (importFile) {
+      await processImport(true);
+    } else {
+      setShowManualConfirm(true);
     }
   };
 
@@ -172,7 +276,6 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
 
   const handleInputChange = (field: string, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: "" }));
   };
 
   const toggleShift = (id: string) => {
@@ -210,11 +313,29 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         </div>
       )}
 
-      {errors.general && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{errors.general}</div>
+      {isSubmitting && importFile && !showPreview && (
+        <>
+          <style>
+            {`
+              @keyframes progress-loading {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(300%); }
+              }
+            `}
+          </style>
+          <div className="absolute top-0 left-0 w-full h-1 overflow-hidden rounded-t-lg bg-blue-100 z-10">
+            <div
+              className="h-full bg-blue-600"
+              style={{
+                width: '30%',
+                animation: 'progress-loading 2s ease-in-out infinite'
+              }}
+            ></div>
+          </div>
+        </>
       )}
 
-      <form id="create-duty-chart-form" onSubmit={handleSubmit} className="space-y-4">
+      <form id="create-duty-chart-form" onSubmit={handleSubmit} className="space-y-4 relative">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Office *</label>
@@ -222,7 +343,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               <select
                 value={formData.office}
                 onChange={(e) => handleInputChange("office", e.target.value)}
-                className={errors.office ? errorInputClass : inputClass}
+                className={inputClass}
               >
                 <option value="">Select Office</option>
                 {offices.map((office) => (
@@ -231,7 +352,6 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               </select>
               <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--gray-500))]" />
             </div>
-            {errors.office && <div className={errorClass}>{errors.office}</div>}
           </div>
 
           <div>
@@ -241,10 +361,9 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               value={formData.name}
               onChange={(e) => handleInputChange("name", e.target.value)}
               placeholder="e.g., March Rotation"
-              className={errors.name ? errorInputClass : inputClass}
+              className={inputClass}
               disabled={!formData.office}
             />
-            {errors.name && <div className={errorClass}>{errors.name}</div>}
           </div>
         </div>
 
@@ -255,7 +374,6 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               <GregorianDatePicker
                 value={formData.effective_date}
                 onChange={(val) => handleInputChange("effective_date", val)}
-                className={errors.effective_date ? "border-red-500" : ""}
               />
             ) : (
               <NepaliDatePicker
@@ -263,7 +381,6 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 onChange={(val) => handleInputChange("effective_date", val)}
               />
             )}
-            {errors.effective_date && <div className={errorClass}>{errors.effective_date}</div>}
           </div>
 
           <div className="space-y-1">
@@ -272,7 +389,6 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               <GregorianDatePicker
                 value={formData.end_date}
                 onChange={(val) => handleInputChange("end_date", val)}
-                className={errors.end_date ? "border-red-500" : ""}
               />
             ) : (
               <NepaliDatePicker
@@ -280,7 +396,6 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 onChange={(val) => handleInputChange("end_date", val)}
               />
             )}
-            {errors.end_date && <div className={errorClass}>{errors.end_date}</div>}
           </div>
         </div>
 
@@ -334,6 +449,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
           <div className="mt-4">
             <label className="relative group cursor-pointer block">
               <input
+                ref={fileInputRef}
                 type="file"
                 accept=".xlsx, .xls"
                 onChange={handleFileChange}
@@ -371,13 +487,183 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2 bg-[hsl(var(--inoc-blue))] text-white rounded-md hover:bg-[hsl(var(--inoc-blue))] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-6 py-2 bg-[hsl(var(--inoc-blue))] text-white rounded-md hover:bg-[hsl(var(--inoc-blue))] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {isSubmitting ? "Creating..." : "Create Duty Chart"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {importFile ? "Importing & Processing..." : "Creating..."}
+                </>
+              ) : (
+                "Create Duty Chart"
+              )}
             </button>
           </div>
         )}
       </form>
+
+      {/* Import Preview Modal */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <FileSpreadsheet className="h-5 w-5 text-green-600" />
+              Import Preview
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto my-4 py-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-blue-900">
+                  Ready to import {previewStats.total} duty assignments.
+                </p>
+                <p className="text-xs text-blue-700">
+                  Please review the details below. No changes have been made to the database yet.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-16">Row</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Shift</TableHead>
+                    <TableHead>Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previewData.map((duty, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium text-muted-foreground">{duty.row}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-orange-700">{duty.nepali_date}</span>
+                          <span className="text-xs text-muted-foreground">{duty.date}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{duty.employee_name}</span>
+                          <span className="text-xs text-muted-foreground">ID: {duty.employee_id}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-medium">
+                          {duty.schedule}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{duty.time}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreview(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => processImport(false)}
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                "Confirm & Finalize Import"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Creation Confirmation Modal */}
+      <Dialog open={showManualConfirm} onOpenChange={setShowManualConfirm}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-blue-600" />
+              Confirm Duty Chart Creation
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-slate-50 p-4 rounded-lg space-y-3">
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Office:</span>
+                <span className="col-span-2 font-medium">{offices.find(o => String(o.id) === formData.office)?.name}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Roster Name:</span>
+                <span className="col-span-2 font-medium">{formData.name}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Period:</span>
+                <span className="col-span-2 font-medium">
+                  {formData.effective_date} to {formData.end_date || "Open-ended"}
+                </span>
+              </div>
+              <div className="pt-2">
+                <span className="text-xs text-muted-foreground block mb-2">Selected Shifts:</span>
+                <div className="flex flex-wrap gap-2">
+                  {formData.shiftIds.map(id => {
+                    const s = schedules.find(sch => String(sch.id) === id);
+                    return s ? (
+                      <Badge key={id} variant="secondary" className="font-normal">
+                        {s.name}
+                      </Badge>
+                    ) : null;
+                  })}
+                  {formData.shiftIds.length === 0 && (
+                    <span className="text-sm italic text-muted-foreground">No specific shifts selected</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              By confirming, a new duty chart shell will be created. You can later assign specific employees to these shifts.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowManualConfirm(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={processManualCreation}
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Duty Chart"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 };

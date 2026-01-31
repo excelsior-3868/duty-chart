@@ -167,11 +167,10 @@ const TemplateSchedule = () => {
                                     <div className="relative">
                                         <Input
                                             type="time"
-                                            className="h-11 pl-3 pr-10"
+                                            className="h-11 px-3"
                                             value={formData.start_time}
                                             onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
                                         />
-                                        <Clock className="absolute right-3 top-3.5 h-4 w-4 text-[hsl(var(--inoc-blue))] pointer-events-none" />
                                     </div>
                                 </div>
 
@@ -180,11 +179,10 @@ const TemplateSchedule = () => {
                                     <div className="relative">
                                         <Input
                                             type="time"
-                                            className="h-11 pl-3 pr-10"
+                                            className="h-11 px-3"
                                             value={formData.end_time}
                                             onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
                                         />
-                                        <Clock className="absolute right-3 top-3.5 h-4 w-4 text-[hsl(var(--inoc-blue))] pointer-events-none" />
                                     </div>
                                 </div>
                             </div>
@@ -206,7 +204,7 @@ const TemplateSchedule = () => {
                                 className="bg-[hsl(var(--inoc-blue))] hover:bg-[hsl(var(--inoc-blue-dark))] px-10 h-11 transition-all"
                             >
                                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {editingId ? "Update Template" : "Create Schedule"}
+                                {editingId ? "Update Template" : "Create Template"}
                             </Button>
                         </div>
                     </CardContent>
@@ -232,18 +230,18 @@ const TemplateSchedule = () => {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {schedules.map((schedule) => (
-                                    <div key={schedule.id} className="p-4 border rounded-lg bg-card hover:shadow-md transition-shadow relative group">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-semibold text-lg">{schedule.name}</h3>
-                                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">Template</Badge>
+                                    <div key={schedule.id} className="p-3 border rounded-lg bg-card hover:shadow-md transition-shadow relative group">
+                                        <div className="flex justify-between items-center mb-1.5">
+                                            <h3 className="font-semibold text-sm truncate pr-2">{schedule.name}</h3>
+                                            <Badge variant="outline" className="text-[10px] h-4 bg-primary/5 text-primary border-primary/20 px-1.5">Template</Badge>
                                         </div>
-                                        <div className="flex items-center text-sm text-muted-foreground gap-4">
+                                        <div className="flex items-center text-xs text-muted-foreground gap-4">
                                             <div className="flex items-center gap-1">
                                                 <Clock className="h-3 w-3" />
                                                 {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
                                             </div>
                                         </div>
-                                        <div className="mt-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="mt-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Button
                                                 variant="outline"
                                                 size="sm"

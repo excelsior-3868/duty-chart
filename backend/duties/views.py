@@ -12,6 +12,10 @@
 
 from datetime import timedelta
 import datetime
+try:
+    import nepali_datetime
+except ImportError:
+    nepali_datetime = None
 import os
 import platform
 import pandas as pd
@@ -22,7 +26,7 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from django.shortcuts import render, get_object_or_404
 from django.core.exceptions import ValidationError
 
-from rest_framework import viewsets, permissions, status, renderers
+from rest_framework import viewsets, permissions, status, renderers, serializers
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -237,7 +241,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 if allowed and int(office_id) not in allowed:
                     return DutyChart.objects.none()
             queryset = queryset.filter(office_id=office_id)
-        return queryset
+        return queryset.order_by("-id")
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -247,7 +251,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         allowed = get_allowed_office_ids(user)
         office_id = self.request.data.get("office")
         if not office_id or int(office_id) not in allowed:
-            raise ValidationError("Not allowed to create duty chart for this office.")
+            raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
         serializer.save()
 
     def perform_update(self, serializer):
@@ -258,7 +262,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         allowed = get_allowed_office_ids(user)
         office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
         if not office_id or int(office_id) not in allowed:
-            raise ValidationError("Not allowed to update duty chart for this office.")
+            raise serializers.ValidationError({"detail": "Not allowed to update duty chart for this office."})
         serializer.save()
 
 
@@ -947,34 +951,41 @@ class DutyChartImportTemplateView(APIView):
         for sch in schedules:
             for i in range(days):
                 duty_date = start_date + timedelta(days=i)
-                # Formulas for lookup from Reference sheet
-                # Ref Sheet Col Order: Full Name (A), ID (B), Phone (C), Dir (D), Dept (E), Pos (F), Combined (G)
-                match_val = f"MATCH(B{row_idx}, 'Reference - Office Users'!$G$2:$G$1000, 0)"
-                
-                def get_f(col_idx):
-                    ref_col = f"'Reference - Office Users'!${chr(64+col_idx)}2:${chr(64+col_idx)}1000"
-                    return f'=IF(B{row_idx}<>"", IFERROR(INDEX({ref_col}, {match_val}), ""), "")'
+                # Duplicate rows (2 per date/schedule)
+                for _ in range(2):
+                    # Formulas for lookup from Reference sheet
+                    # Ref Sheet Col Order: Full Name (A), ID (B), Phone (C), Dir (D), Dept (E), Pos (F), Combined (G)
+                    match_val = f"MATCH(B{row_idx}, 'Reference - Office Users'!$G$2:$G$1000, 0)"
+                    
+                    def get_f(col_idx):
+                        ref_col = f"'Reference - Office Users'!${chr(64+col_idx)}2:${chr(64+col_idx)}1000"
+                        return f'=IF(B{row_idx}<>"", IFERROR(INDEX({ref_col}, {match_val}), ""), "")'
 
-                f_name = get_f(1) # Full Name
-                f_phone = get_f(3)
-                f_dir = get_f(4)
-                f_dept = get_f(5)
-                f_pos = get_f(6)
+                    f_name = get_f(1) # Full Name
+                    f_phone = get_f(3)
+                    f_dir = get_f(4)
+                    f_dept = get_f(5)
+                    f_pos = get_f(6)
 
-                ws.append([
-                    duty_date.isoformat(),
-                    "",       # Employee ID (Dropdown: ID - Name)
-                    f_name,   # Employee Name (Auto-populated)
-                    f_phone,
-                    f_dir,
-                    f_dept,
-                    office.name,
-                    sch.name,
-                    sch.start_time.strftime("%H:%M"),
-                    sch.end_time.strftime("%H:%M"),
-                    f_pos
-                ])
-                row_idx += 1
+                    if nepali_datetime:
+                        bs_date_str = nepali_datetime.date.from_datetime_date(duty_date).strftime("%Y-%m-%d")
+                    else:
+                        bs_date_str = duty_date.isoformat()
+
+                    ws.append([
+                        bs_date_str,
+                        "",       # Employee ID (Dropdown: ID - Name)
+                        f_name,   # Employee Name (Auto-populated)
+                        f_phone,
+                        f_dir,
+                        f_dept,
+                        office.name,
+                        sch.name,
+                        sch.start_time.strftime("%H:%M"),
+                        sch.end_time.strftime("%H:%M"),
+                        f_pos
+                    ])
+                    row_idx += 1
 
         # Add Data Validation (Combined ID - Name Dropdown)
         from openpyxl.worksheet.datavalidation import DataValidation
@@ -1032,7 +1043,8 @@ class DutyChartImportView(APIView):
         name = request.data.get("name")
         effective_date_str = request.data.get("effective_date")
         end_date_str = request.data.get("end_date")
-        schedule_ids = request.data.getlist("schedule_ids") # Might be optional if inferred from file
+        schedule_ids = request.data.getlist("schedule_ids")
+        dry_run = request.data.get("dry_run", "false").lower() == "true"
 
         if not (file_obj and office_id and effective_date_str):
             return Response({"detail": "file, office, and effective_date are required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1044,87 +1056,206 @@ class DutyChartImportView(APIView):
 
         office = get_object_or_404(Office, pk=int(office_id))
         
+        from django.db import transaction
         from users.models import User
 
-        # 1. Create Duty Chart
-        chart = DutyChart.objects.create(
+        # Parse dates early for chart validation
+        eff_date = parse_date(effective_date_str)
+        en_date = parse_date(end_date_str) if end_date_str else None
+
+        # 1. Duty Chart Duplicate Check (Same Office + Dates + Overlapping Shifts)
+        existing_charts = DutyChart.objects.filter(
             office=office,
-            name=name,
-            effective_date=parse_date(effective_date_str),
-            end_date=parse_date(end_date_str) if end_date_str else None
+            effective_date=eff_date,
+            end_date=en_date
         )
         if schedule_ids:
-            chart.schedules.set([int(sid) for sid in schedule_ids])
+            target_schedules = [int(sid) for sid in schedule_ids]
+            for ec in existing_charts:
+                overlap = ec.schedules.filter(id__in=target_schedules).first()
+                if overlap:
+                    return Response({
+                        "detail": f"A Duty Chart already exists for '{office.name}' from {eff_date} to {en_date or 'Open'} that already includes the shift '{overlap.name}'."
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
         created_count = 0
         errors = []
+        seen_in_file = set() # To detect duplicate assignments within the Excel itself
 
-        # 2. Parse Rows and Create Duties
-        for idx, row in df.iterrows():
-            row_date_val = row.get("Date")
-            emp_id = row.get("Employee ID")
-            emp_name = row.get("Employee Name")
-            sch_name = row.get("Schedule")
-            
-            # If both ID and Name are missing, skip
-            if (pd.isna(emp_id) or not str(emp_id).strip()) and (pd.isna(emp_name) or not str(emp_name).strip()):
-                continue
-
-            try:
-                # Find User - prioritize ID, fallback to Name
-                user = None
-                emp_id_str = str(emp_id).strip() if not pd.isna(emp_id) else ""
-                
-                # If Employee ID contains " - ", extract the ID part
-                if " - " in emp_id_str:
-                    emp_id_str = emp_id_str.split(" - ")[0].strip()
-
-                if emp_id_str:
-                    user = User.objects.filter(employee_id__iexact=emp_id_str).first()
-                
-                if not user and not pd.isna(emp_name) and str(emp_name).strip():
-                    user = User.objects.filter(full_name__iexact=str(emp_name).strip()).first() or \
-                           User.objects.filter(username__iexact=str(emp_name).strip()).first()
-
-                if not user:
-                    errors.append(f"Row {idx+2}: User '{emp_id or emp_name}' not found.")
-                    continue
-
-                # Find Schedule
-                schedule = Schedule.objects.filter(name=str(sch_name).strip(), office=office).first()
-                if not schedule:
-                    # Fallback to global schedule if not found in office
-                    schedule = Schedule.objects.filter(name=str(sch_name).strip(), office__isnull=True).first()
-                
-                if not schedule:
-                    errors.append(f"Row {idx+2}: Schedule '{sch_name}' not found.")
-                    continue
-
-                # Parse Date
-                if isinstance(row_date_val, datetime.datetime):
-                    duty_date = row_date_val.date()
-                else:
-                    duty_date = parse_date(str(row_date_val))
-
-                if not duty_date:
-                    errors.append(f"Row {idx+2}: Invalid date format.")
-                    continue
-
-                Duty.objects.create(
-                    user=user,
+        try:
+            with transaction.atomic():
+                # Create Duty Chart
+                chart = DutyChart.objects.create(
                     office=office,
-                    schedule=schedule,
-                    date=duty_date,
-                    duty_chart=chart
+                    name=name,
+                    effective_date=eff_date,
+                    end_date=en_date
                 )
-                created_count += 1
-            except Exception as e:
-                errors.append(f"Row {idx+2}: {str(e)}")
+                if schedule_ids:
+                    chart.schedules.set([int(sid) for sid in schedule_ids])
+
+                # 2. Parse Rows and Create Duties
+                today = datetime.date.today()
+
+                preview_data = []
+                for idx, row in df.iterrows():
+                    row_num = idx + 2
+                    row_date_val = row.get("Date")
+                    emp_id = row.get("Employee ID")
+                    emp_name = row.get("Employee Name")
+                    sch_name = row.get("Schedule")
+                    off_name = row.get("Office")
+                    
+                    # If both ID and Name are missing, skip
+                    if (pd.isna(emp_id) or not str(emp_id).strip()) and (pd.isna(emp_name) or not str(emp_name).strip()):
+                        continue
+
+                    try:
+                        # --- A. Office Validation ---
+                        if pd.isna(off_name) or str(off_name).strip().lower() != office.name.lower():
+                            errors.append(f"Row {row_num}: Office mismatch. Expected '{office.name}', found '{off_name}'.")
+                            continue
+
+                        # --- B. Date Validation ---
+                        if isinstance(row_date_val, (datetime.datetime, datetime.date)):
+                            duty_date = row_date_val.date() if isinstance(row_date_val, datetime.datetime) else row_date_val
+                        else:
+                            date_str = str(row_date_val).strip()
+                            duty_date = None
+                            # Try BS parsing first if nepali_datetime is available
+                            if nepali_datetime:
+                                try:
+                                    # Handle common formats
+                                    if "-" in date_str:
+                                        duty_date = nepali_datetime.datetime.strptime(date_str, "%Y-%m-%d").to_datetime_date()
+                                    elif "/" in date_str:
+                                        duty_date = nepali_datetime.datetime.strptime(date_str, "%Y/%m/%d").to_datetime_date()
+                                except:
+                                    pass
+                            
+                            if not duty_date:
+                                duty_date = parse_date(date_str)
+
+                        if not duty_date:
+                            errors.append(f"Row {row_num}: Invalid date format '{row_date_val}'.")
+                            continue
+                        
+                        if duty_date < today:
+                            errors.append(f"Row {row_num}: Date {duty_date} is in the past. Only today or future dates allowed.")
+                            continue
+                        
+                        if duty_date < eff_date or (en_date and duty_date > en_date):
+                            error_range = f"{eff_date} to {en_date or 'Open'}"
+                            errors.append(f"Row {row_num}: Date {duty_date} is outside chart range ({error_range}).")
+                            continue
+
+                        # --- C. Employee Validation ---
+                        user = None
+                        emp_id_str = str(emp_id).strip() if not pd.isna(emp_id) else ""
+                        if " - " in emp_id_str:
+                            emp_id_str = emp_id_str.split(" - ")[0].strip()
+
+                        if emp_id_str:
+                            user = User.objects.filter(employee_id__iexact=emp_id_str).first()
+                        
+                        if not user and not pd.isna(emp_name) and str(emp_name).strip():
+                            user = User.objects.filter(full_name__iexact=str(emp_name).strip()).first() or \
+                                   User.objects.filter(username__iexact=str(emp_name).strip()).first()
+
+                        if not user:
+                            errors.append(f"Row {row_num}: Employee '{emp_id or emp_name}' not found.")
+                            continue
+
+                        # --- D. Schedule & Time Validation ---
+                        sch_name_str = str(sch_name).strip()
+                        schedule = Schedule.objects.filter(name=sch_name_str, office=office).first() or \
+                                   Schedule.objects.filter(name=sch_name_str, office__isnull=True).first()
+                        
+                        if not schedule:
+                            errors.append(f"Row {row_num}: Schedule '{sch_name}' doesn't exist.")
+                            continue
+
+                        # Normalize and Compare Times
+                        def normalize_time_str(t):
+                            if isinstance(t, datetime.time): return t.strftime("%H:%M")
+                            if isinstance(t, str) and len(t) >= 5: return t[:5]
+                            return str(t)
+
+                        sch_start_str = schedule.start_time.strftime("%H:%M")
+                        sch_end_str = schedule.end_time.strftime("%H:%M")
+                        excel_start = normalize_time_str(row.get("Start Time"))
+                        excel_end = normalize_time_str(row.get("End Time"))
+
+                        if excel_start != sch_start_str or excel_end != sch_end_str:
+                            errors.append(f"Row {row_num}: Time mismatch for '{sch_name}'. Expected {sch_start_str}-{sch_end_str}, found {excel_start}-{excel_end}.")
+                            continue
+
+                        # --- E. Collision Detection (Global & Internal) ---
+                        assignment_key = (user.id, duty_date, schedule.id)
+                        
+                        # 1. Internal check (Duplicate in file)
+                        if assignment_key in seen_in_file:
+                            errors.append(f"Row {row_num}: Duplicate entry for {user.full_name} on {duty_date} ({sch_name}) found within the Excel file.")
+                            continue
+                        seen_in_file.add(assignment_key)
+
+                        # 2. Global check (Existing in database across all charts)
+                        if Duty.objects.filter(user=user, date=duty_date, schedule=schedule).exists():
+                            errors.append(f"Row {row_num}: {user.full_name} is already assigned to {sch_name} on {duty_date} in another duty chart.")
+                            continue
+
+                        # --- F. Preview Data Collect ---
+                        nepali_date_str = ""
+                        if nepali_datetime:
+                            nepali_date_str = nepali_datetime.date.from_datetime_date(duty_date).strftime("%Y-%m-%d")
+
+                        preview_data.append({
+                            "row": row_num,
+                            "date": str(duty_date),
+                            "nepali_date": nepali_date_str,
+                            "employee_id": user.employee_id,
+                            "employee_name": user.full_name or user.username,
+                            "schedule": sch_name_str,
+                            "time": f"{sch_start_str} - {sch_end_str}",
+                            "office": office.name
+                        })
+
+                        if not dry_run:
+                            # --- G. Create Duty ---
+                            Duty.objects.create(
+                                user=user,
+                                office=office,
+                                schedule=schedule,
+                                date=duty_date,
+                                duty_chart=chart
+                            )
+                        created_count += 1
+                    except Exception as e:
+                        errors.append(f"Row {row_num}: Error: {str(e)}")
+
+                if errors:
+                    transaction.set_rollback(True)
+                    return Response({
+                        "detail": "Import failed due to validation errors. No data was saved.",
+                        "errors": errors[:20]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                if dry_run:
+                    transaction.set_rollback(True)
+                    return Response({
+                        "detail": "Dry run complete. No errors found.",
+                        "is_preview": True,
+                        "created_duties": created_count,
+                        "preview_data": preview_data
+                    }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"detail": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
             "detail": "Import complete",
             "chart_id": chart.id,
-            "created_duties": created_count,
-            "errors": errors[:10]
+            "effective_date": chart.effective_date,
+            "created_duties": created_count
         }, status=status.HTTP_201_CREATED)
 

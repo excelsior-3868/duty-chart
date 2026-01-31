@@ -26,7 +26,11 @@ class DutyChartSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         schedules = validated_data.pop('schedules', [])
         instance = DutyChart(**validated_data)
-        instance.full_clean()  # runs model.clean() + field validators
+        try:
+            instance.full_clean()  # runs model.clean() + field validators
+        except ValidationError as e:
+            message = getattr(e, 'message_dict', None) or {'detail': str(e)}
+            raise serializers.ValidationError(message)
         instance.save()
         if schedules:
             instance.schedules.set(schedules)
@@ -36,7 +40,11 @@ class DutyChartSerializer(serializers.ModelSerializer):
         schedules = validated_data.pop('schedules', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.full_clean()  # re-validate on update
+        try:
+            instance.full_clean()  # re-validate on update
+        except ValidationError as e:
+            message = getattr(e, 'message_dict', None) or {'detail': str(e)}
+            raise serializers.ValidationError(message)
         instance.save()
         if schedules is not None:
             instance.schedules.set(schedules)

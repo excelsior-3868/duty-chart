@@ -191,18 +191,18 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           start_time: formData.start_time,
           end_time: formData.end_time,
           office: parseInt(formData.office),
-          status: initialSchedule.status || "default",
+          status: initialSchedule.status || "office_schedule",
         });
-        toast.success("Schedule Updated Successfully");
+        toast.success("Schedule Template Updated Successfully");
       } else {
         await createSchedule({
           name: formData.name,
           start_time: formData.start_time,
           end_time: formData.end_time,
           office: parseInt(formData.office),
-          status: "default",
+          status: "office_schedule",
         });
-        toast.success("Schedule Created Successfully");
+        toast.success("Schedule Template Created Successfully");
         setFormData({
           name: "",
           start_time: "",
@@ -212,9 +212,17 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
       }
       onScheduleAdded?.();
     } catch (error: any) {
-      console.error("Failed to create schedule:", error);
+      console.error("Failed to save template:", error);
       if (error.response?.data) {
         const apiErrors = error.response.data;
+
+        // Show detail or non_field_errors in toast
+        if (apiErrors.detail) {
+          toast.error(apiErrors.detail);
+        } else if (apiErrors.non_field_errors) {
+          toast.error(Array.isArray(apiErrors.non_field_errors) ? apiErrors.non_field_errors[0] : String(apiErrors.non_field_errors));
+        }
+
         const fieldErrors: Record<string, string> = {};
 
         Object.keys(apiErrors).forEach(key => {
@@ -227,7 +235,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
 
         setErrors(fieldErrors);
       } else {
-        setErrors({ general: "Failed to create schedule. Please try again." });
+        const genericError = "Failed to save schedule template. Please try again.";
+        toast.error(genericError);
+        setErrors({ general: genericError });
       }
     } finally {
       setIsSubmitting(false);
@@ -290,7 +300,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                       }}
                     >
                       <SelectTrigger className={errors.name ? "border-destructive" : ""}>
-                        <SelectValue placeholder="Select Schedule" />
+                        <SelectValue placeholder="Select Schedule from Template" />
                       </SelectTrigger>
                       <SelectContent>
                         {scheduleTemplates.map((template) => (
@@ -313,7 +323,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     onClick={toggleCustomSchedule}
                     className="text-xs text-primary hover:underline focus:outline-none"
                   >
-                    {isCustomSchedule ? "Select from Templates" : "+ Add New Schedule"}
+                    {isCustomSchedule ? "Select from Templates" : "+ Add New Template"}
                   </button>
                 </div>
               </div>
@@ -351,10 +361,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     value={formData.start_time}
                     onChange={(e) => handleInputChange("start_time", e.target.value)}
                     disabled={!isCustomSchedule && mode !== 'edit'}
-                    className={`${errors.start_time ? errorInputClass : inputClass} pr-10 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`${errors.start_time ? errorInputClass : inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                     style={{ colorScheme: 'light' }}
                   />
-                  <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary pointer-events-none" />
                 </div>
                 {errors.start_time && <div className={errorClass}>{errors.start_time}</div>}
               </div>
@@ -368,10 +377,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     value={formData.end_time}
                     onChange={(e) => handleInputChange("end_time", e.target.value)}
                     disabled={!isCustomSchedule && mode !== 'edit'}
-                    className={`${errors.end_time ? errorInputClass : inputClass} pr-10 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`${errors.end_time ? errorInputClass : inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
                     style={{ colorScheme: 'light' }}
                   />
-                  <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary pointer-events-none" />
                 </div>
                 {errors.end_time && <div className={errorClass}>{errors.end_time}</div>}
               </div>
@@ -385,7 +393,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               >
                 {isSubmitting
                   ? mode === "edit" ? "Updating..." : "Creating..."
-                  : mode === "edit" ? "Update Schedule" : "Create Schedule"}
+                  : mode === "edit" ? "Update Template" : "Create Template"}
               </Button>
             </div>
           </form>
@@ -430,7 +438,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               disabled={isSubmitting}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
-              {isSubmitting ? "Saving..." : "Create Schedule"}
+              {isSubmitting ? "Saving..." : "Create Template"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

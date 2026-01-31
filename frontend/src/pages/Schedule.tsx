@@ -25,6 +25,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+import { toast } from "sonner";
+
 interface Schedule {
   id: number;
   name: string;
@@ -57,7 +59,7 @@ const Schedule = () => {
     start_time: "",
     end_time: "",
     office: "",
-    status: "default",
+    status: "office_schedule",
   });
 
   useEffect(() => {
@@ -196,9 +198,12 @@ const Schedule = () => {
                         <div>
                           <div className="font-medium flex items-center gap-2 text-sm">
                             {s.name}
-                            {s.status && (
-                              <Badge variant={s.status === 'template' ? 'default' : s.status === 'expired' ? 'destructive' : 'secondary'} className="text-[10px] h-4">
-                                {s.status}
+                            {s.status && s.status !== 'template' && (
+                              <Badge
+                                variant={s.status === 'expired' ? 'destructive' : 'default'}
+                                className="text-[10px] h-4"
+                              >
+                                {s.status === 'expired' ? 'expired' : 'office schedule'}
                               </Badge>
                             )}
                           </div>
@@ -218,7 +223,7 @@ const Schedule = () => {
                                 start_time: s.start_time || "",
                                 end_time: s.end_time || "",
                                 office: s.office ? String(s.office) : "",
-                                status: s.status || "default",
+                                status: s.status || "template",
                               });
                               setEditOpen(true);
                             }}
@@ -310,7 +315,7 @@ const Schedule = () => {
                   }
                   className="w-full rounded-md border text-sm px-3 py-2"
                 >
-                  <option value="default">Default</option>
+                  <option value="office_schedule">Office Schedule</option>
                   <option value="template">Template</option>
                   <option value="expired">Expired</option>
                 </select>
@@ -329,24 +334,33 @@ const Schedule = () => {
               <Button
                 onClick={async () => {
                   if (!editingSchedule?.id) return;
-                  await updateSchedule(editingSchedule.id, {
-                    name: editForm.name,
-                    start_time: editForm.start_time,
-                    end_time: editForm.end_time,
-                    status: editForm.status,
-                    office:
-                      editingSchedule.office ??
-                      (selectedOffice ?? undefined),
-                  });
-                  if (selectedOffice) {
-                    const all = await getSchedules();
-                    const filtered = all.filter(
-                      (s) => s.office === selectedOffice
-                    );
-                    setSchedules(filtered);
+                  try {
+                    await updateSchedule(editingSchedule.id, {
+                      name: editForm.name,
+                      start_time: editForm.start_time,
+                      end_time: editForm.end_time,
+                      status: editForm.status,
+                      office:
+                        editingSchedule.office ??
+                        (selectedOffice ?? undefined),
+                    });
+                    if (selectedOffice) {
+                      const all = await getSchedules();
+                      const filtered = all.filter(
+                        (s) => s.office === selectedOffice
+                      );
+                      setSchedules(filtered);
+                    }
+                    setEditOpen(false);
+                    setEditingSchedule(null);
+                    toast.success("Schedule updated successfully");
+                  } catch (error: any) {
+                    const data = error.response?.data;
+                    let errorMessage = "Failed to update schedule";
+                    if (data?.detail) errorMessage = data.detail;
+                    else if (data?.non_field_errors) errorMessage = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : String(data.non_field_errors);
+                    toast.error(errorMessage);
                   }
-                  setEditOpen(false);
-                  setEditingSchedule(null);
                 }}
               >
                 Save Changes
