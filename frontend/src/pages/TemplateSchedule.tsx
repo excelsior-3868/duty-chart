@@ -69,7 +69,7 @@ const TemplateSchedule = () => {
                     end_time: formData.end_time,
                     status: 'template'
                 });
-                toast.success("Schedule template updated successfully");
+                toast.success("Schedule updated successfully");
             } else {
                 await createSchedule({
                     name: formData.name,
@@ -77,7 +77,7 @@ const TemplateSchedule = () => {
                     end_time: formData.end_time,
                     status: 'template'
                 });
-                toast.success("Schedule template created successfully");
+                toast.success("Schedule created successfully");
             }
             setFormData({ name: '', start_time: '', end_time: '' });
             setEditingId(null);
@@ -85,7 +85,7 @@ const TemplateSchedule = () => {
         } catch (error: any) {
             console.error("Save template error:", error.response?.data);
             const data = error.response?.data;
-            let errorMessage = `Failed to ${editingId ? 'update' : 'create'} template`;
+            let errorMessage = `Failed to ${editingId ? 'update' : 'create'} schedule`;
 
             if (data) {
                 if (typeof data === 'string') errorMessage = data;
@@ -134,7 +134,7 @@ const TemplateSchedule = () => {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-primary">Schedule Template</h1>
+                <h1 className="text-2xl font-bold text-[#005a9c]">Schedule Template</h1>
                 <p className="text-muted-foreground">Manage and configure reusable shift templates.</p>
             </div>
 
@@ -143,7 +143,7 @@ const TemplateSchedule = () => {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             {editingId ? <Pencil className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
-                            {editingId ? "Edit Template" : "Create Template"}
+                            {editingId ? "Edit Schedule" : "Create Schedule"}
                         </CardTitle>
                         <CardDescription>Define a new shift timing to be used across offices.</CardDescription>
                     </CardHeader>
@@ -204,7 +204,7 @@ const TemplateSchedule = () => {
                                 className="bg-[hsl(var(--inoc-blue))] hover:bg-[hsl(var(--inoc-blue-dark))] px-10 h-11 transition-all"
                             >
                                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {editingId ? "Update Template" : "Create Template"}
+                                {editingId ? "Update Schedule" : "Create Schedule"}
                             </Button>
                         </div>
                     </CardContent>

@@ -19,12 +19,15 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     /* Nepal Telecom Corporate Colors */
-    --primary: 216 98% 52%; /* #0D6EFD */
+    --primary: 205 100% 31%;
+    /* #005a9c */
     --primary-foreground: 0 0% 98%;
-    --primary-hover: 216 88% 45%; /* #0B5ED7 */
+    --primary-hover: 205 100% 26%;
+    /* Darker #005a9c */
 
     /* Nepal Red Accent */
-    --accent: 0 84% 55%; /* Nepal Red */
+    --accent: 0 84% 55%;
+    /* Nepal Red */
     --accent-foreground: 0 0% 98%;
     --accent-hover: 0 84% 50%;
 
@@ -47,23 +50,24 @@
     /* Border and input */
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 214 100% 40%;
+    --ring: 205 100% 31%;
 
     /* Layout specific */
-    --header-bg: 216 98% 52%; /* #0D6EFD */
+    --header-bg: 205 100% 31%;
+    /* #005a9c */
     --header-foreground: 0 0% 98%;
     --sidebar-bg: 0 0% 98%;
     --sidebar-foreground: 222.2 84% 4.9%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(214 100% 40%), hsl(214 100% 35%));
+    --gradient-primary: linear-gradient(135deg, hsl(205 100% 31%), hsl(205 100% 26%));
     --gradient-accent: linear-gradient(135deg, hsl(0 84% 55%), hsl(0 84% 50%));
-    --gradient-hero: linear-gradient(135deg, hsl(214 100% 40%), hsl(0 84% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(205 100% 31%), hsl(0 84% 55%));
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(214 100% 40% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(214 100% 40% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(214 100% 40% / 0.1);
+    --shadow-sm: 0 1px 2px 0 hsl(205 100% 31% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(205 100% 31% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(205 100% 31% / 0.1);
 
     --radius: 0.5rem;
 
@@ -84,16 +88,23 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Nepal Telecom Branding (Login page) */
-    --nt-primary: 210 100% 30%; /* #004e9a */
-    --nt-primary-hover: 210 100% 35%;
-    --nt-accent: 44 97% 55%; /* #fcbf1e */
-    --nt-bg: 220 20% 97%; /* #f7f8fa */
-    --nt-text: 0 0% 13%; /* #222 */
-    
+    --nt-primary: 205 100% 31%;
+    /* #005a9c */
+    --nt-primary-hover: 205 100% 26%;
+    --nt-accent: 44 97% 55%;
+    /* #fcbf1e */
+    --nt-bg: 220 20% 97%;
+    /* #f7f8fa */
+    --nt-text: 0 0% 13%;
+    /* #222 */
+
     /* Gradient animation colors */
-    --gradient-color-1: 210 100% 30%; /* #004e9a */
-    --gradient-color-2: 210 85% 42%; /* #0a6cc2 */
-    --gradient-color-3: 210 50% 93%; /* #e8f1f9 */
+    --gradient-color-1: 205 100% 31%;
+    /* #005a9c */
+    --gradient-color-2: 205 100% 26%;
+    /* Darker */
+    --gradient-color-3: 210 50% 93%;
+    /* #e8f1f9 */
   }
 
   .dark {
@@ -147,12 +158,11 @@
 
 @layer utilities {
   .gradient-background {
-    background: linear-gradient(-45deg, 
-      hsl(var(--gradient-color-1)), 
-      hsl(var(--gradient-color-2)), 
-      hsl(var(--gradient-color-3)), 
-      hsl(var(--gradient-color-2))
-    );
+    background: linear-gradient(-45deg,
+        hsl(var(--gradient-color-1)),
+        hsl(var(--gradient-color-2)),
+        hsl(var(--gradient-color-3)),
+        hsl(var(--gradient-color-2)));
     background-size: 400% 400%;
     animation: gradientShift 15s ease infinite;
   }
@@ -161,9 +171,11 @@
     0% {
       background-position: 0% 50%;
     }
+
     50% {
       background-position: 100% 50%;
     }
+
     100% {
       background-position: 0% 50%;
     }

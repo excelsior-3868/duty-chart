@@ -256,7 +256,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => logout()}
-                className="cursor-pointer text-red-600 focus:text-red-600"
+                className="cursor-pointer text-primary focus:bg-primary focus:text-primary-foreground"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout

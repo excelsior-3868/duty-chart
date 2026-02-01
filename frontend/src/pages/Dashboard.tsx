@@ -177,7 +177,7 @@ const Dashboard = () => {
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-[#005a9c]">Dashboard</h1>
           <p className="text-muted-foreground">Welcome to Nepal Telecom Duty Chart Management</p>
         </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm self-start md:self-auto">

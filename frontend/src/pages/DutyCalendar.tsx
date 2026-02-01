@@ -425,7 +425,7 @@ const DutyCalendar = () => {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-primary">Duty Calendar</h1>
+                        <h1 className="text-2xl font-bold text-[#005a9c]">Duty Calendar</h1>
                         <p className="text-muted-foreground">Manage events and duty schedules.</p>
                     </div>
 
@@ -448,7 +448,7 @@ const DutyCalendar = () => {
                             </Button>
                         )}
                         {hasPermission('duties.create_chart') && (
-                            <Button className="gap-2 text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowCreateDutyChart(true)}>
+                            <Button className="gap-2 text-xs h-9 bg-[#1F5CA9] hover:bg-[#1a4d8c] text-white" onClick={() => setShowCreateDutyChart(true)}>
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
@@ -466,7 +466,7 @@ const DutyCalendar = () => {
                         {/* Office Selector */}
                         <Popover open={officeOpen} onOpenChange={setOfficeOpen}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="flex-1 min-w-0 justify-between h-9 text-xs bg-[#ef4444] text-white hover:bg-[#dc2626] hover:text-white border-2 border-[#ef4444] transition-colors">
+                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="flex-1 min-w-0 justify-between h-9 text-xs bg-[#1F5CA9] text-white hover:bg-[#1a4d8c] hover:text-white border-2 border-[#1F5CA9] transition-colors">
                                     <span className="truncate">{selectedOfficeId ? offices.find((o) => o.id === Number(selectedOfficeId))?.name : "Select Office"}</span>
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
                                 </Button>
@@ -485,7 +485,7 @@ const DutyCalendar = () => {
                                                 }}
                                                 className={cn(
                                                     "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
-                                                    !selectedOfficeId ? "bg-[#ef4444] text-white data-[selected='true']:bg-[#ef4444] data-[selected='true']:text-white" : "text-slate-700"
+                                                    !selectedOfficeId ? "bg-[#1F5CA9] text-white data-[selected='true']:bg-[#1F5CA9] data-[selected='true']:text-white" : "text-slate-700"
                                                 )}
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", !selectedOfficeId ? "opacity-100" : "opacity-0")} />
@@ -501,7 +501,7 @@ const DutyCalendar = () => {
                                                     }}
                                                     className={cn(
                                                         "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
-                                                        selectedOfficeId === String(office.id) ? "bg-[#ef4444] text-white data-[selected='true']:bg-[#ef4444] data-[selected='true']:text-white" : "text-slate-700"
+                                                        selectedOfficeId === String(office.id) ? "bg-[#1F5CA9] text-white data-[selected='true']:bg-[#1F5CA9] data-[selected='true']:text-white" : "text-slate-700"
                                                     )}
                                                 >
                                                     <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
@@ -681,7 +681,7 @@ const DutyCalendar = () => {
                                                             "text-base font-bold select-none",
                                                             !isCurrentMonth ? "text-slate-400" : "text-slate-900",
                                                             isSaturday && isCurrentMonth ? "text-red-500" : "",
-                                                            isTodayDate ? "text-white bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
+                                                            isTodayDate ? "text-white bg-[#1F5CA9] rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
                                                         )}>
                                                             {dateMode === "BS" ? nd.getDate() : format(date, "d")}
                                                         </span>
@@ -725,7 +725,7 @@ const DutyCalendar = () => {
                                                         <Button
                                                             variant="secondary"
                                                             size="icon"
-                                                            className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-blue-600 text-white hover:bg-blue-700 opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
+                                                            className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-[#1F5CA9] text-white hover:bg-[#1a4d8c] opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
 

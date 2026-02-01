@@ -24,9 +24,15 @@ class UserSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         # Add readable position name if available
         try:
-            data['position_name'] = instance.position.name if getattr(instance, 'position', None) else None
+            data['position_name'] = instance.position.name if instance.position else None
+            data['office_name'] = instance.office.name if instance.office else None
+            data['department_name'] = instance.department.name if instance.department else None
+            data['directorate_name'] = instance.directorate.name if instance.directorate else None
         except Exception:
             data['position_name'] = None
+            data['office_name'] = None
+            data['department_name'] = None
+            data['directorate_name'] = None
         return data
     
     def create(self, validated_data):

@@ -63,6 +63,10 @@ class MeView(APIView):
         except Exception:
             permissions = []
 
+        image_url = None
+        if user.image:
+            image_url = request.build_absolute_uri(user.image.url)
+
         return Response({
             "id": user.id,
             "full_name": full_name,
@@ -70,6 +74,7 @@ class MeView(APIView):
             "employee_id": employee_id,
             "is_staff": user.is_staff,
             "role": role,
+            "image": image_url,
             "office_id": getattr(user, "office_id", None),
             "secondary_offices": secondary_office_ids,
             "permissions": permissions,

@@ -197,7 +197,7 @@ const DutyChartPage: React.FC = () => {
     return (
       <div className="p-6 space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Duty Chart</h1>
+          <h1 className="text-2xl font-bold text-[#005a9c]">Duty Chart</h1>
           <p className="text-muted-foreground">View and manage the weekly duty roster for all offices.</p>
         </div>
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center gap-3 text-destructive">
@@ -211,7 +211,7 @@ const DutyChartPage: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-primary">Duty Chart</h1>
+        <h1 className="text-2xl font-bold text-[#005a9c]">Duty Chart</h1>
         <p className="text-muted-foreground">View and manage the weekly duty roster for all offices.</p>
       </div>
       <CalendarRosterHybrid

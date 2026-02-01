@@ -12,6 +12,7 @@ export interface AuthUser {
   email: string;
   employee_id: string;
   role: string; // "SUPERADMIN", "OFFICE_ADMIN", "USER"
+  image: string | null;
   office_id: number | null;
   secondary_offices: number[];
   permissions: string[];
@@ -21,11 +22,11 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  
+
   // Actions
   refreshUser: () => Promise<void>;
   logout: () => void;
-  
+
   // RBAC Helpers
   hasPermission: (permissionSlug: string) => boolean;
   hasRole: (roleSlug: string) => boolean;
@@ -102,13 +103,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const canManageOffice = (officeId: number): boolean => {
     if (!user) return false;
     if (user.role === 'SUPERADMIN') return true;
-    
+
     // Check if primary office matches
     if (user.office_id === officeId) return true;
-    
+
     // Check secondary offices
     if (user.secondary_offices.includes(officeId)) return true;
-    
+
     return false;
   };
 

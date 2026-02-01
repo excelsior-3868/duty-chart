@@ -193,7 +193,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           office: parseInt(formData.office),
           status: initialSchedule.status || "office_schedule",
         });
-        toast.success("Schedule Template Updated Successfully");
+        toast.success("Schedule Updated Successfully");
       } else {
         await createSchedule({
           name: formData.name,
@@ -202,7 +202,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           office: parseInt(formData.office),
           status: "office_schedule",
         });
-        toast.success("Schedule Template Created Successfully");
+        toast.success("Schedule Created Successfully");
         setFormData({
           name: "",
           start_time: "",
@@ -235,7 +235,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
 
         setErrors(fieldErrors);
       } else {
-        const genericError = "Failed to save schedule template. Please try again.";
+        const genericError = "Failed to save schedule. Please try again.";
         toast.error(genericError);
         setErrors({ general: genericError });
       }
@@ -393,7 +393,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               >
                 {isSubmitting
                   ? mode === "edit" ? "Updating..." : "Creating..."
-                  : mode === "edit" ? "Update Template" : "Create Template"}
+                  : mode === "edit" ? "Update Schedule" : "Create Schedule"}
               </Button>
             </div>
           </form>
@@ -438,7 +438,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               disabled={isSubmitting}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
-              {isSubmitting ? "Saving..." : "Create Template"}
+              {isSubmitting ? "Saving..." : "Create Schedule"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

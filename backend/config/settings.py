@@ -81,6 +81,8 @@ INSTALLED_APPS = [
     'users',
     'org',
     'duties',
+    'otp_service',
+
 ]
 
 MIDDLEWARE = [
@@ -180,6 +182,11 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 
+# NTC OTP Settings
+NTC_OTP_URL = os.environ.get('NTC_OTP_URL')
+NTC_OTP_USER = os.environ.get('NTC_OTP_USER')
+NTC_OTP_PASSWORD = os.environ.get('NTC_OTP_PASSWORD')
+
 # REST Framework settings
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
@@ -187,6 +194,8 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.MultiPartParser",
+        "rest_framework.parsers.FormParser",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",

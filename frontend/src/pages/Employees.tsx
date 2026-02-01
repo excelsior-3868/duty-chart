@@ -444,7 +444,7 @@ const Employees = () => {
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Employees</h1>
+          <h1 className="text-2xl font-bold text-[#005a9c]">Employees</h1>
           <p className="text-muted-foreground">Manage employee records and information</p>
         </div>
       </div>

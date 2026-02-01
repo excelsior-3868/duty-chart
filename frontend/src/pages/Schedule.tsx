@@ -146,7 +146,7 @@ const Schedule = () => {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-primary">Office Schedule</h1>
+        <h1 className="text-2xl font-bold text-[#005a9c]">Office Schedule</h1>
         <p className="text-muted-foreground">Modify shift times and assign personnel for the upcoming week.</p>
       </div>
 
