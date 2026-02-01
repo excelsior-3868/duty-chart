@@ -1051,8 +1051,21 @@ class DutyChartImportView(APIView):
 
         try:
             df = pd.read_excel(file_obj)
+            # Normalize headers
+            df.columns = [str(c).strip() for c in df.columns]
         except Exception as e:
             return Response({"detail": f"Invalid Excel file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 0. Check for required columns
+        required_cols = ["Date", "Employee ID", "Employee Name", "Schedule", "Office"]
+        missing_cols = [c for c in required_cols if c not in df.columns]
+        if missing_cols:
+            return Response({
+                "detail": f"Missing required columns in Excel: {', '.join(missing_cols)}. Please use the provided template."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if df.empty:
+            return Response({"detail": "The uploaded Excel file is empty."}, status=status.HTTP_400_BAD_REQUEST)
 
         office = get_object_or_404(Office, pk=int(office_id))
         
@@ -1232,6 +1245,9 @@ class DutyChartImportView(APIView):
                         created_count += 1
                     except Exception as e:
                         errors.append(f"Row {row_num}: Error: {str(e)}")
+
+                if created_count == 0 and not errors:
+                    errors.append("No valid duty assignments found in the Excel file. Please ensure you have selected or entered employees in the 'Employee ID' or 'Employee Name' columns.")
 
                 if errors:
                     transaction.set_rollback(True)
