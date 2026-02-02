@@ -452,7 +452,7 @@ const DutyCalendar = () => {
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
-                        {canManageSelectedChart && (
+                        {hasPermission('duties.edit_chart') && (
                             <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
                                 <Pencil className="w-3.5 h-3.5" /> Edit Chart
                             </Button>
@@ -484,8 +484,10 @@ const DutyCalendar = () => {
                                                     setOfficeOpen(false);
                                                 }}
                                                 className={cn(
-                                                    "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
-                                                    !selectedOfficeId ? "bg-primary text-white data-[selected='true']:bg-primary data-[selected='true']:text-white" : "text-slate-700"
+                                                    "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                                    !selectedOfficeId
+                                                        ? "bg-primary text-white"
+                                                        : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
                                                 )}
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", !selectedOfficeId ? "opacity-100" : "opacity-0")} />
@@ -500,8 +502,10 @@ const DutyCalendar = () => {
                                                         setOfficeOpen(false);
                                                     }}
                                                     className={cn(
-                                                        "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
-                                                        selectedOfficeId === String(office.id) ? "bg-primary text-white data-[selected='true']:bg-primary data-[selected='true']:text-white" : "text-slate-700"
+                                                        "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                                        selectedOfficeId === String(office.id)
+                                                            ? "bg-primary text-white"
+                                                            : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
                                                     )}
                                                 >
                                                     <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
@@ -692,17 +696,29 @@ const DutyCalendar = () => {
 
                                                     <div className="space-y-1 overflow-y-auto max-h-[90px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                                                         {dayAssignments.map((assignment) => {
-                                                            const shiftColor = getShiftColor(assignment.schedule_id);
+                                                            // Generate distinctive color based on employee name
+                                                            const getUserColor = (name: string) => {
+                                                                let hash = 0;
+                                                                for (let i = 0; i < name.length; i++) {
+                                                                    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                                                                }
+                                                                const index = Math.abs(hash % SHIFT_COLORS.length);
+                                                                return SHIFT_COLORS[index];
+                                                            };
+
+                                                            const userColor = getUserColor(assignment.employee_name || "Unknown");
+
                                                             return selectedScheduleId === "all" ? (
                                                                 <div
                                                                     key={assignment.id}
                                                                     className={cn(
                                                                         "flex items-center p-1 bg-white rounded-md border shadow-sm transition-all hover:shadow-md",
-                                                                        shiftColor.border
+                                                                        userColor.border,
+                                                                        userColor.bg
                                                                     )}
                                                                 >
                                                                     <div className="flex flex-col min-w-0">
-                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", shiftColor.text)}>
+                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", userColor.text)}>
                                                                             {assignment.employee_name}
                                                                         </span>
                                                                     </div>
@@ -710,10 +726,16 @@ const DutyCalendar = () => {
                                                             ) : (
                                                                 <div
                                                                     key={assignment.id}
-                                                                    className="flex items-center p-1 bg-white rounded-md border border-slate-200 shadow-sm transition-all"
+                                                                    className={cn(
+                                                                        "flex items-center p-1 rounded-md border shadow-sm transition-all",
+                                                                        userColor.bg,
+                                                                        userColor.border
+                                                                    )}
                                                                 >
                                                                     <div className="flex flex-col min-w-0">
-                                                                        <span className="text-[10px] font-bold text-slate-800 truncate leading-tight">{assignment.employee_name}</span>
+                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", userColor.text)}>
+                                                                            {assignment.employee_name}
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             );
@@ -820,7 +842,21 @@ const DutyCalendar = () => {
                         }
                     }}
                 />
-                <EditDutyChartModal open={showEditDutyChart} onOpenChange={setShowEditDutyChart} />
+                <EditDutyChartModal
+                    open={showEditDutyChart}
+                    onOpenChange={setShowEditDutyChart}
+                    initialOfficeId={selectedOfficeId}
+                    initialChartId={selectedDutyChartId}
+                    onUpdateSuccess={(updatedChart) => {
+                        if (updatedChart?.office && String(updatedChart.office) !== selectedOfficeId) {
+                            setSelectedOfficeId(String(updatedChart.office));
+                        } else {
+                            // Refresh current view
+                            fetchDutyCharts(selectedDutyChartId);
+                            fetchDuties();
+                        }
+                    }}
+                />
 
                 {showCreateDuty && selectedOfficeId && selectedDutyChartId && createDutyContext && (
                     <CreateDutyModal

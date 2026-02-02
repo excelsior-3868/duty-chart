@@ -19,8 +19,16 @@ export interface User {
 // GET all users (optionally filtered by office)
 export const getUsers = async (officeId?: number): Promise<User[]> => {
   const params = typeof officeId === "number" ? { office: officeId } : {};
-  const res = await api.get<User[]>("/users/", { params });
-  return res.data;
+  // Request a large page size for the dashboard/dropdowns if not specified otherwise
+  // or handle pagination if the API enforces it.
+  const res = await api.get<any>("/users/?page_size=100", { params });
+  if (res.data.results && Array.isArray(res.data.results)) {
+    return res.data.results;
+  }
+  if (Array.isArray(res.data)) {
+    return res.data;
+  }
+  return [];
 };
 
 // GET user by ID

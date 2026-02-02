@@ -41,22 +41,16 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   // },
 
   {
-    title: 'Schedule Management',
-    href: '#schedule-management',
-    icon: 'Clock',
-    permission: 'duties.view_chart',
-    children: [
-      {
-        title: 'Schedule Template',
-        href: ROUTES.TEMPLATE_SCHEDULE,
-        icon: 'ClipboardList'
-      },
-      {
-        title: 'Office Schedule',
-        href: ROUTES.OFFICE_SCHEDULE,
-        icon: 'FileText'
-      }
-    ]
+    title: 'Schedule Template',
+    href: ROUTES.TEMPLATE_SCHEDULE,
+    icon: 'ClipboardList',
+    permission: 'duties.view_chart'
+  },
+  {
+    title: 'Office Schedule',
+    href: ROUTES.OFFICE_SCHEDULE,
+    icon: 'FileText',
+    permission: 'duties.view_chart'
   },
   {
     title: 'Duty Calendar',
@@ -208,30 +202,6 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
           })}
         </nav>
 
-        {/* Quick Stats Section */}
-        <div className="mt-8 space-y-4">
-          <h4 className="text-sm font-medium text-muted-foreground px-3">Quick Stats</h4>
-          <div className="space-y-3">
-            <div className="rounded-lg bg-primary/5 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Active Duties</span>
-                <span className="text-lg font-bold text-primary">24</span>
-              </div>
-            </div>
-            <div className="rounded-lg bg-accent/5 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">On Leave</span>
-                <span className="text-lg font-bold text-accent">3</span>
-              </div>
-            </div>
-            <div className="rounded-lg bg-success/5 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Completed</span>
-                <span className="text-lg font-bold text-success">156</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
       </ScrollArea>
 

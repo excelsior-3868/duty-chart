@@ -157,12 +157,35 @@ const Dashboard = () => {
       const userObj = userById.get(d.user);
       const fullName = userObj?.full_name || d.user_name || "Unknown";
       const phone = userObj?.phone_number || null;
+
+      // --- Time Check Logic ---
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      let isActive = false;
+      if (d.start_time && d.end_time) {
+        const parseTime = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          return h * 60 + m;
+        };
+        const start = parseTime(d.start_time);
+        const end = parseTime(d.end_time);
+
+        if (start <= end) {
+          // Normal shift (e.g., 09:00 to 17:00)
+          isActive = currentMinutes >= start && currentMinutes <= end;
+        } else {
+          // Night shift crossing midnight (e.g., 22:00 to 06:00)
+          isActive = currentMinutes >= start || currentMinutes <= end;
+        }
+      }
+
       const row: NowRow = {
         id: d.id,
         full_name: fullName,
         phone_number: phone,
         schedule_name: d.schedule_name || null,
-        currently_available: !!d.currently_available,
+        currently_available: isActive,
       };
 
       if (!groups.has(officeId)) {

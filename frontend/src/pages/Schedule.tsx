@@ -373,7 +373,7 @@ const Schedule = () => {
 
 
 
-      {/* Section 4: Assignment Management (Merged Add & Bulk) */}
+      {/* Section 4: Assignment Management (Merged Add & Bulk) - HIDDEN AS PER USER REQUEST
       {canCreateSchedule && (
         <Card>
           <CardHeader>
@@ -424,6 +424,7 @@ const Schedule = () => {
           </CardContent>
         </Card>
       )}
+      */}
 
 
     </div>

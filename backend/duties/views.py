@@ -1044,6 +1044,7 @@ class DutyChartImportView(APIView):
         effective_date_str = request.data.get("effective_date")
         end_date_str = request.data.get("end_date")
         schedule_ids = request.data.getlist("schedule_ids")
+        chart_id = request.data.get("chart_id")
         dry_run = request.data.get("dry_run", "false").lower() == "true"
 
         if not (file_obj and office_id and effective_date_str):
@@ -1076,20 +1077,28 @@ class DutyChartImportView(APIView):
         eff_date = parse_date(effective_date_str)
         en_date = parse_date(end_date_str) if end_date_str else None
 
-        # 1. Duty Chart Duplicate Check (Same Office + Dates + Overlapping Shifts)
-        existing_charts = DutyChart.objects.filter(
-            office=office,
-            effective_date=eff_date,
-            end_date=en_date
-        )
-        if schedule_ids:
-            target_schedules = [int(sid) for sid in schedule_ids]
-            for ec in existing_charts:
-                overlap = ec.schedules.filter(id__in=target_schedules).first()
-                if overlap:
-                    return Response({
-                        "detail": f"A Duty Chart already exists for '{office.name}' from {eff_date} to {en_date or 'Open'} that already includes the shift '{overlap.name}'."
-                    }, status=status.HTTP_400_BAD_REQUEST)
+        # 1. Duty Chart Duplicate/Retrieve Logic
+        chart = None
+        if chart_id:
+            chart = get_object_or_404(DutyChart, pk=int(chart_id))
+            # Optional: Verify office matches
+            if chart.office_id != int(office_id):
+                return Response({"detail": "Office mismatch for provided Duty Chart ID."}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Check for overlaps only when creating a NEW chart
+            existing_charts = DutyChart.objects.filter(
+                office=office,
+                effective_date=eff_date,
+                end_date=en_date
+            )
+            if schedule_ids:
+                target_schedules = [int(sid) for sid in schedule_ids]
+                for ec in existing_charts:
+                    overlap = ec.schedules.filter(id__in=target_schedules).first()
+                    if overlap:
+                        return Response({
+                            "detail": f"A Duty Chart already exists for '{office.name}' from {eff_date} to {en_date or 'Open'} that already includes the shift '{overlap.name}'."
+                        }, status=status.HTTP_400_BAD_REQUEST)
 
         created_count = 0
         errors = []
@@ -1097,15 +1106,29 @@ class DutyChartImportView(APIView):
 
         try:
             with transaction.atomic():
-                # Create Duty Chart
-                chart = DutyChart.objects.create(
-                    office=office,
-                    name=name,
-                    effective_date=eff_date,
-                    end_date=en_date
-                )
-                if schedule_ids:
-                    chart.schedules.set([int(sid) for sid in schedule_ids])
+                # Create Duty Chart if not provided
+                if not chart:
+                    chart = DutyChart.objects.create(
+                        office=office,
+                        name=name,
+                        effective_date=eff_date,
+                        end_date=en_date
+                    )
+                    if schedule_ids:
+                        chart.schedules.set([int(sid) for sid in schedule_ids])
+                else:
+                    # Update metadata for existing chart
+                    if name: chart.name = name
+                    if eff_date: chart.effective_date = eff_date
+                    chart.office = office
+                    # Always update end_date (allows clearing it)
+                    chart.end_date = en_date
+                    chart.save()
+
+                    # If appending, ensure schedules provided are ADDED to the chart
+                    if schedule_ids:
+                        new_sids = [int(sid) for sid in schedule_ids]
+                        chart.schedules.add(*new_sids)
 
                 # 2. Parse Rows and Create Duties
                 today = datetime.date.today()

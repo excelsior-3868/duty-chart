@@ -1,20 +1,40 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { getDutyCharts, getDutyChartById, patchDutyChart, DutyChart as DutyChartDTO } from "@/services/dutichart";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { getDutyCharts, getDutyChartById, patchDutyChart, downloadImportTemplate, importDutyChartExcel, DutyChart as DutyChartDTO } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
-import { Building2, Calendar as CalendarIcon, Check } from "lucide-react";
+import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EditDutyChartModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialOfficeId?: string;
+  initialChartId?: string;
+  onUpdateSuccess?: (updatedChart?: Partial<DutyChartDTO>) => void;
 }
 
-export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, onOpenChange }) => {
+export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
+  open,
+  onOpenChange,
+  initialOfficeId,
+  initialChartId,
+  onUpdateSuccess
+}) => {
   const [charts, setCharts] = useState<DutyChartDTO[]>([]);
   const [selectedChartId, setSelectedChartId] = useState<string>("");
   const [offices, setOffices] = useState<Office[]>([]);
@@ -33,6 +53,23 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dateMode, setDateMode] = useState<"AD" | "BS">("BS");
 
+  // Excel Import State
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [previewStats, setPreviewStats] = useState({ total: 0 });
+
+  // Confirmation for manual update (no excel)
+  const [showManualConfirm, setShowManualConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!importFile && fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [importFile]);
+
   useEffect(() => {
     if (!open) return;
     const load = async () => {
@@ -41,12 +78,34 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
         setOffices(officesRes);
         setCharts([]);
         setSelectedChartId("");
+        setFormData({
+          name: "",
+          effective_date: "",
+          end_date: "",
+          office: "",
+          scheduleIds: [],
+        });
       } catch (e) {
         console.error("Failed to load offices:", e);
       }
     };
     load();
-  }, [open]);
+
+    if (initialOfficeId) {
+      setFormData(prev => ({ ...prev, office: initialOfficeId }));
+    }
+    if (initialChartId) {
+      setSelectedChartId(initialChartId);
+    }
+
+    // Clear state on close
+    if (!open) {
+      setImportFile(null);
+      setShowPreview(false);
+      setShowManualConfirm(false);
+      setErrors({});
+    }
+  }, [open, initialOfficeId, initialChartId]);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -92,8 +151,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
         console.error("Failed to fetch schedules:", e);
       }
     };
-    fetchByOffice();
-  }, [formData.office]);
+    if (open) fetchByOffice();
+  }, [formData.office, open]);
 
   const availableSchedules = useMemo(() => {
     const uniqueMap = new Map<string, Schedule>();
@@ -111,7 +170,12 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
         }
       }
     });
-    return Array.from(uniqueMap.values());
+
+    // FILTER: "Dont show Template in the Shifts" (shifs where office is null)
+    return Array.from(uniqueMap.values()).filter(s => {
+      const isTemplate = !s.office;
+      return !isTemplate;
+    });
   }, [schedules, formData.scheduleIds]);
 
   const handleInputChange = (field: string, value: string | string[]) => {
@@ -127,12 +191,122 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
     });
   };
 
+  const handleDownloadTemplate = async () => {
+    if (!formData.office || !formData.effective_date || !formData.end_date || formData.scheduleIds.length === 0) {
+      toast.error("Please select Office, Dates, and at least one Shift first.");
+      return;
+    }
+
+    setIsDownloadingTemplate(true);
+    try {
+      // EXCLUDE existing shifts from the template
+      const initialSchedules = (initialChart?.schedules || []).map(String);
+      const newScheduleIds = formData.scheduleIds.filter(id => !initialSchedules.includes(id));
+
+      if (newScheduleIds.length === 0) {
+        toast.error("All selected shifts are already in this chart. Please select at least one new shift to download a template.");
+        setIsDownloadingTemplate(false);
+        return;
+      }
+
+      await downloadImportTemplate({
+        office_id: parseInt(formData.office),
+        start_date: formData.effective_date,
+        end_date: formData.end_date,
+        schedule_ids: newScheduleIds.map(id => parseInt(id))
+      });
+      toast.success("Template download started");
+    } catch (error) {
+      console.error("Failed to download template:", error);
+      toast.error("Failed to download template");
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImportFile(e.target.files[0]);
+    }
+  };
+
+  const processImport = async (isDryRun: boolean) => {
+    if (!selectedChartId || !importFile) return;
+    setIsSubmitting(true);
+    try {
+      const formDataPayload = new FormData();
+      formDataPayload.append("file", importFile);
+      formDataPayload.append("office", formData.office);
+      formDataPayload.append("name", formData.name);
+      formDataPayload.append("effective_date", formData.effective_date);
+      if (formData.end_date) formDataPayload.append("end_date", formData.end_date);
+      formData.scheduleIds.forEach((id) => formDataPayload.append("schedule_ids", id));
+      formDataPayload.append("chart_id", selectedChartId);
+      if (isDryRun) formDataPayload.append("dry_run", "true");
+
+      const response = await importDutyChartExcel(formDataPayload);
+
+      if (isDryRun) {
+        setPreviewData(response.preview_data || []);
+        setPreviewStats({ total: response.created_duties });
+        setShowPreview(true);
+        return;
+      }
+
+      toast.success("Duties Imported Successfully");
+      setImportFile(null);
+      setShowPreview(false);
+      onOpenChange(false);
+      onUpdateSuccess?.({
+        id: parseInt(selectedChartId),
+        office: parseInt(formData.office),
+        effective_date: formData.effective_date
+      });
+    } catch (error: any) {
+      setImportFile(null);
+      console.error("Failed to import:", error);
+      const data = error.response?.data;
+      if (data?.errors && Array.isArray(data.errors)) {
+        // limit to first 5 errors to avoid huge toasts
+        const displayErrors = data.errors.slice(0, 5);
+        if (data.errors.length > 5) displayErrors.push(`...and ${data.errors.length - 5} more errors.`);
+
+        toast.error("Validation Failed", {
+          description: (
+            <div className="flex flex-col gap-1 mt-1 text-xs">
+              {displayErrors.map((err: string, i: number) => (
+                <span key={i}>{err}</span>
+              ))}
+            </div>
+          ),
+          duration: 5000,
+        });
+      } else {
+        const msg = data?.detail || "Import failed. Please check the Excel file and try again.";
+        toast.error(msg);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedChartId) {
       setErrors(prev => ({ ...prev, general: "Select a duty chart to edit." }));
       return;
     }
+
+    if (importFile) {
+      await processImport(true);
+      return;
+    }
+
+    setShowManualConfirm(true);
+  };
+
+  const processManualUpdate = async () => {
+    if (!selectedChartId) return;
     setIsSubmitting(true);
     setErrors({});
     try {
@@ -143,9 +317,10 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
         office: formData.office ? parseInt(formData.office) : undefined,
         schedules: formData.scheduleIds.map(id => parseInt(id)),
       };
-      await patchDutyChart(parseInt(selectedChartId), payload);
+      const updatedChart = await patchDutyChart(parseInt(selectedChartId), payload);
       toast.success("Duty Chart updated successfully");
       onOpenChange(false);
+      onUpdateSuccess?.(updatedChart);
     } catch (error: any) {
       console.error("Failed to update duty chart:", error);
       if (error.response?.data) {
@@ -164,178 +339,412 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
     }
   };
 
-  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--blue-200))] focus:border-[hsl(var(--inoc-blue))]";
+  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const labelClass = "text-sm font-medium text-[hsl(var(--title))]";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px]">
-        <DialogHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mr-6">
-            <div>
-              <DialogTitle>Edit Duty Chart</DialogTitle>
-              <DialogDescription>Select a duty chart and update its details.</DialogDescription>
-            </div>
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setDateMode("BS")}
-                className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "BS" ? "bg-white shadow-sm text-orange-600" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                BS (Nepali)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDateMode("AD")}
-                className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
-              >
-                AD (Gregorian)
-              </button>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <form id="edit-duty-chart-form" onSubmit={handleSubmit} className="space-y-4">
-          {errors.general && (
-            <div className="mb-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{errors.general}</div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Office</label>
-              <div className="relative">
-                <select
-                  value={formData.office}
-                  onChange={(e) => handleInputChange("office", e.target.value)}
-                  className={inputClass}
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[95vw] sm:max-w-[90vw] md:max-w-3xl overflow-hidden p-0">
+          <DialogHeader className="p-6 pb-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mr-6">
+              <div>
+                <DialogTitle>Edit Duty Chart</DialogTitle>
+                <DialogDescription>
+                  Select a duty chart and update its details.
+                </DialogDescription>
+              </div>
+              <div className="flex bg-gray-100 p-1 rounded-lg self-start">
+                <button
+                  type="button"
+                  onClick={() => setDateMode("BS")}
+                  className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "BS" ? "bg-white shadow-sm text-orange-600" : "text-gray-500 hover:text-gray-700"}`}
                 >
-                  <option value="">Select Office</option>
-                  {offices.map((office) => (
-                    <option key={office.id} value={office.id}>{office.name}</option>
-                  ))}
-                </select>
-                <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--gray-500))]" />
+                  BS (Nepali)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateMode("AD")}
+                  className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  AD (Gregorian)
+                </button>
               </div>
             </div>
+          </DialogHeader>
 
-            <div>
-              <label className={labelClass}>Duty Chart</label>
-              <select
-                value={selectedChartId}
-                onChange={(e) => setSelectedChartId(e.target.value)}
-                className={inputClass}
-                disabled={!formData.office}
-              >
-                <option value="">Select Duty Chart</option>
-                {charts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name || `Duty Chart ${c.id}`}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <div className="max-h-[75vh] overflow-y-auto px-6 py-4">
+            <section className="bg-[hsl(var(--card-bg))] rounded-lg shadow-md p-6">
+              <form id="edit-duty-chart-form" onSubmit={handleSubmit} className="space-y-4 relative">
+                {errors.general && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
+                    {errors.general}
+                  </div>
+                )}
 
-          <div>
-            <label className={labelClass}>Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleInputChange("name", e.target.value)}
-              className={inputClass}
-              disabled={!formData.office}
-              placeholder="e.g., Rotation Name"
-            />
-          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Office *</label>
+                    <Select
+                      value={formData.office}
+                      onValueChange={(val) => handleInputChange("office", val)}
+                    >
+                      <SelectTrigger className={inputClass}>
+                        <SelectValue placeholder="Select Office" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {offices.map((office) => (
+                          <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className={labelClass}>Effective Date</label>
-              {dateMode === "AD" ? (
-                <GregorianDatePicker
-                  value={formData.effective_date}
-                  onChange={(val) => handleInputChange("effective_date", val)}
-                />
-              ) : (
-                <NepaliDatePicker
-                  value={formData.effective_date}
-                  onChange={(val) => handleInputChange("effective_date", val)}
-                />
-              )}
-            </div>
+                  <div>
+                    <label className={labelClass}>Duty Chart *</label>
+                    <Select
+                      value={selectedChartId}
+                      onValueChange={(val) => setSelectedChartId(val)}
+                      disabled={!formData.office}
+                    >
+                      <SelectTrigger className={inputClass}>
+                        <SelectValue placeholder={formData.office ? "Select a chart to edit" : "Select Office first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {charts.map((chart) => (
+                          <SelectItem key={chart.id} value={String(chart.id)}>{chart.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            <div className="space-y-1">
-              <label className={labelClass}>End Date</label>
-              {dateMode === "AD" ? (
-                <GregorianDatePicker
-                  value={formData.end_date}
-                  onChange={(val) => handleInputChange("end_date", val)}
-                />
-              ) : (
-                <NepaliDatePicker
-                  value={formData.end_date}
-                  onChange={(val) => handleInputChange("end_date", val)}
-                />
-              )}
-            </div>
-          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className={labelClass}>Effective Date *</label>
+                    {dateMode === "AD" ? (
+                      <GregorianDatePicker
+                        value={formData.effective_date}
+                        onChange={(val) => handleInputChange("effective_date", val)}
+                      />
+                    ) : (
+                      <NepaliDatePicker
+                        value={formData.effective_date}
+                        onChange={(val) => handleInputChange("effective_date", val)}
+                      />
+                    )}
+                  </div>
 
-          {selectedChartId && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <label className={labelClass}>Shifts (Schedules)</label>
+                  <div className="space-y-1">
+                    <label className={labelClass}>End Date</label>
+                    {dateMode === "AD" ? (
+                      <GregorianDatePicker
+                        value={formData.end_date}
+                        onChange={(val) => handleInputChange("end_date", val)}
+                      />
+                    ) : (
+                      <NepaliDatePicker
+                        value={formData.end_date}
+                        onChange={(val) => handleInputChange("end_date", val)}
+                      />
+                    )}
+                  </div>
+                </div>
 
-              </div>
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {availableSchedules.map((s) => {
-                    const selected = formData.scheduleIds.includes(String(s.id));
-                    return (
+                {selectedChartId && (
+                  <div>
+                    <label className={labelClass}>Shifts (from Schedules)</label>
+                    <div className="relative space-y-2 mt-2">
+                      {availableSchedules.length === 0 ? (
+                        <div className="text-xs text-muted-foreground py-2 italic border border-dashed rounded-md text-center">
+                          All available shifts are already included in this chart.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {availableSchedules.map((s) => {
+                            const selected = formData.scheduleIds.includes(String(s.id));
+                            const isExisting = (initialChart?.schedules || []).map(String).includes(String(s.id));
+
+                            return (
+                              <button
+                                type="button"
+                                key={s.id}
+                                onClick={() => !isExisting && toggleSchedule(String(s.id))}
+                                disabled={isExisting}
+                                className={`flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors ${selected
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-[hsl(var(--gray-300))] hover:border-primary/50 hover:bg-[hsl(var(--card))]"
+                                  } ${isExisting ? "opacity-70 cursor-not-allowed bg-slate-50" : ""}`}
+                                title={isExisting ? "Existing shifts cannot be removed" : ""}
+                              >
+                                <span>{s.name} – {s.start_time} to {s.end_time}</span>
+                                {selected && <Check className={`h-3 w-3 ${isExisting ? "text-primary/50" : "text-primary"}`} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedChartId && (
+                  <div className="border-t border-[hsl(var(--gray-200))] pt-6 mt-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-[hsl(var(--title))] flex items-center gap-2">
+                          <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                          Excel Import (Optional)
+                        </h3>
+                        <p className="text-xs text-[hsl(var(--muted-text))]">
+                          Download a template pre-filled with your selections, assign users, and upload.
+                        </p>
+                      </div>
                       <button
                         type="button"
-                        key={s.id}
-                        onClick={() => toggleSchedule(String(s.id))}
-                        className={`flex items-center justify-between px-3 py-2 rounded-md border text-left text-sm transition-all ${selected
-                          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20"
-                          : "border-[hsl(var(--gray-300))] hover:border-primary/50 hover:bg-slate-50"
-                          }`}
+                        disabled={isDownloadingTemplate || !formData.office || !formData.effective_date || !formData.end_date || formData.scheduleIds.length === 0}
+                        onClick={handleDownloadTemplate}
+                        className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                       >
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="font-semibold">{s.name}</span>
-                          <span className="text-[10px] opacity-80">
-                            {s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!s.office && (
-                            <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${selected ? "bg-primary/20 text-primary" : "bg-orange-100 text-orange-600"
-                                }`}
-                            >
-                              Template
-                            </span>
-                          )}
-                          {selected && <Check className="h-4 w-4" />}
-                        </div>
+                        {isDownloadingTemplate ? "Generating..." : "Download Template"}
+                        <Download className="h-3 w-3" />
                       </button>
-                    );
-                  })}
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="relative group cursor-pointer block">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".xlsx, .xls"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                        <div className={`flex items-center justify-center gap-3 p-4 rounded-lg border-2 border-dashed transition-all ${importFile
+                          ? "border-green-500 bg-green-50"
+                          : "border-[hsl(var(--gray-300))] hover:border-[hsl(var(--inoc-blue))] hover:bg-slate-50"
+                          }`}>
+                          <Upload className={`h-5 w-5 ${importFile ? "text-green-600" : "text-[hsl(var(--gray-400))]"}`} />
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-[hsl(var(--title))]">
+                              {importFile ? importFile.name : "Select filled Excel file"}
+                            </p>
+                            <p className="text-xs text-[hsl(var(--muted-text))]">
+                              {importFile ? "File selected - Click Update to import" : "Click to browse or drag and drop"}
+                            </p>
+                          </div>
+                          {importFile && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); setImportFile(null); }}
+                              className="ml-auto text-xs text-red-500 hover:text-red-700 font-medium"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </form>
+            </section >
+          </div >
+
+          <DialogFooter className="p-6 pt-0 gap-2">
+            <button
+              type="submit"
+              form="edit-duty-chart-form"
+              disabled={isSubmitting}
+              className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating...
+                </div>
+              ) : (
+                "Update"
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent >
+      </Dialog >
+
+      {/* Import Preview Modal */}
+      < Dialog open={showPreview} onOpenChange={setShowPreview} >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <FileSpreadsheet className="h-5 w-5 text-green-600" />
+              Import Preview (Appending to {formData.name})
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto my-4 py-2">
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-primary/90">
+                  Ready to append {previewStats.total} duty assignments.
+                </p>
+                <p className="text-xs text-primary/70">
+                  Please review the details below. Assignments will be added to the existing duty chart.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-16">Row</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Shift</TableHead>
+                    <TableHead>Time</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previewData.map((duty, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium text-muted-foreground">{duty.row}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-orange-700">{duty.nepali_date}</span>
+                          <span className="text-xs text-muted-foreground">{duty.date}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{duty.employee_name}</span>
+                          <span className="text-xs text-muted-foreground">ID: {duty.employee_id}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-medium">
+                          {duty.schedule}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{duty.time}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreview(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => processImport(false)}
+              disabled={isSubmitting}
+              className="bg-primary hover:bg-primary-hover"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                "Confirm & Finalize Import"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog >
+      {/* Manual Update Confirmation Dialog */}
+      < Dialog open={showManualConfirm} onOpenChange={setShowManualConfirm} >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-primary" />
+              Confirm Duty Chart Update
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-slate-50 p-4 rounded-lg space-y-3">
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Office:</span>
+                <span className="col-span-2 font-medium">{offices.find(o => String(o.id) === formData.office)?.name}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Roster Name:</span>
+                <span className="col-span-2 font-medium">{formData.name}</span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Period:</span>
+                <span className="col-span-2 font-medium">
+                  {formData.effective_date} to {formData.end_date || "Open-ended"}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Excel Import:</span>
+                <span className="col-span-2 font-medium text-orange-600">
+                  Excel File not selected
+                </span>
+              </div>
+              <div className="pt-2">
+                <span className="text-xs text-muted-foreground block mb-2">Newly Added Shifts:</span>
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const initialIds = (initialChart?.schedules || []).map(String);
+                    const newIds = formData.scheduleIds.filter(id => !initialIds.includes(id));
+
+                    if (newIds.length === 0) {
+                      return <span className="text-sm italic text-muted-foreground">No new shifts added</span>;
+                    }
+
+                    return newIds.map(id => {
+                      const s = schedules.find(sch => String(sch.id) === id);
+                      return s ? (
+                        <Badge key={id} variant="secondary" className="font-normal border-green-200 bg-green-50 text-green-700">
+                          {s.name}
+                        </Badge>
+                      ) : null;
+                    });
+                  })()}
                 </div>
               </div>
             </div>
-          )}
-        </form>
+            <p className="text-xs text-muted-foreground">
+              You are updating the duty chart details without importing new assignments. Existing duties will remain unchanged.
+            </p>
+          </div>
 
-        <DialogFooter>
-          <button
-            type="submit"
-            form="edit-duty-chart-form"
-            disabled={isSubmitting}
-            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? "Saving..." : "Edit Duty Chart"}
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowManualConfirm(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={(e) => { e.preventDefault(); processManualUpdate(); }}
+              disabled={isSubmitting}
+              className="bg-primary hover:bg-primary-hover"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Yes, Update"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog >
+    </>
   );
 };
 

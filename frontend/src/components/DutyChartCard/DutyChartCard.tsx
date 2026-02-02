@@ -2,6 +2,13 @@ import { createDutyChart, type DutyChart as DutyChartDTO, downloadImportTemplate
 import { toast } from "sonner";
 import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import NepaliDate from "nepali-date-converter";
@@ -339,19 +346,19 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Office *</label>
-            <div className="relative">
-              <select
-                value={formData.office}
-                onChange={(e) => handleInputChange("office", e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Select Office</option>
+            <Select
+              value={formData.office}
+              onValueChange={(val) => handleInputChange("office", val)}
+            >
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="Select Office" />
+              </SelectTrigger>
+              <SelectContent>
                 {offices.map((office) => (
-                  <option key={office.id} value={office.id}>{office.name}</option>
+                  <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
                 ))}
-              </select>
-              <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(var(--gray-500))]" />
-            </div>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -617,13 +624,19 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                   {formData.effective_date} to {formData.end_date || "Open-ended"}
                 </span>
               </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Excel Import:</span>
+                <span className="col-span-2 font-medium text-orange-600">
+                  Excel File not selected
+                </span>
+              </div>
               <div className="pt-2">
                 <span className="text-xs text-muted-foreground block mb-2">Selected Shifts:</span>
                 <div className="flex flex-wrap gap-2">
                   {formData.shiftIds.map(id => {
                     const s = schedules.find(sch => String(sch.id) === id);
                     return s ? (
-                      <Badge key={id} variant="secondary" className="font-normal">
+                      <Badge key={id} variant="secondary" className="font-normal border-green-200 bg-green-50 text-green-700">
                         {s.name}
                       </Badge>
                     ) : null;

@@ -69,6 +69,9 @@ def send_otp_ntc(phone):
             return False, None, error_msg
         
     except Exception as e:
+        if settings.DEBUG:
+            print(f"DEBUG: NTC Gateway unreachable ({e}). Returning MOCK OTP since DEBUG=True.")
+            return True, {"otp": "1234", "seq_no": "MOCK_SEQ_123"}, None
         return False, None, str(e)
 
 def validate_otp_ntc(seq_no, otp, phone=None):
@@ -88,6 +91,11 @@ def validate_otp_ntc(seq_no, otp, phone=None):
     print(f"DEBUG: Payload sent to NTC Validate: {json.dumps(payload)}")
     
     try:
+        if settings.DEBUG and seq_no == "MOCK_SEQ_123":
+            if otp == "1234":
+                return True, "Success (Mock)"
+            return False, "Invalid Mock OTP"
+
         response = requests.post(url, json=payload, timeout=5)
         data = response.json()
         
@@ -106,6 +114,8 @@ def validate_otp_ntc(seq_no, otp, phone=None):
             return False, f"Gateway Error: {error_detail or json.dumps(data)}"
             
     except Exception as e:
+        if settings.DEBUG and seq_no == "MOCK_SEQ_123":
+             return True, "Success (Mock Fallback)"
         return False, str(e)
 
 

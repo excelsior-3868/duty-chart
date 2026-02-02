@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserCard, UserData } from "@/components/UserCard";
-import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2 } from 'lucide-react';
+import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw } from 'lucide-react';
 import { toast } from "sonner";
 import { createUser } from "@/services/users";
 import { getPositions, type Position as PositionType } from "@/services/positions";
@@ -15,6 +15,14 @@ import { getDepartments, type Department } from "@/services/departments";
 import { getOffices, type Office } from "@/services/offices";
 import api from "@/services/api";
 import { Protect } from "@/components/auth/Protect";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const Employees = () => {
   const employees: UserData[] = [
@@ -94,35 +102,75 @@ const Employees = () => {
   // -------- Professional Table State --------
   const [employeesList, setEmployeesList] = useState<any[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
   const [roles, setRoles] = useState<Array<{ id: number; slug: string; name: string }>>([]);
   const [rolePermsPreview, setRolePermsPreview] = useState<string[]>([]);
+
+  // Pagination & Search
   const [nameQuery, setNameQuery] = useState("");
-  const filteredEmployees = useMemo(() => {
-    const q = nameQuery.trim().toLowerCase();
-    if (!q) return employeesList;
-    return (employeesList || []).filter((emp) => {
-      const name = emp.full_name || emp.username || "";
-      return String(name).toLowerCase().includes(q);
-    });
-  }, [employeesList, nameQuery]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 15;
 
   // Fetch employees from backend
-  async function fetchEmployees() {
+  async function fetchEmployees(page = 1, query = "") {
     setLoadingEmployees(true);
     try {
-      const res = await api.get("/users/?page_size=1000");
-      const list = Array.isArray(res.data) ? res.data : (res.data.results || res.data);
-      setEmployeesList(list || []);
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", String(page));
+      queryParams.append("page_size", String(PAGE_SIZE));
+      if (query) queryParams.append("search", query);
+
+      const res = await api.get(`/users/?${queryParams.toString()}`);
+
+      // Handle paginated response
+      if (res.data.results) {
+        setEmployeesList(res.data.results);
+        setTotalCount(res.data.count);
+        setTotalPages(Math.ceil(res.data.count / PAGE_SIZE));
+      } else if (Array.isArray(res.data)) {
+        // Fallback if backend sends list
+        setEmployeesList(res.data);
+        setTotalCount(res.data.length);
+        setTotalPages(1);
+      } else {
+        setEmployeesList([]);
+      }
     } catch (err) {
       console.error("Failed to load employees", err);
       toast.error("Failed to load employees from backend.");
+      setEmployeesList([]);
     } finally {
       setLoadingEmployees(false);
     }
   }
+
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Debounce the search query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(nameQuery);
+      // Reset page to 1 when query actually changes
+      if (nameQuery !== debouncedQuery) {
+        setCurrentPage(1);
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [nameQuery]);
+
+  // Fetch when page or debounced query changes
+  useEffect(() => {
+    fetchEmployees(currentPage, debouncedQuery);
+  }, [currentPage, debouncedQuery]);
 
   // Helper to get ID from nested object or raw ID
   function getIdFromField(field: any): number | null {
@@ -265,7 +313,7 @@ const Employees = () => {
       }
     }
     loadOrg();
-    fetchEmployees();
+    // fetchEmployees call is handled by useEffect on mount/page change
   }, []);
 
   useEffect(() => {
@@ -389,13 +437,16 @@ const Employees = () => {
       toast.error("Select designation / position.");
       return;
     }
-    if (!generatedPassword) {
-      toast.error("Generate a temporary password.");
-      return;
-    }
 
     setSubmitting(true);
     try {
+      // Generate a random password since UI is removed
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+      let autoPassword = "";
+      for (let i = 0; i < 14; i++) {
+        autoPassword += chars[Math.floor(Math.random() * chars.length)];
+      }
+
       // Backend model labels: full_name, employee_id, phone_number, directorate, department, office, position (optional)
       const payload: any = {
         full_name: fullName,
@@ -408,7 +459,9 @@ const Employees = () => {
         office: selectedOffice,
         position: selectedPosition,
         is_active: true,
-        password: generatedPassword,
+        position: selectedPosition,
+        is_active: true,
+        password: autoPassword,
       };
 
       if (selectedSecondaryOffice) {
@@ -427,9 +480,11 @@ const Employees = () => {
       setSelectedDepartment(null);
       setSelectedOffice(null);
       setSelectedSecondaryOffice(null);
+      setSelectedSecondaryOffice(null);
       setGeneratedPassword("");
       setShowPassword(false);
       setRevealedOnce(false);
+      setCreateModalOpen(false);
     } catch (err: any) {
       console.error(err);
       const msg = err?.response?.data?.detail || "Failed to create employee.";
@@ -447,217 +502,158 @@ const Employees = () => {
           <h1 className="text-2xl font-bold text-primary">Employees</h1>
           <p className="text-muted-foreground">Manage employee records and information</p>
         </div>
+        <div>
+          <Protect permission="users.create_employee">
+            <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
+              <Users className="h-4 w-4" /> Add Employee
+            </Button>
+          </Protect>
+        </div>
       </div>
 
-      {/* Add Employee Card */}
-      <Protect permission="users.create_employee">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              Add Employee
-            </CardTitle>
-            <CardDescription>
+      {/* Create Employee Modal */}
+      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Employee</DialogTitle>
+            <DialogDescription>
               Create New User and Generate a One-time Password.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Mini steps / hints */}
-            <div className="grid gap-6 md:grid-cols-3">
-              {/* Step 1: Identity */}
-              <div className="space-y-3">
-                <div className="text-sm font-medium">Step 1: Identity</div>
-                <div className="space-y-2">
-                  <Label htmlFor="full_name">Full Name</Label>
-                  <Input id="full_name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Ram Sharma" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="employee_id">Employee ID</Label>
-                  <Input id="employee_id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="e.g. 7816" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@ntc.net.np" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+977-98XXXXXXXX" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Designation / Position</Label>
-                  <Select value={selectedPosition ? String(selectedPosition) : undefined} onValueChange={(v) => setSelectedPosition(Number(v))} disabled={!selectedOffice}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {positions.length === 0 ? (
-                        <SelectItem value="no-positions" disabled>No positions found</SelectItem>
-                      ) : (
-                        positions.map((p) => (
-                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+            </DialogDescription>
+          </DialogHeader>
 
-              {/* Step 2: Organization placement */}
-              <div className="space-y-3">
-                <div className="text-sm font-medium">Step 2: Organization</div>
-                <div className="space-y-2">
-                  <Label>Directorate</Label>
-                  <Select value={selectedDirectorate ? String(selectedDirectorate) : undefined} onValueChange={(v) => setSelectedDirectorate(Number(v))}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select directorate" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {directorates.map((d) => (
-                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Select value={selectedDepartment ? String(selectedDepartment) : undefined} onValueChange={(v) => setSelectedDepartment(Number(v))} disabled={!selectedDirectorate}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredDepartments.map((d) => (
-                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Office</Label>
-                  <Select value={selectedOffice ? String(selectedOffice) : undefined} onValueChange={(v) => setSelectedOffice(Number(v))} disabled={!selectedDepartment}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select office" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredOffices.map((o) => (
+          {/* Mini steps / hints */}
+          <div className="grid gap-6 md:grid-cols-2 mt-4">
+            {/* Step 1: Identity */}
+            <div className="space-y-3">
+              <div className="text-sm font-medium">Step 1: Identity</div>
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Full Name</Label>
+                <Input id="full_name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Ram Sharma" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employee_id">Employee ID</Label>
+                <Input id="employee_id" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="e.g. 7816" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@ntc.net.np" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input id="phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+977-98XXXXXXXX" />
+              </div>
+              <div className="space-y-2">
+                <Label>Designation / Position</Label>
+                <Select value={selectedPosition ? String(selectedPosition) : undefined} onValueChange={(v) => setSelectedPosition(Number(v))} disabled={!selectedOffice}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select position" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {positions.length === 0 ? (
+                      <SelectItem value="no-positions" disabled>No positions found</SelectItem>
+                    ) : (
+                      positions.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Step 2: Organization placement */}
+            <div className="space-y-3">
+              <div className="text-sm font-medium">Step 2: Organization</div>
+              <div className="space-y-2">
+                <Label>Directorate</Label>
+                <Select value={selectedDirectorate ? String(selectedDirectorate) : undefined} onValueChange={(v) => setSelectedDirectorate(Number(v))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select directorate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {directorates.map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select value={selectedDepartment ? String(selectedDepartment) : undefined} onValueChange={(v) => setSelectedDepartment(Number(v))} disabled={!selectedDirectorate}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredDepartments.map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Office</Label>
+                <Select value={selectedOffice ? String(selectedOffice) : undefined} onValueChange={(v) => setSelectedOffice(Number(v))} disabled={!selectedDepartment}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select office" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredOffices.map((o) => (
+                      <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Secondary Office (optional)</Label>
+                <Select
+                  value={selectedSecondaryOffice ? String(selectedSecondaryOffice) : undefined}
+                  onValueChange={(v) => setSelectedSecondaryOffice(Number(v))}
+                  disabled={!selectedDepartment || filteredOffices.filter((o) => o.id !== selectedOffice).length === 0}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select secondary office" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredOffices
+                      .filter((o) => o.id !== selectedOffice)
+                      .map((o) => (
                         <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Secondary Office (optional)</Label>
-                  <Select
-                    value={selectedSecondaryOffice ? String(selectedSecondaryOffice) : undefined}
-                    onValueChange={(v) => setSelectedSecondaryOffice(Number(v))}
-                    disabled={!selectedDepartment || filteredOffices.filter((o) => o.id !== selectedOffice).length === 0}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select secondary office" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredOffices
-                        .filter((o) => o.id !== selectedOffice)
-                        .map((o) => (
-                          <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-              </div>
-
-              {/* Step 3: Credentials */}
-              <div className="space-y-3">
-                <div className="text-sm font-medium">Step 3: Credentials</div>
-                <p className="text-xs text-muted-foreground">Generate a temporary password. Reveal once and copy to share securely.</p>
-                {/* Responsive controls: Reveal Once below Generate Password */}
-                <div className="flex flex-col sm:flex-row sm:items-start sm:gap-3">
-                  <div className="flex flex-col gap-2 w-full sm:w-auto">
-                    <Button type="button" variant="outline" onClick={generatePassword} disabled={submitting} className="w-full sm:w-auto">
-                      <KeyRound className="h-4 w-4 mr-2" /> Generate Password
-                    </Button>
-                    <Button type="button" onClick={revealOnce} variant="default" disabled={revealedOnce || !generatedPassword || submitting} className="w-full sm:w-auto">
-                      {showPassword ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />} Reveal once
-                    </Button>
-                  </div>
-                  <div className="flex items-start sm:items-center gap-2 mt-2 sm:mt-0">
-                    <Button type="button" variant="outline" onClick={copyPassword} disabled={!generatedPassword || submitting} className="w-full sm:w-auto">
-                      <Copy className="h-4 w-4 mr-2" /> Copy
-                    </Button>
-                  </div>
-                </div>
-                <div className="text-sm mt-2">
-                  <span className="font-medium">Temporary Password: </span>
-                  <span className={`px-2 py-1 rounded ${showPassword ? "bg-primary/10" : "bg-muted"}`}>
-                    {generatedPassword ? (showPassword ? generatedPassword : "••••••••••••") : "Not generated"}
-                  </span>
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            {/* Bottom-right action */}
-            <div className="mt-6 flex justify-end">
-              <Button onClick={handleCreateEmployee} disabled={submitting}>
-                {submitting ? "Creating..." : "Create Employee"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </Protect>
+          </div>
+          {/* Bottom-right action */}
+          <div className="mt-6 flex justify-end">
+            <Button onClick={handleCreateEmployee} disabled={submitting}>
+              {submitting ? "Creating..." : "Create Employee"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      {/* Summary Cards - Dynamic */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-primary" />
-              <div>
-                <div className="text-2xl font-bold text-primary">{employeesList.length}</div>
-                <p className="text-xs text-muted-foreground">Total Employees</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-success">{employeesList.filter((e) => e.is_active).length}</div>
-            <p className="text-xs text-muted-foreground">Active</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-warning">{employeesList.filter((e) => e.status === "on_leave").length}</div>
-            <p className="text-xs text-muted-foreground">On Leave</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-muted-foreground">{employeesList.filter((e) => !e.is_active).length}</div>
-            <p className="text-xs text-muted-foreground">Inactive</p>
-          </CardContent>
-        </Card>
+      {/* Filters Card */}
+      {/* Filters */}
+      <div className="mb-2">
+        <Input
+          placeholder="Search by Name, ID, Mobile, Dept, or Email..."
+          value={nameQuery}
+          onChange={(e) => setNameQuery(e.target.value)}
+          className="bg-white shadow-sm"
+        />
       </div>
 
       {/* Employee List */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between w-full">
-            <div>
-              <CardTitle>Employee Table</CardTitle>
-              <CardDescription>Update the employee status </CardDescription>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => fetchEmployees()}>
-              <Search className="h-4 w-4 mr-2" /> Refresh
-            </Button>
+            {/* <Button size="icon" variant="outline" onClick={() => fetchEmployees()} title="Refresh">
+              <RotateCw className="h-4 w-4" />
+            </Button> */}
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-4">
-            <Input
-              placeholder="Search employees by name..."
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-            />
-          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -677,12 +673,12 @@ const Employees = () => {
                   <tr>
                     <td colSpan={8} className="p-4 text-center">Loading…</td>
                   </tr>
-                ) : filteredEmployees.length === 0 ? (
+                ) : employeesList.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="p-4 text-center text-muted-foreground">No employees found.</td>
                   </tr>
                 ) : (
-                  filteredEmployees.map((emp) => (
+                  employeesList.map((emp) => (
                     <tr key={emp.id} className="border-b hover:bg-muted/50">
                       <td className="p-2 font-medium text-primary">{emp.employee_id || "-"}</td>
                       <td className="p-2">{emp.full_name || emp.username || "-"}</td>
@@ -697,6 +693,9 @@ const Employees = () => {
                       </td>
                       <td className="p-2 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => { setSelectedEmployee(emp); setViewModalOpen(true); }} title="View Details">
+                            <Eye className="h-4 w-4 text-primary" />
+                          </Button>
                           <Protect permission="users.edit_employee">
                             <Button size="sm" variant="ghost" onClick={() => openEditModal(emp)}>
                               <Edit3 className="h-4 w-4" />
@@ -715,166 +714,261 @@ const Employees = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {employeesList.length} of {totalCount} entries
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1 || loadingEmployees}
+              >
+                Previous
+              </Button>
+              <div className="text-sm font-medium">
+                Page {currentPage} of {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || loadingEmployees}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Edit Modal */}
-      {editModalOpen && selectedEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <form onSubmit={submitEdit} className="bg-white w-full max-w-2xl p-6 rounded-lg shadow-lg max-h-screen overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4">Edit Employee</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 ">
+      {/* View Details Modal */}
+      <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Employee Details</DialogTitle>
+          </DialogHeader>
+          {selectedEmployee && (
+            <div className="grid grid-cols-2 gap-4 py-4 text-sm">
               <div>
-                <Label>Full Name</Label>
-                <Input value={selectedEmployee.full_name} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, full_name: e.target.value })} />
+                <Label className="text-muted-foreground">Full Name</Label>
+                <div className="font-medium text-base">{selectedEmployee.full_name || selectedEmployee.username}</div>
               </div>
               <div>
-                <Label>Employee ID</Label>
-                <Input value={selectedEmployee.employee_id} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, employee_id: e.target.value })} />
+                <Label className="text-muted-foreground">Employee ID</Label>
+                <div className="font-medium text-base">{selectedEmployee.employee_id}</div>
               </div>
               <div>
-                <Label>Email</Label>
-                <Input type="email" value={selectedEmployee.email} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, email: e.target.value })} />
+                <Label className="text-muted-foreground">Email</Label>
+                <div className="font-medium">{selectedEmployee.email}</div>
               </div>
               <div>
-                <Label>Phone</Label>
-                <Input value={selectedEmployee.phone_number} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, phone_number: e.target.value })} />
+                <Label className="text-muted-foreground">Phone</Label>
+                <div className="font-medium">{selectedEmployee.phone_number || "-"}</div>
               </div>
-
               <div>
-                <Label>Directorate</Label>
-                <Select value={selectedEmployee.directorate ? String(selectedEmployee.directorate) : ""} onValueChange={(v) => {
-                  const dirId = Number(v);
-                  setSelectedEmployee({ ...selectedEmployee, directorate: dirId, department: null, office: null });
-                }}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select directorate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {directorates.map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-muted-foreground">Position</Label>
+                <div className="font-medium">{getPositionName(selectedEmployee.position)}</div>
               </div>
-
               <div>
-                <Label>Department</Label>
-                <Select
-                  value={selectedEmployee.department ? String(selectedEmployee.department) : ""}
-                  onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, department: Number(v), office: null })}
-                  disabled={!selectedEmployee.directorate}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={selectedEmployee.directorate ? "Select department" : "Select directorate first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments
-                      .filter((d) => (d as any).directorate === selectedEmployee.directorate)
-                      .map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-muted-foreground">Office</Label>
+                <div className="font-medium">
+                  {offices.find(o => o.id === getIdFromField(selectedEmployee.office))?.name || "-"}
+                </div>
               </div>
-
               <div>
-                <Label>Office</Label>
-                <Select
-                  value={selectedEmployee.office ? String(selectedEmployee.office) : ""}
-                  onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, office: Number(v) })}
-                  disabled={!selectedEmployee.department}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={selectedEmployee.department ? "Select office" : "Select department first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {offices
-                      .filter((o) => (o as any).department === selectedEmployee.department)
-                      .map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-muted-foreground">Secondary Offices</Label>
+                <div className="font-medium">
+                  {selectedEmployee.secondary_offices && selectedEmployee.secondary_offices.length > 0
+                    ? selectedEmployee.secondary_offices.map((so: any) => so.name).join(", ")
+                    : "-"
+                  }
+                </div>
               </div>
-
               <div>
-                <Label>Position</Label>
-                <Select value={selectedEmployee.position ? String(selectedEmployee.position) : ""} onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, position: Number(v) })}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-muted-foreground">Role</Label>
+                <div className="font-medium">{selectedEmployee.role}</div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Label>Active</Label>
-                <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4" />
+              <div>
+                <Label className="text-muted-foreground">Status</Label>
+                <Badge className={selectedEmployee.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
+                  {selectedEmployee.is_active ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Joined</Label>
+                <div className="font-medium">{selectedEmployee.date_joined ? new Date(selectedEmployee.date_joined).toLocaleDateString() : "-"}</div>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-            <div className="mb-6 space-y-4">
-              <h4 className="text-md font-semibold">Access Control</h4>
+      {/* Edit Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+          </DialogHeader>
+          {selectedEmployee && (
+            <form onSubmit={submitEdit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>Role</Label>
-                  <Select value={selectedEmployee.role || ""} onValueChange={async (v) => {
-                    setSelectedEmployee({ ...selectedEmployee, role: v });
-                    const r = roles.find((x: any) => x.slug === v);
-                    if (r?.id) {
-                      try {
-                        const pRes = await api.get(`/roles/${r.id}/permissions/`);
-                        setRolePermsPreview(pRes.data?.permissions || []);
-                      } catch {
-                        setRolePermsPreview([]);
-                      }
-                    } else {
-                      setRolePermsPreview([]);
-                    }
+                  <Label>Full Name</Label>
+                  <Input value={selectedEmployee.full_name} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, full_name: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Employee ID</Label>
+                  <Input value={selectedEmployee.employee_id} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, employee_id: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input type="email" value={selectedEmployee.email} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, email: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <Input value={selectedEmployee.phone_number} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, phone_number: e.target.value })} />
+                </div>
+
+                <div>
+                  <Label>Directorate</Label>
+                  <Select value={selectedEmployee.directorate ? String(selectedEmployee.directorate) : ""} onValueChange={(v) => {
+                    const dirId = Number(v);
+                    setSelectedEmployee({ ...selectedEmployee, directorate: dirId, department: null, office: null });
                   }}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select role" />
+                      <SelectValue placeholder="Select directorate" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(roles.length ? roles : [
-                        { slug: "SUPERADMIN", name: "Super Admin" }, { slug: "OFFICE_ADMIN", name: "Office Admin" }, { slug: "USER", name: "User" }
-                      ]).map((r: any) => (
-                        <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
-                      ))}
+                      {directorates.map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div>
-                  <Label>Effective Permissions (by role)</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(rolePermsPreview || []).map((p) => <Badge key={p} variant="secondary">{p}</Badge>)}
+                  <Label>Department</Label>
+                  <Select
+                    value={selectedEmployee.department ? String(selectedEmployee.department) : ""}
+                    onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, department: Number(v), office: null })}
+                    disabled={!selectedEmployee.directorate}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={selectedEmployee.directorate ? "Select department" : "Select directorate first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments
+                        .filter((d) => (d as any).directorate === selectedEmployee.directorate)
+                        .map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Office</Label>
+                  <Select
+                    value={selectedEmployee.office ? String(selectedEmployee.office) : ""}
+                    onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, office: Number(v) })}
+                    disabled={!selectedEmployee.department}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={selectedEmployee.department ? "Select office" : "Select department first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {offices
+                        .filter((o) => (o as any).department === selectedEmployee.department)
+                        .map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Position</Label>
+                  <Select value={selectedEmployee.position ? String(selectedEmployee.position) : ""} onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, position: Number(v) })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {positions.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label>Active</Label>
+                  <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4" />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-md font-semibold">Access Control</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Role</Label>
+                    <Select value={selectedEmployee.role || ""} onValueChange={async (v) => {
+                      setSelectedEmployee({ ...selectedEmployee, role: v });
+                      const r = roles.find((x: any) => x.slug === v);
+                      if (r?.id) {
+                        try {
+                          const pRes = await api.get(`/roles/${r.id}/permissions/`);
+                          setRolePermsPreview(pRes.data?.permissions || []);
+                        } catch {
+                          setRolePermsPreview([]);
+                        }
+                      } else {
+                        setRolePermsPreview([]);
+                      }
+                    }}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(roles.length ? roles : [
+                          { slug: "SUPERADMIN", name: "Super Admin" }, { slug: "OFFICE_ADMIN", name: "Office Admin" }, { slug: "USER", name: "User" }
+                        ]).map((r: any) => (
+                          <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Effective Permissions (by role)</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(rolePermsPreview || []).map((p) => <Badge key={p} variant="secondary">{p}</Badge>)}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => { setEditModalOpen(false); setSelectedEmployee(null); }}>Cancel</Button>
-              <Button type="submit">Save Changes</Button>
-            </div>
-          </form>
-        </div>
-      )}
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => { setEditModalOpen(false); setSelectedEmployee(null); }}>Cancel</Button>
+                <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirmOpen && selectedEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-2">Confirm Delete</h3>
-            <p className="text-muted-foreground mb-6">
-              Are you sure you want to delete this employee <strong>{selectedEmployee.full_name || selectedEmployee.employee_id}</strong>? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setSelectedEmployee(null); }}>Cancel</Button>
-              <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+      {
+        deleteConfirmOpen && selectedEmployee && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-2">Confirm Delete</h3>
+              <p className="text-muted-foreground mb-6">
+                Are you sure you want to delete this employee <strong>{selectedEmployee.full_name || selectedEmployee.employee_id}</strong>? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setSelectedEmployee(null); }}>Cancel</Button>
+                <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

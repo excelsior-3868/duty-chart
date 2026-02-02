@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
@@ -10,10 +10,22 @@ from users.permissions import AdminOrReadOnly, IsSuperAdmin, get_allowed_office_
 
 # Create your views here.
 
+from rest_framework.pagination import PageNumberPagination
+
+class UserPagination(PageNumberPagination):
+    page_size = 15
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.select_related('position', 'office', 'department', 'directorate').prefetch_related('secondary_offices')
     serializer_class = UserSerializer
     permission_classes = [AdminOrReadOnly]
+    pagination_class = UserPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['full_name', 'email', 'employee_id', 'username', 'phone_number', 'department__name']
+    ordering_fields = ['full_name', 'employee_id']
+    ordering = ['full_name']
 
     def get_queryset(self):
         queryset = (
