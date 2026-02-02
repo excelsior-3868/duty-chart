@@ -11,7 +11,7 @@ export const Footer = () => {
 
         {/* Line 2: Centered Developer Attribution (Static) */}
         <p className="text-xs text-center">
-          Developed By: <span className="text-blue-600 font-bold">Software and Security Wing</span>
+          Developed By: <span className="text-primary font-bold">Software and Security Wing</span>
         </p>
       </div>
     </footer>

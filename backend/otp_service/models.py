@@ -7,6 +7,8 @@ class OTPRequest(models.Model):
     PURPOSE_CHOICES = (
         ('forgot_password', 'Forgot Password'),
         ('change_password', 'Change Password'),
+        ('signup', 'Signup'),
+        ('login_2fa', 'Login 2FA'),
     )
     CHANNEL_CHOICES = (
         ('sms_ntc', 'NTC SMS'),

@@ -1,322 +1,236 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom"; // <- added
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Lock, Mail, User, Phone, Building } from "lucide-react";
-import { COMPANY_NAME } from "@/utils/constants";
+import { Eye, EyeOff, Loader2, KeyRound, UserCheck, ShieldCheck } from "lucide-react";
+import publicApi from "@/services/publicApi";
+import { toast } from "sonner";
+import { ROUTES, APP_NAME, COMPANY_NAME } from "@/utils/constants";
+import telecomLogo from "@/assets/telecom.png";
+
+type Step = "LOOKUP" | "VERIFY" | "OTP" | "PASSWORD";
 
 const Register = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    employeeId: "",
-    department: "",
-    position: "",
-    password: "",
-    confirmPassword: "",
-    agreeToTerms: false,
-  });
+  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>("LOOKUP");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Form States
+  const [employeeId, setEmployeeId] = useState("");
+  const [userData, setUserData] = useState<{ email: string, phone: string, full_name: string } | null>(null);
+  const [otp, setOtp] = useState("");
+  const [requestId, setRequestId] = useState("");
+  const [passwordData, setPasswordData] = useState({ password: "", confirmPassword: "" });
+  const [showPasswords, setShowPasswords] = useState({ p1: false, p2: false });
+
+  useEffect(() => {
+    document.title = "Signup - Duty Chart";
+  }, []);
+
+  // Step 1: Lookup Employee
+  const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle registration logic here
-    console.log("Registration attempted with:", formData);
+    setIsLoading(true);
+    try {
+      const { data } = await publicApi.post("/v1/otp/signup/lookup/", { employee_id: employeeId });
+      setUserData(data);
+      setStep("VERIFY");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Employee ID not found.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+  // Step 2: Request OTP
+  const handleRequestOTP = async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await publicApi.post("/v1/otp/request/", {
+        employee_id: employeeId,
+        phone: userData?.phone,
+        channel: "sms_ntc",
+        purpose: "signup"
+      });
+      setRequestId(data.request_id);
+      toast.success("OTP sent to your registered mobile number.");
+      setStep("OTP");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send OTP.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step 3: Validate OTP
+  const handleValidateOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await publicApi.post("/v1/otp/validate/", {
+        request_id: requestId,
+        otp
+      });
+      setStep("PASSWORD");
+    } catch (err: any) {
+      toast.error("Invalid OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step 4: Complete Signup
+  const handleComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordData.password !== passwordData.confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await publicApi.post("/v1/otp/signup/complete/", {
+        request_id: requestId,
+        password: passwordData.password,
+        confirm_password: passwordData.confirmPassword
+      });
+      toast.success("Account activated successfully!");
+      navigate(ROUTES.LOGIN);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to set password.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-2xl space-y-6">
-        {/* Logo and Header */}
-        <div className="text-center space-y-2">
-          <div className="flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
-              NT
+    <div className="min-h-screen flex items-center justify-center font-sans gradient-background p-4">
+      <div className="w-full max-w-xs">
+        <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm" style={{ borderRadius: "12px" }}>
+          <CardContent className="p-6">
+            {/* Logo */}
+            <div className="flex justify-center mb-1">
+              <img src={telecomLogo} alt="Logo" className="w-16 h-16 object-contain" />
             </div>
-          </div>
-          <h1 className="text-2xl font-bold text-primary">{COMPANY_NAME}</h1>
-          <p className="text-muted-foreground">Employee Registration</p>
-        </div>
+            <div className="text-center mb-1">
+              <div className="text-lg font-bold text-gray-800">{COMPANY_NAME}</div>
+              <div className="text-primary font-medium text-xs">Employee Activation</div>
+            </div>
 
-        {/* Registration Form */}
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">
-              Create Account
-            </CardTitle>
-            <CardDescription className="text-center">
-              Fill in the details below to create a new employee account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Personal Information */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="firstName"
-                      placeholder="Enter first name"
-                      className="pl-9"
-                      value={formData.firstName}
-                      onChange={(e) =>
-                        handleInputChange("firstName", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
+            <div className="h-px bg-gradient-to-r from-transparent via-blue-200 to-transparent my-3"></div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="lastName"
-                      placeholder="Enter last name"
-                      className="pl-9"
-                      value={formData.lastName}
-                      onChange={(e) =>
-                        handleInputChange("lastName", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
+            <h1 className="text-xl font-semibold mb-4 text-center text-primary">
+              {step === "LOOKUP" && "Find Your Account"}
+              {step === "VERIFY" && "Verify Details"}
+              {step === "OTP" && "Enter OTP"}
+              {step === "PASSWORD" && "Set Password"}
+            </h1>
+
+            {/* STEP 1: LOOKUP */}
+            {step === "LOOKUP" && (
+              <form onSubmit={handleLookup} className="space-y-4">
+                <div className="space-y-1">
+                  <Input
+                    placeholder="Employee ID"
+                    value={employeeId}
+                    onChange={(e) => setEmployeeId(e.target.value)}
+                    required
+                    className="h-11"
+                  />
                 </div>
+                <Button type="submit" className="w-full h-11 bg-primary" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Find Account"}
+                </Button>
+              </form>
+            )}
+
+            {/* STEP 2: VERIFY DETAILS */}
+            {step === "VERIFY" && userData && (
+              <div className="space-y-4">
+                <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 text-sm space-y-2">
+                  <div><span className="text-gray-500">Name:</span> <p className="font-semibold">{userData.full_name}</p></div>
+                  <div><span className="text-gray-500">Email:</span> <p className="font-semibold">{userData.email}</p></div>
+                  <div><span className="text-gray-500">Phone:</span> <p className="font-semibold">{userData.phone}</p></div>
+                </div>
+                <Button onClick={handleRequestOTP} className="w-full h-11 bg-primary" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send OTP to Mobile"}
+                </Button>
+                <Button variant="ghost" onClick={() => setStep("LOOKUP")} className="w-full text-xs underline">
+                  Not you? Search again
+                </Button>
               </div>
+            )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter email address"
-                      className="pl-9"
-                      value={formData.email}
-                      onChange={(e) =>
-                        handleInputChange("email", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="phone"
-                      placeholder="+977-98XXXXXXXX"
-                      className="pl-9"
-                      value={formData.phone}
-                      onChange={(e) =>
-                        handleInputChange("phone", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Employee Information */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="employeeId">Employee ID</Label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="employeeId"
-                      placeholder="EMP001"
-                      className="pl-9"
-                      value={formData.employeeId}
-                      onChange={(e) =>
-                        handleInputChange("employeeId", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Select
-                    onValueChange={(value) =>
-                      handleInputChange("department", value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="technical">Technical</SelectItem>
-                      <SelectItem value="customer-service">
-                        Customer Service
-                      </SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
-                      <SelectItem value="operations">Operations</SelectItem>
-                      <SelectItem value="administration">
-                        Administration
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="position">Position</Label>
-                <Input
-                  id="position"
-                  placeholder="Enter job position"
-                  value={formData.position}
-                  onChange={(e) =>
-                    handleInputChange("position", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              {/* Password Fields */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Create password"
-                      className="pl-9 pr-9"
-                      value={formData.password}
-                      onChange={(e) =>
-                        handleInputChange("password", e.target.value)
-                      }
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm password"
-                      className="pl-9 pr-9"
-                      value={formData.confirmPassword}
-                      onChange={(e) =>
-                        handleInputChange("confirmPassword", e.target.value)
-                      }
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="terms"
-                  checked={formData.agreeToTerms}
-                  onCheckedChange={(checked) =>
-                    handleInputChange("agreeToTerms", !!checked)
-                  }
-                />
-                <Label htmlFor="terms" className="text-sm">
-                  I agree to the{" "}
-                  <Button variant="link" className="p-0 h-auto text-sm">
-                    Terms and Conditions
-                  </Button>
-                </Label>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={!formData.agreeToTerms}
-              >
-                Create Account
-              </Button>
-
-              {/* Sign in using Link */}
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  Already have an account?{" "}
-                  <Link
-                    to="/dashboard"
-                    className="text-sm text-primary underline"
-                  >
-                    Sign in
-                  </Link>
+            {/* STEP 3: OTP */}
+            {step === "OTP" && (
+              <form onSubmit={handleValidateOTP} className="space-y-4">
+                <p className="text-center text-xs text-gray-500">
+                  Sent to {userData?.phone.substring(0, 3)}****{userData?.phone.slice(-3)}
                 </p>
-              </div>
-            </form>
+                <Input
+                  placeholder="4-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  maxLength={4}
+                  required
+                  className="h-11 text-center text-xl tracking-widest"
+                />
+                <Button type="submit" className="w-full h-11 bg-primary" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify OTP"}
+                </Button>
+              </form>
+            )}
+
+            {/* STEP 4: PASSWORD */}
+            {step === "PASSWORD" && (
+              <form onSubmit={handleComplete} className="space-y-3">
+                <div className="relative">
+                  <Input
+                    type={showPasswords.p1 ? "text" : "password"}
+                    placeholder="New Password"
+                    value={passwordData.password}
+                    onChange={(e) => setPasswordData({ ...passwordData, password: e.target.value })}
+                    required
+                    className="h-11 pr-10"
+                  />
+                  <button type="button" onClick={() => setShowPasswords({ ...showPasswords, p1: !showPasswords.p1 })} className="absolute right-3 top-3.5 text-gray-400">
+                    {showPasswords.p1 ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div className="relative border-t pt-1">
+                  <Input
+                    type={showPasswords.p2 ? "text" : "password"}
+                    placeholder="Confirm Password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                    required
+                    className="h-11 pr-10"
+                  />
+                  <button type="button" onClick={() => setShowPasswords({ ...showPasswords, p2: !showPasswords.p2 })} className="absolute right-3 top-3.5 text-gray-400">
+                    {showPasswords.p2 ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div className="text-[10px] text-gray-500 bg-slate-50 p-2 rounded">
+                  * Password must be at least 8 characters long and include numbers and special characters.
+                </div>
+                <Button type="submit" className="w-full h-11 bg-green-600 hover:bg-green-700 font-bold" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "ACTIVATE ACCOUNT"}
+                </Button>
+              </form>
+            )}
+
+            <div className="mt-4 text-center">
+              <Link to={ROUTES.LOGIN} className="text-xs text-primary hover:underline">
+                Back to Login
+              </Link>
+            </div>
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="text-center text-sm text-muted-foreground">
-          <p>© 2025 {COMPANY_NAME}. All rights reserved.</p>
-        </div>
       </div>
     </div>
   );
 };
 
 export default Register;
+

@@ -18,8 +18,9 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
 # Local imports
-from users.views import UserViewSet, PositionViewSet, RoleViewSet, PermissionViewSet
-from org.views import DirectorateViewSet, DepartmentViewSet, OfficeViewSet
+from users.views import UserViewSet, PositionViewSet, RoleViewSet, PermissionViewSet, UserDashboardOfficeViewSet
+from org.views import DirectorateViewSet, DepartmentViewSet, OfficeViewSet, SystemSettingViewSet
+from authentication.views import TokenObtainPair2FAView, Verify2FAView
 from duties.views import (
     DutyChartViewSet,
     DutyViewSet,
@@ -78,11 +79,13 @@ router.register(r"users", UserViewSet)
 router.register(r"positions", PositionViewSet)
 router.register(r"roles", RoleViewSet)
 router.register(r"permissions", PermissionViewSet)
+router.register(r"user-dashboard-offices", UserDashboardOfficeViewSet, basename="user-dashboard-offices")
 
 # Organization
 router.register(r"directorates", DirectorateViewSet)
 router.register(r"departments", DepartmentViewSet)
 router.register(r"offices", OfficeViewSet)
+router.register(r"system-settings", SystemSettingViewSet, basename="system-settings")
 
 # Duties
 router.register(r"duty-charts", DutyChartViewSet)
@@ -141,7 +144,8 @@ urlpatterns = [
     path("api/v1/", include(router.urls)),
 
     # JWT Authentication
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/", TokenObtainPair2FAView.as_view(), name="token_obtain_pair"),
+    path("api/token/verify-2fa/", Verify2FAView.as_view(), name="token_verify_2fa"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
 

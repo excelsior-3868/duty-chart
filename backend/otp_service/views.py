@@ -4,12 +4,17 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .models import OTPRequest
-from .serializers import RequestOTPSerializer, ValidateOTPSerializer, ResetPasswordSerializer, UserLookupSerializer
+from .serializers import (
+    RequestOTPSerializer, ValidateOTPSerializer, ResetPasswordSerializer, 
+    UserLookupSerializer, SignupCompleteSerializer
+)
 from .utils import send_otp_ntc, validate_otp_ntc
 from django.utils import timezone
 from datetime import timedelta
 import random
 import uuid
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 User = get_user_model()
 
@@ -51,12 +56,9 @@ class UserLookupView(APIView):
 
         channels = []
         if user.phone_number:
-            # Mask phone: +97798*****123
             phone = user.phone_number
+            # Mask phone: first 3, last 3
             if len(phone) > 6:
-                masked = phone[:6] + "*" * (len(phone) - 9) + phone[-3:] # Adjust masking logic
-                # PRD: +97798*****123 (approx generic)
-                # Simple mask: first 3, last 3
                 masked = f"{phone[:3]}***{phone[-3:]}"
             else:
                 masked = phone
@@ -90,16 +92,29 @@ class RequestOTPView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
-        username = serializer.validated_data['username']
-        channel = serializer.validated_data['channel']
+        username = serializer.validated_data.get('username')
+        email = serializer.validated_data.get('email')
+        phone = serializer.validated_data.get('phone')
+        employee_id = serializer.validated_data.get('employee_id')
+        channel = serializer.validated_data.get('channel', 'sms_ntc')
         purpose = serializer.validated_data['purpose']
         
         # 1. Find User
-        user = User.objects.filter(Q(email=username) | Q(username=username) | Q(phone_number=username)).first()
+        user = None
+        if email and phone:
+            # New direct flow: find by email and phone
+            user = User.objects.filter(email=email, phone_number=phone).first()
+        elif employee_id and phone:
+            # Signup/Employee activation flow
+            user = User.objects.filter(employee_id__iexact=employee_id, phone_number=phone).first()
+        elif username:
+            # Old lookup-based flow
+            user = User.objects.filter(Q(email=username) | Q(username=username) | Q(phone_number=username)).first()
+            
         if not user:
-            # Security: Don't reveal user existence? 
-            # PRD: "Avoid leaking account existence". 
-            # Simulation delay could be added here.
+            # Special case for signup: if we explicitly gave ID/Phone and it's wrong, tell them.
+            if (email and phone) or (employee_id and phone):
+                 return Response({"message": "Invalid credentials provided."}, status=status.HTTP_400_BAD_REQUEST)
             return Response({"message": "If an account exists, an OTP has been sent."}, status=status.HTTP_200_OK)
             
         # 2. Rate Limiting Check (Basic) - FR-13 / 8.2
@@ -110,6 +125,7 @@ class RequestOTPView(APIView):
 
         # 3. Handle Channel
         seq_no = None
+        otp_code = None
         phone_number = user.phone_number
         
         if channel == 'sms_ntc':
@@ -125,6 +141,7 @@ class RequestOTPView(APIView):
             # Extract seq_no from NTC data (Assuming structure, need validation)
             # Assuming {'seq_no': '1234'} or similar based on PRD FR-04
             seq_no = data.get('seq_no') 
+            print(f"DEBUG: Extracted seq_no: {seq_no}")
             if not seq_no:
                  # Fallback if NTC structure differs, but we need seq_no for validation
                  # Should log this anomaly
@@ -136,7 +153,7 @@ class RequestOTPView(APIView):
             if not email:
                  return Response({"message": "No email address associated with this account."}, status=status.HTTP_400_BAD_REQUEST)
 
-            otp_code = str(random.randint(100000, 999999))
+            otp_code = str(random.randint(1000, 9999))
             
             # Send Email
             from .utils import send_otp_email
@@ -216,7 +233,7 @@ class ValidateOTPView(APIView):
             if not otp_req.seq_no:
                 return Response({"message": "System error: Missing sequence number for NTC validation."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
-            success, msg = validate_otp_ntc(otp_req.seq_no, otp)
+            success, msg = validate_otp_ntc(otp_req.seq_no, otp, phone=otp_req.phone)
             if success:
                 otp_req.status = 'validated' # Intermediate state before password reset
                 otp_req.save()
@@ -224,7 +241,7 @@ class ValidateOTPView(APIView):
             else:
                 otp_req.attempts += 1
                 otp_req.save()
-                return Response({"message": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"message": msg}, status=status.HTTP_400_BAD_REQUEST)
         
         elif otp_req.channel == 'email':
              # Internal check
@@ -334,5 +351,68 @@ class ChangePasswordView(APIView):
         user.set_password(new_password)
         user.save()
         
-        return Response({"message": "Password changed successfully."}, status=status.HTTP_200_OK)
+        return Response({"message": "Password updated successfully."}, status=status.HTTP_200_OK)
 
+
+class SignupLookupView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        employee_id = request.data.get('employee_id', '').strip()
+        if not employee_id:
+            return Response({"message": "Employee ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Try direct match first (better for integer columns)
+        user = User.objects.filter(employee_id=employee_id).first()
+        
+        # Try iexact if not found (better for mixed case strings)
+        if not user:
+            user = User.objects.filter(employee_id__iexact=employee_id).first()
+
+        if not user:
+            # Helpful debug print for server console
+            sample_ids = list(User.objects.values_list('employee_id', flat=True)[:5])
+            print(f"DEBUG: Search '{employee_id}' failed. DB has: {sample_ids}")
+            return Response({"message": f"Employee ID '{employee_id}' not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+        return Response({
+            "email": user.email,
+            "phone": user.phone_number,
+            "full_name": user.full_name
+        }, status=status.HTTP_200_OK)
+
+
+class SignupCompleteView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        serializer = SignupCompleteSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        request_id = serializer.validated_data['request_id']
+        password = serializer.validated_data['password']
+        
+        try:
+            # We want an OTP Request that was validated and for signup purpose
+            otp_req = OTPRequest.objects.get(id=request_id, status='validated', purpose='signup')
+        except OTPRequest.DoesNotExist:
+            return Response({"message": "Invalid or unverified signup session. Please request OTP again."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        user = otp_req.user
+        
+        # Validate password strength based on international standards (Django validators)
+        try:
+            validate_password(password, user)
+        except ValidationError as e:
+            return Response({"message": " ".join(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+            
+        user.set_password(password)
+        user.is_active = True
+        user.save()
+        
+        # Mark request as completed
+        otp_req.status = 'completed'
+        otp_req.save()
+        
+        return Response({"message": "Account created and activated successfully. Please login."}, status=status.HTTP_200_OK)

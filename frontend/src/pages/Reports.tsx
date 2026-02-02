@@ -53,7 +53,7 @@ function Reports() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#005a9c]">Reports & Analytics</h1>
+          <h1 className="text-2xl font-bold text-primary">Reports & Analytics</h1>
           <p className="text-muted-foreground">
             Comprehensive insights and performance metrics
           </p>

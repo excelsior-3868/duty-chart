@@ -39,12 +39,7 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   //   icon: 'Calendar',
   //   permission: 'duties.view_chart'
   // },
-  {
-    title: 'Duty Calendar',
-    href: ROUTES.DUTY_CALENDAR,
-    icon: 'Calendar',
-    permission: 'duties.view_chart'
-  },
+
   {
     title: 'Schedule Management',
     href: '#schedule-management',
@@ -62,6 +57,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
         icon: 'FileText'
       }
     ]
+  },
+  {
+    title: 'Duty Calendar',
+    href: ROUTES.DUTY_CALENDAR,
+    icon: 'Calendar',
+    permission: 'duties.view_chart'
   },
   {
     title: 'Employees',
@@ -112,7 +113,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
   const roleColor = (role?: string) => {
     switch (role) {
       case "SUPERADMIN": return "text-red-600";
-      case "OFFICE_ADMIN": return "text-blue-600";
+      case "OFFICE_ADMIN": return "text-primary";
       default: return "text-muted-foreground";
     }
   };
@@ -126,11 +127,11 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-64 transform border-r bg-[hsl(var(--sidebar-bg))] transition-transform duration-200 ease-in-out lg:translate-x-0",
+        "fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-64 transform border-r bg-[hsl(var(--sidebar-bg))] transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
-      <ScrollArea className="h-full px-4 py-6">
+      <ScrollArea className="flex-1 px-4 py-6">
         <nav className="space-y-2">
           {filteredItems.map((item) => {
             const IconComponent = iconMap[item.icon as keyof typeof iconMap];
@@ -232,39 +233,40 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
           </div>
         </div>
 
-        {/* Profile Section */}
-        <div className="mt-6">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="w-full flex items-center gap-3 rounded-lg bg-accent/5 p-3 hover:bg-accent/10 transition-colors cursor-pointer">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={(user as any)?.image || (user as any)?.avatar_url || (user as any)?.profile_image} alt={user?.full_name || "User"} />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {initials(user?.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium truncate">{user?.full_name || "User"}</p>
-                  <p className={`text-xs truncate ${roleColor(user?.role)}`}>{roleLabel(user?.role)}</p>
-                </div>
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="start" className="w-48">
-              <DropdownMenuItem onClick={() => navigate(ROUTES.PROFILE)} className="cursor-pointer">
-                <UserCircle className="mr-2 h-4 w-4" />
-                User Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => logout()}
-                className="cursor-pointer text-primary focus:bg-primary focus:text-primary-foreground"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </ScrollArea>
+
+      {/* Profile Section */}
+      <div className="p-4 border-t mt-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="w-full flex items-center gap-3 rounded-lg bg-accent/5 p-3 hover:bg-accent/10 transition-colors cursor-pointer">
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={(user as any)?.image || (user as any)?.avatar_url || (user as any)?.profile_image} alt={user?.full_name || "User"} />
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {initials(user?.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-medium truncate">{user?.full_name || "User"}</p>
+                <p className={`text-xs truncate ${roleColor(user?.role)}`}>{roleLabel(user?.role)}</p>
+              </div>
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-48">
+            <DropdownMenuItem onClick={() => navigate(ROUTES.PROFILE)} className="cursor-pointer">
+              <UserCircle className="mr-2 h-4 w-4" />
+              User Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => logout()}
+              className="cursor-pointer text-primary focus:bg-primary focus:text-primary-foreground"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </aside>
   );
 };

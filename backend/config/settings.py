@@ -184,8 +184,6 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 
 # NTC OTP Settings
 NTC_OTP_URL = os.environ.get('NTC_OTP_URL')
-NTC_OTP_USER = os.environ.get('NTC_OTP_USER')
-NTC_OTP_PASSWORD = os.environ.get('NTC_OTP_PASSWORD')
 
 # REST Framework settings
 REST_FRAMEWORK = {

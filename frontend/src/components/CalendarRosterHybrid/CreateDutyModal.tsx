@@ -226,14 +226,14 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
               <button
                 type="button"
                 onClick={() => setDateMode("BS")}
-                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${dateMode === "BS" ? "bg-white shadow-sm text-orange-600" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
               >
                 BS
               </button>
               <button
                 type="button"
                 onClick={() => setDateMode("AD")}
-                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
               >
                 AD
               </button>
@@ -373,7 +373,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700">Assign</Button>
+            <Button type="submit" disabled={loading} className="bg-primary">Assign</Button>
           </DialogFooter>
         </form>
       </DialogContent>

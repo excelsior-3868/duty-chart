@@ -134,7 +134,7 @@ const TemplateSchedule = () => {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-[#005a9c]">Schedule Template</h1>
+                <h1 className="text-2xl font-bold text-primary">Schedule Template</h1>
                 <p className="text-muted-foreground">Manage and configure reusable shift templates.</p>
             </div>
 
@@ -201,7 +201,7 @@ const TemplateSchedule = () => {
                             <Button
                                 onClick={handleSave}
                                 disabled={loading}
-                                className="bg-[hsl(var(--inoc-blue))] hover:bg-[hsl(var(--inoc-blue-dark))] px-10 h-11 transition-all"
+                                className="bg-primary hover:bg-primary-hover px-10 h-11 transition-all"
                             >
                                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 {editingId ? "Update Schedule" : "Create Schedule"}

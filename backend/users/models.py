@@ -128,3 +128,15 @@ class UserPermission(models.Model):
 
     def __str__(self):
         return f"{self.user_id} -> {self.permission.slug}"
+
+class UserDashboardOffice(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dashboard_offices')
+    office = models.ForeignKey(Office, on_delete=models.CASCADE, related_name='dashboard_users')
+
+    class Meta:
+        unique_together = ('user', 'office')
+        verbose_name = "User Dashboard Office"
+        verbose_name_plural = "User Dashboard Offices"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.office.name}"

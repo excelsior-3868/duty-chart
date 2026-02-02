@@ -93,7 +93,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
     }
   }, [initialSchedule, mode]);
 
-  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--blue-200))] focus:border-[hsl(var(--inoc-blue))]";
+  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const errorInputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-500";
   const labelClass = "text-sm font-medium text-[hsl(var(--title))]";
   const sublabelClass = "text-xs text-[hsl(var(--muted-text))]";
@@ -421,7 +421,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     })()}
                   </span>
                   <span className="text-muted-foreground font-bold">New:</span>
-                  <span className="font-bold text-blue-600">
+                  <span className="font-bold text-primary">
                     {formData.start_time} - {formData.end_time}
                   </span>
                 </div>
@@ -436,7 +436,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
             <AlertDialogAction
               onClick={submitData}
               disabled={isSubmitting}
-              className="bg-blue-600 text-white hover:bg-blue-700"
+              className="bg-primary text-white hover:bg-primary-hover"
             >
               {isSubmitting ? "Saving..." : "Create Schedule"}
             </AlertDialogAction>

@@ -17,8 +17,8 @@ export const ScheduleLayout: React.FC<ScheduleLayoutProps> = ({ children }) => {
         // #F3F4F6, #E5E7EB, #D1D5DB, #374151, #111827, #6B7280
         // Networks
         // A: #DBEAFE/#1E3A8A, B: #D1FAE5/#065F46, C: #EDE9FE/#5B21B6
-        ["--inoc-blue" as any]: "216 98% 52%",
-        ["--inoc-blue-dark" as any]: "216 88% 45%",
+        ["--inoc-blue" as any]: "205 100% 31%", // #005a9c
+        ["--inoc-blue-dark" as any]: "205 100% 26%", // Darker #005a9c
         ["--nav-foreground" as any]: "0 0% 100%",
         ["--page-bg" as any]: "0 0% 100%", // White background
         ["--title" as any]: "222 47% 11%", // #111827

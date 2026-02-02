@@ -34,7 +34,7 @@ const CreateDutyChartModal: React.FC<CreateDutyChartModalProps> = ({ open, onOpe
               <button
                 type="button"
                 onClick={() => setDateMode("AD")}
-                className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
               >
                 AD (Gregorian)
               </button>
@@ -56,7 +56,7 @@ const CreateDutyChartModal: React.FC<CreateDutyChartModalProps> = ({ open, onOpe
           <button
             type="submit"
             form="create-duty-chart-form"
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover"
           >
             Create
           </button>

@@ -444,7 +444,7 @@ const Employees = () => {
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#005a9c]">Employees</h1>
+          <h1 className="text-2xl font-bold text-primary">Employees</h1>
           <p className="text-muted-foreground">Manage employee records and information</p>
         </div>
       </div>
@@ -661,15 +661,15 @@ const Employees = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-blue-100">
-                  <th className="p-2 text-left font-semibold text-blue-600">Employee ID</th>
-                  <th className="p-2 text-left font-semibold text-blue-600">Full Name</th>
-                  <th className="p-2 text-left font-semibold text-blue-600">Position</th>
-                  <th className="p-2 text-left font-semibold text-blue-600">Department</th>
-                  <th className="p-2 text-left font-semibold text-blue-600">Email</th>
-                  <th className="p-2 text-left font-semibold text-blue-600">Phone</th>
-                  <th className="p-2 text-left font-semibold text-blue-600">Status</th>
-                  <th className="p-2 text-right font-semibold text-blue-600">Actions</th>
+                <tr className="border-b bg-primary/10">
+                  <th className="p-2 text-left font-semibold text-primary">Employee ID</th>
+                  <th className="p-2 text-left font-semibold text-primary">Full Name</th>
+                  <th className="p-2 text-left font-semibold text-primary">Position</th>
+                  <th className="p-2 text-left font-semibold text-primary">Department</th>
+                  <th className="p-2 text-left font-semibold text-primary">Email</th>
+                  <th className="p-2 text-left font-semibold text-primary">Phone</th>
+                  <th className="p-2 text-left font-semibold text-primary">Status</th>
+                  <th className="p-2 text-right font-semibold text-primary">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -688,7 +688,7 @@ const Employees = () => {
                       <td className="p-2">{emp.full_name || emp.username || "-"}</td>
                       <td className="p-2">{getPositionName(emp.position)}</td>
                       <td className="p-2">{getDepartmentName(emp.department)}</td>
-                      <td className="p-2 text-blue-600">{emp.email || "-"}</td>
+                      <td className="p-2 text-primary">{emp.email || "-"}</td>
                       <td className="p-2">{emp.phone_number || "-"}</td>
                       <td className="p-2">
                         <Badge className={emp.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>

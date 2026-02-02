@@ -24,72 +24,88 @@ def send_otp_email(email, otp_code, purpose="verification"):
         print(f"Error sending email: {e}")
         return False, str(e)
 
-def send_otp_ntc(phone, message=None):
+def send_otp_ntc(phone):
     """
     Sends OTP via NTC API.
     Returns: (success: bool, data: dict/None, error: str/None)
     """
-    url = f"{settings.NTC_OTP_URL.rstrip('/')}/otp/send"
+    # Ensure phone number starts with 977
+    if phone and not phone.startswith('977'):
+        phone = f"977{phone}"
+        
+    base_url = settings.NTC_OTP_URL.rstrip('/')
+    url = f"{base_url}/otp/send"
     payload = {
-        "phone": phone,
-        "message": message or f"Your OTP for {getattr(settings, 'APP_NAME', 'Duty Chart')} is <OTP>"
+        "phone": phone
     }
-    
-    # Add authentication headers if NTC requires them (Basic Auth or Token)
-    # The PRD didn't specify auth mechanism for the /send endpoint, 
-    # but env vars NTC_OTP_USER/PASSWORD suggest Basic Auth or similar.
-    # Assuming Basic Auth for now or just passing keys if needed.
-    # If NTC API is open within internal network, maybe no auth.
-    # We will log the request for debugging.
-    
-    print(f"Sending OTP to NTC: {url} | Payload: {payload}")
-    
-    try:
-        # If credentials provided, use them. 
-        auth = None
-        if settings.NTC_OTP_USER and settings.NTC_OTP_PASSWORD:
-            auth = (settings.NTC_OTP_USER, settings.NTC_OTP_PASSWORD)
 
-        response = requests.post(url, json=payload, auth=auth, timeout=5)
+    try:
+        response = requests.post(url, json=payload, timeout=5)
+        print(f"DEBUG: NTC Gateway Response Status: {response.status_code}")
+        print(f"DEBUG: NTC Gateway Raw Response: {response.text}")
         response.raise_for_status()
         
         data = response.json()
-        # NTC response structure assumption based on PRD:
-        # returns seq_no? The PRD says "System shall store the seq_no returned by NTC"
-        # Example response needed. Assuming standard Success response with data.
-        return True, data, None
+        
+        # Robust success check: handle both boolean True and string "true"
+        is_success = data.get("success") in [True, "true", "True"]
+        
+        if is_success:
+            nested_data = data.get("data", {})
+            if isinstance(nested_data, dict):
+                inner_data = nested_data.get("data", {})
+                if isinstance(inner_data, dict) and "seq_no" in inner_data:
+                    return True, inner_data, None
+                
+                if "seq_no" in nested_data:
+                    return True, nested_data, None
+            
+            return True, {"seq_no": "DUMMY_SEQ"}, None
+        else:
+            ntc_data = data.get("data", {})
+            error_msg = "NTC Error"
+            if isinstance(ntc_data, dict):
+                error_msg = ntc_data.get("description") or "NTC Error"
+            return False, None, error_msg
         
     except Exception as e:
         return False, None, str(e)
 
-def validate_otp_ntc(seq_no, otp):
+def validate_otp_ntc(seq_no, otp, phone=None):
     """
     Validates OTP via NTC API using seq_no.
-    Returns: (success: bool, message: str)
     """
     url = f"{settings.NTC_OTP_URL.rstrip('/')}/otp/validate"
+    # Ensure phone number starts with 977
+    if phone and not phone.startswith('977'):
+        phone = f"977{phone}"
+
     payload = {
         "seq_no": seq_no,
-        "otp": otp
+        "otp": otp,
+        "phone": phone
     }
+    print(f"DEBUG: Payload sent to NTC Validate: {json.dumps(payload)}")
     
     try:
-        auth = None
-        if settings.NTC_OTP_USER and settings.NTC_OTP_PASSWORD:
-            auth = (settings.NTC_OTP_USER, settings.NTC_OTP_PASSWORD)
-
-        response = requests.post(url, json=payload, auth=auth, timeout=5)
-        response.raise_for_status()
-        
+        response = requests.post(url, json=payload, timeout=5)
         data = response.json()
         
-        # PRD FR-08:
-        # { "success": true, "data": { "code": 0, "description": "Success" } }
+        # Robust success check
+        is_success = data.get("success") in [True, "true", "True"]
+        ntc_data = data.get("data", {})
+        has_error = isinstance(ntc_data, dict) and "error" in ntc_data
+        code = ntc_data.get("code") if isinstance(ntc_data, dict) else None
         
-        if data.get("success") is True and data.get("data", {}).get("code") == 0:
+        if is_success and not has_error:
+            return True, "Success"
+        elif is_success and (code == 0 or code == "0"):
             return True, "Success"
         else:
-            return False, "Invalid OTP"
+            error_detail = ntc_data.get("error") if has_error else ntc_data.get("description")
+            return False, f"Gateway Error: {error_detail or json.dumps(data)}"
             
     except Exception as e:
         return False, str(e)
+
+

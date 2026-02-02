@@ -187,7 +187,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
               <button
                 type="button"
                 onClick={() => setDateMode("AD")}
-                className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+                className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
               >
                 AD (Gregorian)
               </button>
@@ -294,8 +294,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
                         key={s.id}
                         onClick={() => toggleSchedule(String(s.id))}
                         className={`flex items-center justify-between px-3 py-2 rounded-md border text-left text-sm transition-all ${selected
-                          ? "border-blue-500 bg-blue-100 text-blue-900 ring-1 ring-blue-500/20"
-                          : "border-[hsl(var(--gray-300))] hover:border-blue-400 hover:bg-slate-50"
+                          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20"
+                          : "border-[hsl(var(--gray-300))] hover:border-primary/50 hover:bg-slate-50"
                           }`}
                       >
                         <div className="flex flex-col items-start gap-1">
@@ -307,7 +307,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
                         <div className="flex items-center gap-2">
                           {!s.office && (
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${selected ? "bg-blue-200 text-blue-700" : "bg-orange-100 text-orange-600"
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${selected ? "bg-primary/20 text-primary" : "bg-orange-100 text-orange-600"
                                 }`}
                             >
                               Template
@@ -329,7 +329,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({ open, on
             type="submit"
             form="edit-duty-chart-form"
             disabled={isSubmitting}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Saving..." : "Edit Duty Chart"}
           </button>

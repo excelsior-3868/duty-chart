@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Directorate, Department, Office
+from .models import Directorate, Department, Office, SystemSetting
 
 class DirectorateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,3 +26,8 @@ class OfficeSerializer(serializers.ModelSerializer):
         data['department_name'] = instance.department.name
         data['directorate_name'] = instance.department.directorate.name
         return data 
+
+class SystemSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSetting
+        fields = '__all__'

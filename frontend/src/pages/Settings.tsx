@@ -5,19 +5,62 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock, Loader2 } from 'lucide-react';
 import { RBACAdmin } from "@/components/settings/RBACAdmin";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import api from "@/services/api";
+import { toast } from "sonner";
 
 const Settings = () => {
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState({
+    id: null,
+    is_2fa_enabled: false,
+    session_timeout: 60,
+    auto_logout_idle: true
+  });
+
   useEffect(() => {
     document.title = "Settings - INOC Duty Roster";
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("system-settings/");
+      setSettings(data);
+    } catch (err) {
+      console.error("Failed to load security settings:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (settings.id) {
+        await api.put(`system-settings/${settings.id}/`, settings);
+      } else {
+        await api.post("system-settings/", settings);
+      }
+      toast.success("Security settings updated successfully");
+      // Refresh local storage values for immediate affect in MainLayout if needed
+      localStorage.setItem('session_timeout', String(settings.session_timeout));
+      localStorage.setItem('auto_logout_idle', String(settings.auto_logout_idle));
+    } catch (err) {
+      toast.error("Failed to update settings");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#005a9c]">Settings</h1>
+        <h1 className="text-2xl font-bold text-primary">Settings</h1>
         <p className="text-muted-foreground">Configure system preferences and user settings</p>
       </div>
 
@@ -142,31 +185,49 @@ const Settings = () => {
                   <Shield className="h-5 w-5" />
                   Security
                 </CardTitle>
-                <CardDescription>Security and access control settings</CardDescription>
+                <CardDescription>Global security and access control settings (Admin Only)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="two-factor">Two-Factor Authentication</Label>
-                    <p className="text-sm text-muted-foreground">Enhanced account security</p>
+                {loading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
                   </div>
-                  <Switch id="two-factor" />
-                </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-                  <Input id="session-timeout" type="number" defaultValue="60" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="auto-logout">Auto-logout on Idle</Label>
-                    <p className="text-sm text-muted-foreground">Logout when inactive</p>
-                  </div>
-                  <Switch id="auto-logout" defaultChecked />
-                </div>
-                <Button variant="outline" className="w-full">
-                  Change Password
-                </Button>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="two-factor">Two-Factor Authentication</Label>
+                        <p className="text-sm text-muted-foreground">Enable system-wide SMS 2FA for all users</p>
+                      </div>
+                      <Switch
+                        id="two-factor"
+                        checked={settings.is_2fa_enabled}
+                        onCheckedChange={(checked) => setSettings({ ...settings, is_2fa_enabled: checked })}
+                      />
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
+                      <Input
+                        id="session-timeout"
+                        type="number"
+                        value={settings.session_timeout}
+                        onChange={(e) => setSettings({ ...settings, session_timeout: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="auto-logout">Auto-logout on Idle</Label>
+                        <p className="text-sm text-muted-foreground">Logout when no activity is detected</p>
+                      </div>
+                      <Switch
+                        id="auto-logout"
+                        checked={settings.auto_logout_idle}
+                        onCheckedChange={(checked) => setSettings({ ...settings, auto_logout_idle: checked })}
+                      />
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -212,8 +273,15 @@ const Settings = () => {
 
           {/* Save Settings */}
           <div className="flex justify-end gap-2">
-            <Button variant="outline">Reset to Defaults</Button>
-            <Button>Save Changes</Button>
+            <Button variant="outline" onClick={fetchSettings} disabled={loading || saving}>Reset to Defaults</Button>
+            <Button onClick={handleSave} disabled={loading || saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Saving...
+                </>
+              ) : "Save Changes"}
+            </Button>
           </div>
         </TabsContent>
 

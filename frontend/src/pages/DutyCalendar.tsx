@@ -425,7 +425,7 @@ const DutyCalendar = () => {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-[#005a9c]">Duty Calendar</h1>
+                        <h1 className="text-2xl font-bold text-primary">Duty Calendar</h1>
                         <p className="text-muted-foreground">Manage events and duty schedules.</p>
                     </div>
 
@@ -439,8 +439,8 @@ const DutyCalendar = () => {
                     <div className="flex items-center gap-3">
 
                         <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
-                            <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>BS</button>
-                            <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-slate-500 hover:text-slate-700")}>AD</button>
+                            <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>BS</button>
+                            <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>AD</button>
                         </div>
                         {selectedDutyChartId && (
                             <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowExportModal(true)}>
@@ -448,7 +448,7 @@ const DutyCalendar = () => {
                             </Button>
                         )}
                         {hasPermission('duties.create_chart') && (
-                            <Button className="gap-2 text-xs h-9 bg-[#1F5CA9] hover:bg-[#1a4d8c] text-white" onClick={() => setShowCreateDutyChart(true)}>
+                            <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
@@ -466,7 +466,7 @@ const DutyCalendar = () => {
                         {/* Office Selector */}
                         <Popover open={officeOpen} onOpenChange={setOfficeOpen}>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="flex-1 min-w-0 justify-between h-9 text-xs bg-[#1F5CA9] text-white hover:bg-[#1a4d8c] hover:text-white border-2 border-[#1F5CA9] transition-colors">
+                                <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="flex-1 min-w-0 justify-between h-9 text-xs bg-primary text-white hover:bg-primary-hover hover:text-white border-2 border-primary transition-colors">
                                     <span className="truncate">{selectedOfficeId ? offices.find((o) => o.id === Number(selectedOfficeId))?.name : "Select Office"}</span>
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
                                 </Button>
@@ -485,7 +485,7 @@ const DutyCalendar = () => {
                                                 }}
                                                 className={cn(
                                                     "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
-                                                    !selectedOfficeId ? "bg-[#1F5CA9] text-white data-[selected='true']:bg-[#1F5CA9] data-[selected='true']:text-white" : "text-slate-700"
+                                                    !selectedOfficeId ? "bg-primary text-white data-[selected='true']:bg-primary data-[selected='true']:text-white" : "text-slate-700"
                                                 )}
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", !selectedOfficeId ? "opacity-100" : "opacity-0")} />
@@ -501,7 +501,7 @@ const DutyCalendar = () => {
                                                     }}
                                                     className={cn(
                                                         "flex items-center px-2 py-1.5 cursor-default select-none rounded-sm outline-none data-[selected='true']:bg-slate-100 data-[selected='true']:text-slate-900",
-                                                        selectedOfficeId === String(office.id) ? "bg-[#1F5CA9] text-white data-[selected='true']:bg-[#1F5CA9] data-[selected='true']:text-white" : "text-slate-700"
+                                                        selectedOfficeId === String(office.id) ? "bg-primary text-white data-[selected='true']:bg-primary data-[selected='true']:text-white" : "text-slate-700"
                                                     )}
                                                 >
                                                     <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
@@ -529,7 +529,7 @@ const DutyCalendar = () => {
                         {/* Shift Filter - Only in Calendar Tab */}
                         {activeTab === "calendar" && (
                             <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={!selectedDutyChartId}>
-                                <SelectTrigger className="flex-1 min-w-0 h-9 text-xs border-blue-200 bg-blue-50/30">
+                                <SelectTrigger className="flex-1 min-w-0 h-9 text-xs border-primary/20 bg-primary/5">
                                     <SelectValue placeholder="All Shifts" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -544,7 +544,7 @@ const DutyCalendar = () => {
                         {/* Display Chart Dates */}
                         {selectedDutyChartInfo && (
                             <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all animate-in fade-in zoom-in duration-300 shrink-0">
-                                <CalendarIcon className="w-3.5 h-3.5 text-blue-500" />
+                                <CalendarIcon className="w-3.5 h-3.5 text-primary" />
                                 <span className="flex items-center gap-1.5">
                                     {dateMode === "BS"
                                         ? `${new NepaliDate(new Date(selectedDutyChartInfo.effective_date)).format("YYYY/MM/DD")} - ${selectedDutyChartInfo.end_date ? new NepaliDate(new Date(selectedDutyChartInfo.end_date)).format("YYYY/MM/DD") : "Open"}`
@@ -631,7 +631,7 @@ const DutyCalendar = () => {
                         {loading && (
                             <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px] rounded-lg transition-all duration-300">
                                 <div className="flex flex-col items-center gap-2 bg-white p-4 rounded-xl shadow-lg border border-slate-100 animate-in fade-in zoom-in duration-300">
-                                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
                                     <span className="text-xs font-medium text-slate-600">Loading Roster...</span>
                                 </div>
                             </div>
@@ -681,7 +681,7 @@ const DutyCalendar = () => {
                                                             "text-base font-bold select-none",
                                                             !isCurrentMonth ? "text-slate-400" : "text-slate-900",
                                                             isSaturday && isCurrentMonth ? "text-red-500" : "",
-                                                            isTodayDate ? "text-white bg-[#1F5CA9] rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
+                                                            isTodayDate ? "text-white bg-primary rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
                                                         )}>
                                                             {dateMode === "BS" ? nd.getDate() : format(date, "d")}
                                                         </span>
@@ -725,7 +725,7 @@ const DutyCalendar = () => {
                                                         <Button
                                                             variant="secondary"
                                                             size="icon"
-                                                            className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-[#1F5CA9] text-white hover:bg-[#1a4d8c] opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
+                                                            className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
 
@@ -761,7 +761,7 @@ const DutyCalendar = () => {
                                 <div className="border rounded-lg bg-white shadow-sm p-4">
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="text-lg font-semibold flex items-center gap-2">
-                                            <Clock className="w-5 h-5 text-blue-600" />
+                                            <Clock className="w-5 h-5 text-primary" />
                                             Available Shifts
                                         </h3>
                                         <p className="text-sm text-muted-foreground">{schedules.length} shifts defined in this chart</p>

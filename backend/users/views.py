@@ -4,8 +4,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
 from django.core.exceptions import ValidationError
-from .models import User, Position, Role, Permission, RolePermission
-from .serializers import UserSerializer, PositionSerializer, RoleSerializer, PermissionSerializer
+from .models import User, Position, Role, Permission, RolePermission, UserDashboardOffice
+from .serializers import UserSerializer, PositionSerializer, RoleSerializer, PermissionSerializer, UserDashboardOfficeSerializer
 from users.permissions import AdminOrReadOnly, IsSuperAdmin, get_allowed_office_ids, ManageRBACOrReadOnly
 
 # Create your views here.
@@ -119,3 +119,14 @@ class RoleViewSet(viewsets.ModelViewSet):
             RolePermission.objects.get_or_create(role=role, permission=p)
         slugs = list(RolePermission.objects.filter(role=role).values_list('permission__slug', flat=True))
         return Response({'role': role.slug, 'permissions': slugs})
+
+class UserDashboardOfficeViewSet(viewsets.ModelViewSet):
+    serializer_class = UserDashboardOfficeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserDashboardOffice.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save()
+

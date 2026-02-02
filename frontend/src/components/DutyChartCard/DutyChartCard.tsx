@@ -118,7 +118,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
     fetchByOffice();
   }, [formData.office]);
 
-  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--blue-200))] focus:border-[hsl(var(--inoc-blue))]";
+  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const errorInputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-500";
   const labelClass = "text-sm font-medium text-[hsl(var(--title))]";
   const errorClass = "text-xs text-red-500 mt-1";
@@ -305,7 +305,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             <button
               type="button"
               onClick={() => setDateMode("AD")}
-              className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+              className={`px-4 py-1 text-xs font-medium rounded-md transition-all ${dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
             >
               AD
             </button>
@@ -323,9 +323,9 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               }
             `}
           </style>
-          <div className="absolute top-0 left-0 w-full h-1 overflow-hidden rounded-t-lg bg-blue-100 z-10">
+          <div className="absolute top-0 left-0 w-full h-1 overflow-hidden rounded-t-lg bg-primary/10 z-10">
             <div
-              className="h-full bg-blue-600"
+              className="h-full bg-primary"
               style={{
                 width: '30%',
                 animation: 'progress-loading 2s ease-in-out infinite'
@@ -411,12 +411,12 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                     key={s.id}
                     onClick={() => toggleShift(String(s.id))}
                     className={`flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors ${selected
-                      ? "border-blue-500 bg-blue-100 text-blue-900"
-                      : "border-[hsl(var(--gray-300))] hover:border-[hsl(var(--blue-300))] hover:bg-[hsl(var(--card))]"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-[hsl(var(--gray-300))] hover:border-primary/50 hover:bg-[hsl(var(--card))]"
                       }`}
                   >
                     <span>{s.name} – {s.start_time} to {s.end_time}</span>
-                    {selected && <Check className="h-3 w-3 text-blue-600" />}
+                    {selected && <Check className="h-3 w-3 text-primary" />}
                   </button>
                 );
               })}
@@ -487,7 +487,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-2 bg-[hsl(var(--inoc-blue))] text-white rounded-md hover:bg-[hsl(var(--inoc-blue))] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {isSubmitting ? (
                 <>
@@ -513,13 +513,13 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto my-4 py-2">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-4 flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-blue-900">
+                <p className="text-sm font-semibold text-primary/90">
                   Ready to import {previewStats.total} duty assignments.
                 </p>
-                <p className="text-xs text-blue-700">
+                <p className="text-xs text-primary/70">
                   Please review the details below. No changes have been made to the database yet.
                 </p>
               </div>
@@ -576,7 +576,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             <Button
               onClick={() => processImport(false)}
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-primary hover:bg-primary-hover"
             >
               {isSubmitting ? (
                 <>
@@ -596,7 +596,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Check className="h-5 w-5 text-blue-600" />
+              <Check className="h-5 w-5 text-primary" />
               Confirm Duty Chart Creation
             </DialogTitle>
           </DialogHeader>
@@ -650,7 +650,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             <Button
               onClick={processManualCreation}
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-primary hover:bg-primary-hover"
             >
               {isSubmitting ? (
                 <>

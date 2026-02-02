@@ -144,7 +144,7 @@ const ChangePassword = () => {
     <div className="min-h-screen flex items-center justify-center gradient-background p-4">
       <Card className="w-full max-w-md shadow-lg border-0 bg-white/90 backdrop-blur-sm">
         <CardContent className="p-8">
-          <h1 className="text-2xl font-bold mb-6 text-center text-[#005a9c]">
+          <h1 className="text-2xl font-bold mb-6 text-center text-primary">
             {step === "VERIFY_OLD" && "Verify Identity"}
             {step === "SELECT_CHANNEL" && "Select Verification Method"}
             {step === "VALIDATE_OTP" && "Enter Verification Code"}
@@ -163,7 +163,7 @@ const ChangePassword = () => {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full bg-[#1F5CA9]" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-primary hover:bg-primary-hover" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Continue
               </Button>
@@ -181,13 +181,13 @@ const ChangePassword = () => {
                       value={ch.type}
                       checked={selectedChannel === ch.type}
                       onChange={() => setSelectedChannel(ch.type)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      className="h-4 w-4 text-primary focus:ring-primary"
                     />
                     <span className="text-sm font-medium">{ch.label}</span>
                   </div>
                 ))}
               </div>
-              <Button type="submit" className="w-full bg-[#1F5CA9]" disabled={isLoading || !selectedChannel}>
+              <Button type="submit" className="w-full bg-primary hover:bg-primary-hover" disabled={isLoading || !selectedChannel}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Send Verification Code
               </Button>
@@ -206,7 +206,7 @@ const ChangePassword = () => {
                 />
                 {maskedPhone && <p className="text-xs text-gray-500 mt-1">Sent to {maskedPhone}</p>}
               </div>
-              <Button type="submit" className="w-full bg-[#1F5CA9]" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-primary hover:bg-primary-hover" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Verify
               </Button>
@@ -236,7 +236,7 @@ const ChangePassword = () => {
                   minLength={8}
                 />
               </div>
-              <Button type="submit" className="w-full bg-[#1F5CA9]" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-primary hover:bg-primary-hover" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Update Password
               </Button>

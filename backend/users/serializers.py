@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 
 from duties.models import DutyChart, Duty, Document, RosterAssignment, Schedule
 from org.models import Office
-from .models import User, Position, Role, Permission
+from .models import User, Position, Role, Permission, UserDashboardOffice
 class UserSerializer(serializers.ModelSerializer):
     # Explicitly expose secondary_offices for read/write via IDs
     secondary_offices = serializers.PrimaryKeyRelatedField(
@@ -306,5 +306,19 @@ class ScheduleSerializer(serializers.ModelSerializer):
                     'start_time', 'end_time', 'shift'
                 ],
                 message='An identical schedule already exists.'
+            )
+        ]
+
+class UserDashboardOfficeSerializer(serializers.ModelSerializer):
+    office_name = serializers.ReadOnlyField(source='office.name')
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
+    class Meta:
+        model = UserDashboardOffice
+        fields = ['id', 'user', 'office', 'office_name']
+        validators = [
+            UniqueTogetherValidator(
+                queryset=UserDashboardOffice.objects.all(),
+                fields=['user', 'office']
             )
         ]

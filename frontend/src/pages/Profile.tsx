@@ -16,7 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const OrgField = ({ label, value, icon, className = "" }: { label: string, value: string, icon: any, className?: string }) => (
     <div className={`space-y-0.5 ${className}`}>
-        <Label className="text-[#005a9c] text-xs font-medium ml-1">{label}</Label>
+        <Label className="text-primary text-xs font-medium ml-1">{label}</Label>
         <div className="relative group">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700">
                 {icon}
@@ -182,16 +182,16 @@ const Profile = () => {
 
     return (
         <div className="p-4 bg-slate-50/50 min-h-screen">
-            <div className="max-w-[1300px] mx-auto space-y-3">
+            <div className="w-full space-y-3">
                 {/* Simplified Header */}
                 <div className="pb-1">
-                    <h1 className="text-2xl font-semibold text-[#005a9c]">Profile Settings</h1>
-                    <p className="text-slate-700 text-sm">Manage your personal information and security</p>
+                    <h1 className="text-2xl font-bold text-primary">Profile Settings</h1>
+                    <p className="text-muted-foreground">Manage your personal information and security</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left Sidebar */}
-                    <div className="lg:col-span-3 space-y-4">
+                    <div className="lg:col-span-3 space-y-4 lg:sticky lg:top-6 h-fit">
                         <Card className="overflow-hidden border shadow-sm rounded-xl bg-white">
                             <CardContent className="p-5 flex flex-col items-center">
                                 <div className="relative group p-1 border-2 border-dashed border-slate-300 rounded-2xl">
@@ -231,7 +231,7 @@ const Profile = () => {
                                     </Label>
                                 </div>
                                 <div className="mt-3 text-center">
-                                    <h2 className="font-medium text-[#005a9c] text-sm">{user.full_name}</h2>
+                                    <h2 className="font-medium text-primary text-sm">{user.full_name}</h2>
                                     <p className="text-sm text-slate-700 truncate w-full font-medium">{user.email}</p>
                                 </div>
                             </CardContent>
@@ -239,15 +239,15 @@ const Profile = () => {
 
                         <div className="space-y-2">
                             <div className="bg-white border p-3 rounded-xl shadow-sm">
-                                <p className="text-xs font-medium text-[#005a9c] mb-1.5">System Role</p>
+                                <p className="text-xs font-medium text-primary mb-1.5">System Role</p>
                                 <div className="flex items-center gap-2">
-                                    <Shield size={16} className="text-[#005a9c]" />
+                                    <Shield size={16} className="text-primary" />
                                     <span className="text-xs font-medium text-slate-900">{getRoleLabel(user.role)}</span>
                                 </div>
                             </div>
 
                             <div className="bg-white border p-3 rounded-xl shadow-sm">
-                                <p className="text-xs font-medium text-[#005a9c] mb-1.5">Employee Id</p>
+                                <p className="text-xs font-medium text-primary mb-1.5">Employee Id</p>
                                 <div className="flex items-center gap-2">
                                     <Hash size={16} className="text-orange-600" />
                                     <span className="text-xs font-medium text-slate-900"># {user.employee_id}</span>
@@ -260,10 +260,10 @@ const Profile = () => {
                     <div className="lg:col-span-9">
                         <Tabs defaultValue="information" className="space-y-3">
                             <TabsList className="bg-slate-100 p-1 rounded-lg border w-full justify-start md:w-auto h-11">
-                                <TabsTrigger value="information" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 text-sm font-medium text-[#005a9c]">
+                                <TabsTrigger value="information" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 text-sm font-medium text-primary">
                                     <User size={14} className="mr-2" /> Profile Information
                                 </TabsTrigger>
-                                <TabsTrigger value="password" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 text-sm font-medium text-[#005a9c]">
+                                <TabsTrigger value="password" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 text-sm font-medium text-primary">
                                     <Key size={14} className="mr-2" /> Change Password
                                 </TabsTrigger>
                             </TabsList>
@@ -273,8 +273,8 @@ const Profile = () => {
                                     <CardContent className="p-6 space-y-5">
                                         <section className="space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2 text-[#005a9c] font-medium text-sm">
-                                                    <User size={16} className="text-[#005a9c]" />
+                                                <div className="flex items-center gap-2 text-primary font-medium text-sm">
+                                                    <User size={16} className="text-primary" />
                                                     Personal Information
                                                 </div>
                                                 {isEditing && (
@@ -286,14 +286,14 @@ const Profile = () => {
 
                                             <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
                                                 <div className="space-y-0.5">
-                                                    <Label className="text-[#005a9c] text-xs font-medium ml-1">Username</Label>
+                                                    <Label className="text-primary text-xs font-medium ml-1">Username</Label>
                                                     <div className="px-2 py-1 bg-slate-50 border rounded-lg h-9 flex items-center">
                                                         <p className="text-blue-700 font-medium text-sm">{user.email}</p>
                                                     </div>
                                                 </div>
 
                                                 <div className="space-y-0.5">
-                                                    <Label className="text-[#005a9c] text-xs font-medium ml-1">Full Name</Label>
+                                                    <Label className="text-primary text-xs font-medium ml-1">Full Name</Label>
                                                     <Input
                                                         className="h-9 rounded-lg text-sm font-medium border-slate-300 text-slate-900 focus:border-blue-500 placeholder:text-slate-300"
                                                         value={editData?.full_name || ""}
@@ -304,7 +304,7 @@ const Profile = () => {
                                                 </div>
 
                                                 <div className="space-y-0.5">
-                                                    <Label className="text-[#005a9c] text-xs font-medium ml-1">Email Address</Label>
+                                                    <Label className="text-primary text-xs font-medium ml-1">Email Address</Label>
                                                     <div className="relative">
                                                         <Input className="h-9 rounded-lg text-sm font-medium pr-10 border-slate-300 bg-slate-50 text-slate-900" value={user.email} disabled />
                                                         <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -312,7 +312,7 @@ const Profile = () => {
                                                 </div>
 
                                                 <div className="space-y-0.5">
-                                                    <Label className="text-[#005a9c] text-xs font-medium ml-1">Mobile Number</Label>
+                                                    <Label className="text-primary text-xs font-medium ml-1">Mobile Number</Label>
                                                     <div className="relative">
                                                         <Phone size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
                                                         <Input
@@ -326,7 +326,7 @@ const Profile = () => {
                                                 </div>
 
                                                 <div className="space-y-0.5">
-                                                    <Label className="text-[#005a9c] text-xs font-medium ml-1">Employee Id</Label>
+                                                    <Label className="text-primary text-xs font-medium ml-1">Employee Id</Label>
                                                     <Input className="h-9 rounded-lg text-sm font-medium border-slate-300 bg-slate-50 text-slate-900" value={user.employee_id} disabled />
                                                 </div>
                                             </div>
@@ -335,8 +335,8 @@ const Profile = () => {
                                         <div className="h-px bg-slate-100" />
 
                                         <section className="space-y-3">
-                                            <div className="flex items-center gap-2 text-[#005a9c] font-medium text-sm">
-                                                <Building2 size={16} className="text-[#005a9c]" />
+                                            <div className="flex items-center gap-2 text-primary font-medium text-sm">
+                                                <Building2 size={16} className="text-primary" />
                                                 Organizational Context
                                             </div>
 
@@ -365,13 +365,13 @@ const Profile = () => {
                             <TabsContent value="password">
                                 <Card className="border shadow-sm rounded-xl overflow-hidden bg-white">
                                     <div className="p-5 border-b bg-slate-50">
-                                        <h3 className="text-sm font-medium text-[#005a9c]">Change Password</h3>
+                                        <h3 className="text-sm font-medium text-primary">Change Password</h3>
                                         <p className="text-xs text-slate-800 mt-0.5 font-medium">Verify your current password to set a new one</p>
                                     </div>
                                     <CardContent className="p-6">
                                         <form onSubmit={handlePasswordChange} className="max-w-sm space-y-3">
                                             <div className="space-y-0.5">
-                                                <Label className="text-[#005a9c] text-xs font-medium ml-1">Current Password</Label>
+                                                <Label className="text-primary text-xs font-medium ml-1">Current Password</Label>
                                                 <div className="relative">
                                                     <Input
                                                         type={showOld ? "text" : "password"}
@@ -386,7 +386,7 @@ const Profile = () => {
                                                 </div>
                                             </div>
                                             <div className="space-y-0.5">
-                                                <Label className="text-[#005a9c] text-xs font-medium ml-1">New Password</Label>
+                                                <Label className="text-primary text-xs font-medium ml-1">New Password</Label>
                                                 <div className="relative">
                                                     <Input
                                                         type={showNew ? "text" : "password"}
@@ -401,7 +401,7 @@ const Profile = () => {
                                                 </div>
                                             </div>
                                             <div className="space-y-0.5">
-                                                <Label className="text-[#005a9c] text-xs font-medium ml-1">Confirm New Password</Label>
+                                                <Label className="text-primary text-xs font-medium ml-1">Confirm New Password</Label>
                                                 <div className="relative">
                                                     <Input
                                                         type={showConfirm ? "text" : "password"}

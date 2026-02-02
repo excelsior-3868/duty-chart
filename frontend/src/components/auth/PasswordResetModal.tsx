@@ -29,9 +29,8 @@ interface Channel {
 export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps) {
     const [step, setStep] = useState<Step>("LOOKUP");
     const [isLoading, setIsLoading] = useState(false);
-    const [username, setUsername] = useState("");
-    const [channels, setChannels] = useState<Channel[]>([]);
-    const [selectedChannel, setSelectedChannel] = useState<string>("");
+    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
     const [requestId, setRequestId] = useState("");
     const [otp, setOtp] = useState("");
     const [newPassword, setNewPassword] = useState("");
@@ -40,42 +39,21 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    const handleLookup = async (e: React.FormEvent) => {
+    const handleSendOTP = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!username) return;
-
-        setIsLoading(true);
-        try {
-            const { data } = await publicApi.post("/v1/otp/lookup/", { username });
-            if (data.exists && data.channels.length > 0) {
-                setChannels(data.channels);
-                const smsChannel = data.channels.find((ch: Channel) => ch.type === 'sms_ntc');
-                setSelectedChannel(smsChannel ? 'sms_ntc' : data.channels[0].type);
-                setStep("SELECT_CHANNEL");
-            } else {
-                toast.error("No account found with provided details.");
-            }
-        } catch (error: any) {
-            toast.error("Failed to lookup user.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleRequestOTP = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedChannel) return;
+        if (!email || !phone) return;
 
         setIsLoading(true);
         try {
             const { data } = await publicApi.post("/v1/otp/request/", {
-                username,
-                channel: selectedChannel,
+                email: email,
+                phone: phone,
+                channel: "sms_ntc",
                 purpose: "forgot_password",
             });
 
             setRequestId(data.request_id);
-            if (data.masked_phone && selectedChannel === 'sms_ntc') {
+            if (data.masked_phone) {
                 setMaskedPhone(data.masked_phone);
                 toast.success(`OTP sent to ${data.masked_phone}`);
             } else {
@@ -125,11 +103,11 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
             onClose();
             // Reset state
             setStep("LOOKUP");
-            setUsername("");
+            setEmail("");
+            setPhone("");
             setOtp("");
             setNewPassword("");
             setConfirmPassword("");
-            setChannels([]);
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to reset password");
             console.error("Reset Password Error:", error);
@@ -142,64 +120,45 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Reset Password</DialogTitle>
+                    <DialogTitle>Forgot Password?</DialogTitle>
                     <DialogDescription>
-                        {step === "LOOKUP" && "Enter your Email or Phone Number or Employee ID."}
-                        {step === "SELECT_CHANNEL" && "Choose how you want to receive the OTP."}
+                        {step === "LOOKUP" && "Enter your Email Address and Phone Number."}
                         {step === "VALIDATE" && "Enter the OTP sent to you."}
                         {step === "RESET" && "Enter your new password."}
                     </DialogDescription>
                 </DialogHeader>
 
                 {step === "LOOKUP" && (
-                    <form onSubmit={handleLookup} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="username">Username</Label>
+                    <form onSubmit={handleSendOTP} className="space-y-4">
+                        <div className="space-y-4 pt-4">
                             <Input
-                                id="username"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                placeholder="Enter your credential"
+                                id="email"
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="Email Address *"
                                 required
+                                className="h-12 text-lg"
                             />
-                        </div>
-                        <Button type="submit" className="w-full" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Continue
-                        </Button>
-                    </form>
-                )}
 
-                {step === "SELECT_CHANNEL" && (
-                    <form onSubmit={handleRequestOTP} className="space-y-4">
-                        <div className="space-y-3">
-                            <Label>Select Verification Method</Label>
-                            {channels.map((ch) => (
-                                <div key={ch.type} className="flex items-center space-x-2 border p-3 rounded-md cursor-pointer hover:bg-slate-50" onClick={() => setSelectedChannel(ch.type)}>
-                                    <input
-                                        type="radio"
-                                        name="channel"
-                                        value={ch.type}
-                                        checked={selectedChannel === ch.type}
-                                        onChange={() => setSelectedChannel(ch.type)}
-                                        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm font-medium">{ch.label}</span>
-                                </div>
-                            ))}
+                            <div className="flex gap-2">
+                                <Input
+                                    id="phone"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="Phone *"
+                                    required
+                                    className="h-12 text-lg flex-1"
+                                />
+                                <Button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="h-12 px-6 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]"
+                                >
+                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "SEND OTP"}
+                                </Button>
+                            </div>
                         </div>
-                        <Button type="submit" className="w-full" disabled={isLoading || !selectedChannel}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Send OTP
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="link"
-                            className="w-full"
-                            onClick={() => setStep("LOOKUP")}
-                        >
-                            Back
-                        </Button>
                     </form>
                 )}
 
@@ -211,19 +170,19 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                                 id="otp"
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value)}
-                                placeholder="Enter 6-digit OTP"
+                                placeholder="Enter 4-digit OTP"
                                 required
                             />
                         </div>
-                        <Button type="submit" className="w-full" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-12 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]" disabled={isLoading}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Verify OTP
+                            VERIFY OTP
                         </Button>
                         <Button
                             type="button"
                             variant="link"
                             className="w-full"
-                            onClick={() => setStep("SELECT_CHANNEL")}
+                            onClick={() => setStep("LOOKUP")}
                         >
                             Back
                         </Button>
