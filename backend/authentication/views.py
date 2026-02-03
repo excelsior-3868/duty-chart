@@ -64,6 +64,7 @@ class MeView(APIView):
             "role": role,
             "image": image_url,
             "office_id": getattr(user, "office_id", None),
+            "secondary_offices": list(user.secondary_offices.values_list('id', flat=True)) if hasattr(user, 'secondary_offices') else [],
             "permissions": permissions,
         })
 

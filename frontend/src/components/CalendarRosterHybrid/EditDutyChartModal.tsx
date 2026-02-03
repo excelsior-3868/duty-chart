@@ -4,7 +4,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getDutyCharts, getDutyChartById, patchDutyChart, downloadImportTemplate, importDutyChartExcel, DutyChart as DutyChartDTO } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
-import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save } from "lucide-react";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
@@ -35,6 +36,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   initialChartId,
   onUpdateSuccess
 }) => {
+  const { canManageOffice, hasPermission } = useAuth();
   const [charts, setCharts] = useState<DutyChartDTO[]>([]);
   const [selectedChartId, setSelectedChartId] = useState<string>("");
   const [offices, setOffices] = useState<Office[]>([]);
@@ -305,6 +307,28 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     setShowManualConfirm(true);
   };
 
+  const handleRename = async () => {
+    if (!selectedChartId || !formData.name) return;
+
+    setIsSubmitting(true);
+    try {
+      await patchDutyChart(parseInt(selectedChartId), { name: formData.name });
+      toast.success("Duty Chart Name updated");
+
+      // Refresh the combo box list
+      if (formData.office) {
+        const officeId = parseInt(formData.office);
+        const chartsRes = await getDutyCharts(officeId);
+        setCharts(chartsRes);
+      }
+    } catch (error) {
+      console.error("Failed to rename chart:", error);
+      toast.error("Failed to update name");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const processManualUpdate = async () => {
     if (!selectedChartId) return;
     setIsSubmitting(true);
@@ -393,9 +417,11 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                         <SelectValue placeholder="Select Office" />
                       </SelectTrigger>
                       <SelectContent>
-                        {offices.map((office) => (
-                          <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
-                        ))}
+                        {offices
+                          .filter(office => canManageOffice(office.id))
+                          .map((office) => (
+                            <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -418,6 +444,35 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                     </Select>
                   </div>
                 </div>
+
+                {selectedChartId && (
+                  <div>
+                    <label className={labelClass}>
+                      Duty Chart Name
+                      <span className="ml-1 text-[10px] text-muted-foreground font-normal">(Click save to rename)</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        className={inputClass}
+                        value={formData.name}
+                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        placeholder="Duty Chart Name"
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={handleRename}
+                        disabled={isSubmitting}
+                        title="Update Name Only"
+                        className="shrink-0 aspect-square"
+                      >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">

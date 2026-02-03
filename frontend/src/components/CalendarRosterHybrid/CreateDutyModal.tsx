@@ -8,10 +8,25 @@ import { bulkUpsertDuties, createDuty } from "@/services/dutiesService";
 import { getSchedules, getScheduleById, type Schedule } from "@/services/schedule";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
-import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange } from "lucide-react";
+import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange, Search, Check, ChevronsUpDown } from "lucide-react";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
 import { addDays, eachDayOfInterval, format, parseISO } from "date-fns";
+import { useAuth } from "@/context/AuthContext";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 
 interface CreateDutyModalProps {
@@ -33,6 +48,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   scheduleId: initialScheduleId,
   onCreated,
 }) => {
+  const { hasPermission } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -46,6 +62,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   const [endDateISO, setEndDateISO] = useState(initialDateISO);
   const [isRange, setIsRange] = useState(false);
   const [dateMode, setDateMode] = useState<"AD" | "BS">("BS");
+  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
 
 
   useEffect(() => {
@@ -69,17 +86,19 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     const load = async () => {
       try {
         setLoading(true);
-        const res = await getUsers(officeId);
+        const canAssignAny = hasPermission("duties.assign_any_office_employee");
+        // If can assign any, fetch all users. Otherwise, fetch for this office.
+        const res = await getUsers(canAssignAny ? undefined : officeId);
         setUsers(res);
       } catch (e) {
         console.error("Failed to load users:", e);
-        toast.error("Failed to load employees for office.");
+        toast.error("Failed to load employees.");
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [open, officeId]);
+  }, [open, officeId, hasPermission]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,19 +141,23 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   }, [open, initialScheduleId, officeId, dutyChartId]);
 
   useEffect(() => {
-    const idNum = parseInt(selectedUserId);
-    if (!open || !idNum) {
+    if (!open || !selectedUserId) {
       setSelectedUserDetail(null);
       return;
     }
-    const loadUser = async () => {
-      try {
-        const detail = await getUser(idNum);
-        setSelectedUserDetail(detail);
-      } catch (e) { }
-    };
-    loadUser();
-  }, [open, selectedUserId]);
+    const found = users.find(u => String(u.id) === selectedUserId);
+    if (found) {
+      setSelectedUserDetail(found);
+    } else {
+      const loadUser = async () => {
+        try {
+          const detail = await getUser(parseInt(selectedUserId));
+          setSelectedUserDetail(detail);
+        } catch (e) { }
+      };
+      loadUser();
+    }
+  }, [open, selectedUserId, users]);
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
@@ -244,20 +267,59 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium">Employee *</label>
-              <select
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-                className={inputClass}
-                disabled={loading}
-                required
-              >
-                <option value="">Select Employee</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.username} ({u.email})
-                  </option>
-                ))}
-              </select>
+              <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={employeeSearchOpen}
+                    className="w-full justify-between font-normal bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+                  >
+                    {selectedUserId
+                      ? (() => {
+                        const u = users.find((user) => String(user.id) === selectedUserId);
+                        return u ? `${u.employee_id || u.username} - ${u.full_name || u.username} (${u.office_name || "N/A"})` : "Select Employee";
+                      })()
+                      : "Select Employee"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search employee by name, ID or email..." />
+                    <CommandList>
+                      <CommandEmpty>No employee found.</CommandEmpty>
+                      <CommandGroup>
+                        {users.map((u) => (
+                          <CommandItem
+                            key={u.id}
+                            value={`${u.username} ${u.employee_id} ${u.full_name} ${u.office_name}`}
+                            onSelect={() => {
+                              setSelectedUserId(String(u.id));
+                              setEmployeeSearchOpen(false);
+                            }}
+                          >
+                            <div className="flex flex-col">
+                              <div className="flex items-center">
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedUserId === String(u.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <span className="font-medium">{u.employee_id || u.username} - {u.full_name || u.username}</span>
+                              </div>
+                              <div className="ml-6 flex items-center gap-2">
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border text-slate-600 font-semibold text-[10px]">{u.office_name || "N/A"}</span>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* If no initialScheduleId, allow selection */}
@@ -336,34 +398,46 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
 
           </div>
 
-          <div className="space-y-2 pt-2 border-t">
-            <div className="text-muted-foreground flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-foreground">Shift:</span>
-                <span>{scheduleDetail ? `${scheduleDetail.name} (${scheduleDetail.start_time}–${scheduleDetail.end_time})` : "-"}</span>
-              </div>
+          <div className="space-y-3 pt-3 border-t">
+            <div className="flex items-center gap-3 px-1">
+              <span className="font-bold text-slate-700 text-sm">Shift:</span>
+              {scheduleDetail ? (
+                <div className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold shadow-sm transition-all animate-in zoom-in-95 duration-200">
+                  {scheduleDetail.name} ({scheduleDetail.start_time} – {scheduleDetail.end_time})
+                </div>
+              ) : (
+                <span className="text-sm text-slate-400">—</span>
+              )}
             </div>
+
             {selectedUserDetail && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                <div className="flex flex-col">
-                  <span className="font-semibold">Phone:</span>
-                  <span>{selectedUserDetail.phone_number || "-"}</span>
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                {/* Contact Section */}
+                <div className="bg-blue-50/40 p-3 border-b border-blue-100/50">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-blue-600 font-bold text-[10px] mb-0.5">Phone Number</span>
+                      <span className="text-slate-800 text-xs font-medium">{selectedUserDetail.phone_number || "—"}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-blue-600 font-bold text-[10px] mb-0.5">Email ID</span>
+                      <span className="text-slate-800 text-xs font-medium truncate">{selectedUserDetail.email || "—"}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="font-semibold">Email:</span>
-                  <span className="truncate">{selectedUserDetail.email || "-"}</span>
-                </div>
-              </div>
-            )}
-            {officeDetail && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] bg-gray-50 p-2 rounded">
-                <div className="flex flex-col">
-                  <span className="font-semibold">Office:</span>
-                  <span>{officeDetail.name || "-"}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-semibold">Department:</span>
-                  <span className="truncate">{officeDetail.department_name || "-"}</span>
+
+                {/* Organization Section */}
+                <div className="bg-slate-50/80 p-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-slate-600 font-bold text-[10px] mb-0.5">Office Name</span>
+                      <span className="text-slate-800 text-xs font-medium">{(selectedUserDetail as any)?.office_name || officeDetail?.name || "—"}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-slate-600 font-bold text-[10px] mb-0.5">Department</span>
+                      <span className="text-slate-800 text-xs font-medium truncate">{(selectedUserDetail as any)?.department_name || officeDetail?.department_name || "—"}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

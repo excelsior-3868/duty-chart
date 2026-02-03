@@ -100,12 +100,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { UserPlus } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 interface User {
   id: number;
   username: string;
   email: string;
   is_active: boolean;
+  office?: number;
 }
 
 interface Office {
@@ -144,6 +146,7 @@ interface AddAssignmentFormProps {
 export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
   onAdd,
 }) => {
+  const { canManageOffice, hasPermission } = useAuth();
   const [form, setForm] = useState({
     employeeId: "",
     officeId: "",
@@ -296,11 +299,13 @@ export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
                 <SelectValue placeholder="Select Employee" />
               </SelectTrigger>
               <SelectContent>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={String(user.id)}>
-                    {user.username} ({user.email})
-                  </SelectItem>
-                ))}
+                {users
+                  .filter(user => !user.office || canManageOffice(user.office) || hasPermission("duties.assign_any_office_employee"))
+                  .map((user) => (
+                    <SelectItem key={user.id} value={String(user.id)}>
+                      {user.username} ({user.email})
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -316,11 +321,13 @@ export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
                 <SelectValue placeholder="Select Office" />
               </SelectTrigger>
               <SelectContent>
-                {offices.map((office) => (
-                  <SelectItem key={office.id} value={String(office.id)}>
-                    {office.name}
-                  </SelectItem>
-                ))}
+                {offices
+                  .filter(office => canManageOffice(office.id) || hasPermission("duties.assign_any_office_employee"))
+                  .map((office) => (
+                    <SelectItem key={office.id} value={String(office.id)}>
+                      {office.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>

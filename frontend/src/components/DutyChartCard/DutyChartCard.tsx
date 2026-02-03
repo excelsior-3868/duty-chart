@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
+import { useAuth } from "@/context/AuthContext";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
@@ -59,6 +60,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   hideHeader,
   hideFooter
 }) => {
+  const { canManageOffice, hasPermission } = useAuth();
   const [internalDateMode, setInternalDateMode] = useState<"AD" | "BS">("BS");
   const dateMode = externalDateMode || internalDateMode;
   const setDateMode = setExternalDateMode || setInternalDateMode;
@@ -354,9 +356,11 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 <SelectValue placeholder="Select Office" />
               </SelectTrigger>
               <SelectContent>
-                {offices.map((office) => (
-                  <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
-                ))}
+                {offices
+                  .filter(office => canManageOffice(office.id))
+                  .map((office) => (
+                    <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>

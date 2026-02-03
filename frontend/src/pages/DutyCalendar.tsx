@@ -390,16 +390,50 @@ const DutyCalendar = () => {
 
     const years = Array.from({ length: 11 }, (_, i) => yearBS - 5 + i);
 
-    const canManageSelectedChart = useMemo(() => {
-        if (!selectedDutyChartInfo) return false;
-        if (!hasPermission('duties.edit_chart')) return false;
+    const canAssignDuties = useMemo(() => {
+        // Must have an office and a chart selected
+        if (!selectedOfficeId || !selectedDutyChartId || !selectedDutyChartInfo) return false;
+
+        // Must have the base permission
+        if (!hasPermission('duties.assign_employee')) return false;
+
+        const viewingOfficeId = Number(selectedOfficeId);
+
+        // Resolve the office ID from the chart info
         const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
             ? Number((selectedDutyChartInfo.office as any)?.id)
             : Number(selectedDutyChartInfo.office);
+
+        // Security: Ensure the chart actually belongs to the office being viewed
+        if (viewingOfficeId !== chartOfficeId) return false;
+
+        // Check if the user manages THIS specific office
+        return canManageOffice(chartOfficeId);
+    }, [selectedDutyChartId, selectedOfficeId, selectedDutyChartInfo, canManageOffice, hasPermission]);
+
+    const canManageSelectedChart = useMemo(() => {
+        if (!selectedDutyChartInfo) return false;
+        if (!hasPermission('duties.edit_chart')) return false;
+
+        const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+            ? Number((selectedDutyChartInfo.office as any)?.id)
+            : Number(selectedDutyChartInfo.office);
+
+        // Security: Restrict editing to owners of the office
         return canManageOffice(chartOfficeId);
     }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
 
-    const canDeleteDuty = useMemo(() => hasPermission('duties.delete'), [hasPermission]);
+    const canDeleteDuty = useMemo(() => {
+        if (!selectedDutyChartInfo) return false;
+        if (!hasPermission('duties.delete')) return false;
+
+        const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+            ? Number((selectedDutyChartInfo.office as any)?.id)
+            : Number(selectedDutyChartInfo.office);
+
+        // Security: Restrict deletion to owners of the office
+        return canManageOffice(chartOfficeId);
+    }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
 
     const handleDeleteDuty = async () => {
         if (!selectedProfile?.id) return;
@@ -430,11 +464,14 @@ const DutyCalendar = () => {
                     </div>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className={cn("grid w-full", hasPermission('duties.view_available_shifts') ? "grid-cols-2" : "grid-cols-1")}>
                             <TabsTrigger value="calendar">Duty Calendar</TabsTrigger>
-                            <TabsTrigger value="shifts">Available Shift</TabsTrigger>
+                            {hasPermission('duties.view_available_shifts') && (
+                                <TabsTrigger value="shifts">Available Shift</TabsTrigger>
+                            )}
                         </TabsList>
                     </Tabs>
+
 
                     <div className="flex items-center gap-3">
 
@@ -452,7 +489,7 @@ const DutyCalendar = () => {
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
-                        {hasPermission('duties.edit_chart') && (
+                        {canManageSelectedChart && (
                             <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
                                 <Pencil className="w-3.5 h-3.5" /> Edit Chart
                             </Button>
@@ -743,7 +780,7 @@ const DutyCalendar = () => {
                                                     </div>
 
                                                     {/* Add Button on Hover */}
-                                                    {selectedDutyChartId && selectedOfficeId && (
+                                                    {canAssignDuties && (
                                                         <Button
                                                             variant="secondary"
                                                             size="icon"
@@ -779,49 +816,53 @@ const DutyCalendar = () => {
                                 </div>
                             </TabsContent>
 
-                            <TabsContent value="shifts" className="mt-0">
-                                <div className="border rounded-lg bg-white shadow-sm p-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-semibold flex items-center gap-2">
-                                            <Clock className="w-5 h-5 text-primary" />
-                                            Available Shifts
-                                        </h3>
-                                        <p className="text-sm text-muted-foreground">{schedules.length} shifts defined in this chart</p>
-                                    </div>
+                            {hasPermission('duties.view_available_shifts') && (
+                                <TabsContent value="shifts" className="mt-0">
 
-                                    {schedules.length === 0 ? (
-                                        <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-lg">
-                                            No schedules found for this chart.
+                                    <div className="border rounded-lg bg-white shadow-sm p-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                                <Clock className="w-5 h-5 text-primary" />
+                                                Available Shifts
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground">{schedules.length} shifts defined in this chart</p>
                                         </div>
-                                    ) : (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Shift Name</TableHead>
-                                                    <TableHead>Start Time</TableHead>
-                                                    <TableHead>End Time</TableHead>
-                                                    <TableHead>Status</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {schedules.map((s) => (
-                                                    <TableRow key={s.id}>
-                                                        <TableCell className="font-medium">{s.name}</TableCell>
-                                                        <TableCell>{s.start_time.slice(0, 5)}</TableCell>
-                                                        <TableCell>{s.end_time.slice(0, 5)}</TableCell>
-                                                        <TableCell>
-                                                            <Badge variant={s.status === 'active' ? 'default' : 'secondary'} className="capitalize">
-                                                                {s.status || 'Active'}
-                                                            </Badge>
-                                                        </TableCell>
+
+                                        {schedules.length === 0 ? (
+                                            <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-lg">
+                                                No schedules found for this chart.
+                                            </div>
+                                        ) : (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Shift Name</TableHead>
+                                                        <TableHead>Start Time</TableHead>
+                                                        <TableHead>End Time</TableHead>
+                                                        <TableHead>Status</TableHead>
                                                     </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    )}
-                                </div>
-                            </TabsContent>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {schedules.map((s) => (
+                                                        <TableRow key={s.id}>
+                                                            <TableCell className="font-medium">{s.name}</TableCell>
+                                                            <TableCell>{s.start_time.slice(0, 5)}</TableCell>
+                                                            <TableCell>{s.end_time.slice(0, 5)}</TableCell>
+                                                            <TableCell>
+                                                                <Badge variant={s.status === 'active' ? 'default' : 'secondary'} className="capitalize">
+                                                                    {s.status || 'Active'}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        )}
+                                    </div>
+                                </TabsContent>
+                            )}
                         </Tabs>
+
                     </div>
                 )}
 

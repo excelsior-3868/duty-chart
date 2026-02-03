@@ -35,6 +35,25 @@ class UserSerializer(serializers.ModelSerializer):
             data['directorate_name'] = None
         return data
     
+    def validate(self, attrs):
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        # RBAC: Check for role changes
+        if 'role' in attrs:
+            if not user or (not user.is_superuser and getattr(user, 'role', '') != 'SUPERADMIN' and not self._has_rbac_permission(user)):
+                # If existing user, check if role is actually changing
+                if self.instance and self.instance.role == attrs['role']:
+                    pass
+                else:
+                    raise serializers.ValidationError({"role": "You do not have permission to assign roles."})
+        
+        return attrs
+
+    def _has_rbac_permission(self, user):
+        from users.permissions import user_has_permission_slug
+        return user_has_permission_slug(user, 'system.manage_rbac')
+
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         instance = super().create(validated_data)

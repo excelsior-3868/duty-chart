@@ -43,10 +43,15 @@ class UserViewSet(viewsets.ModelViewSet):
             ).distinct()
         else:
             # Default to authenticated user's office context when available
-            # We skip this default filtering for retrieve/detail actions so that
-            # users can view details of staff from other offices (e.g., in duty cards)
-            if self.action != 'retrieve' and self.request.user.is_authenticated and getattr(self.request.user, 'office_id', None):
-                current_office_id = self.request.user.office_id
+            # EXCEPT if user has permission to assign any office employees (global access)
+            user = self.request.user
+            from users.permissions import user_has_permission_slug
+            can_see_all = getattr(user, 'role', None) == 'SUPERADMIN' or \
+                          user_has_permission_slug(user, 'duties.assign_any_office_employee') or \
+                          user_has_permission_slug(user, 'users.view_all')
+
+            if not can_see_all and self.action != 'retrieve' and user.is_authenticated and getattr(user, 'office_id', None):
+                current_office_id = user.office_id
                 queryset = queryset.filter(
                     Q(office_id=current_office_id) | Q(secondary_offices__id=current_office_id)
                 ).distinct()
@@ -54,9 +59,14 @@ class UserViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError as DRFValidationError
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
+
+        from users.permissions import user_has_permission_slug
+        can_assign_any = user_has_permission_slug(self.request.user, 'users.create_any_office_employee')
+
         allowed = get_allowed_office_ids(self.request.user)
         data_office = self.request.data.get('office')
         # secondary_offices may be list of IDs
@@ -66,30 +76,50 @@ class UserViewSet(viewsets.ModelViewSet):
                 secondary_ids = [int(x) for x in secondary_ids.split(',') if x.strip()]
             except Exception:
                 secondary_ids = []
-        if not data_office or int(data_office) not in allowed:
-            raise ValidationError("Not allowed to assign primary office outside your scope.")
-        if any(int(sid) not in allowed for sid in secondary_ids):
-            raise ValidationError("Not allowed to assign secondary offices outside your scope.")
+        
+        if not can_assign_any:
+            if not data_office or int(data_office) not in allowed:
+                raise DRFValidationError("Not allowed to assign primary office outside your scope.")
+            if any(int(sid) not in allowed for sid in secondary_ids):
+                raise DRFValidationError("Not allowed to assign secondary offices outside your scope.")
+        
         serializer.save()
     
     def perform_update(self, serializer):
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        
+        # 1. SuperAdmins can do anything
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
+
+        # 2. Users can always edit their own profile
+        if self.request.user == serializer.instance:
+            serializer.save()
+            return
+        
+        # 3. Otherwise, check office scope permissions
+        from users.permissions import user_has_permission_slug
+        can_assign_any = user_has_permission_slug(self.request.user, 'users.create_any_office_employee')
+
         allowed = get_allowed_office_ids(self.request.user)
         data_office = self.request.data.get('office')
         current_office = getattr(serializer.instance, 'office_id', None)
         target_office = int(data_office) if data_office is not None else current_office
+        
         secondary_ids = self.request.data.get('secondary_offices')
         if isinstance(secondary_ids, str):
             try:
                 secondary_ids = [int(x) for x in secondary_ids.split(',') if x.strip()]
             except Exception:
                 secondary_ids = None
-        if target_office is None or int(target_office) not in allowed:
-            raise ValidationError("Not allowed to set primary office outside your scope.")
-        if secondary_ids is not None and any(int(sid) not in allowed for sid in secondary_ids):
-            raise ValidationError("Not allowed to set secondary offices outside your scope.")
+
+        if not can_assign_any:
+            if target_office is None or int(target_office) not in allowed:
+                raise DRFValidationError("Not allowed to set primary office outside your scope.")
+            if secondary_ids is not None and any(int(sid) not in allowed for sid in secondary_ids):
+                raise DRFValidationError("Not allowed to set secondary offices outside your scope.")
+        
         serializer.save()
 
 

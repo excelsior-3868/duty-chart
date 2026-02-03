@@ -4,10 +4,12 @@ export interface User {
   id: number;
   username: string;
   email: string;
+  employee_id?: string;
   is_active: boolean;
   full_name?: string;
   phone_number?: string;
   office?: number | null;
+  office_name?: string | null;
   department?: number | null;
   directorate?: number | null;
   secondary_offices?: number[]; // optional list of secondary office IDs

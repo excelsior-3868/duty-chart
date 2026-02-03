@@ -51,8 +51,11 @@ from users.permissions import (
     IsSuperAdmin,
     IsOfficeAdmin,
     IsOfficeScoped,
+    IsOfficeScoped,
     get_allowed_office_ids,
+    user_has_permission_slug,
 )
+
 
 from .models import DutyChart, Duty, RosterAssignment, Schedule
 from .serializers import (
@@ -91,34 +94,77 @@ class ScheduleView(viewsets.ModelViewSet):
         duty_chart_id = self.request.query_params.get("duty_chart", None)
 
         user = self.request.user
-        allowed = None
         if not IsSuperAdmin().has_permission(self.request, self):
             allowed = get_allowed_office_ids(user)
-            if allowed:
-                from django.db.models import Q
-                queryset = queryset.filter(Q(office_id__in=allowed) | Q(office_id__isnull=True))
+            
+            # If filtering by duty_chart, check if user has access to that chart
+            if duty_chart_id:
+                 # Check for 'view_any' permission first
+                can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
+                
+                if not can_view_any:
+                    # If user has specific office restrictions
+                    if allowed:
+                        # Check if the requested chart belongs to one of their allowed offices
+                        chart_accessible = DutyChart.objects.filter(id=duty_chart_id, office_id__in=allowed).exists()
+                        if not chart_accessible:
+                            return Schedule.objects.none()
+                # If permitted to see the chart (via view_any or office match), we return schedules
 
-        # Apply office filter if provided
-        if office_id:
-            if allowed and int(office_id) not in allowed:
-                queryset = queryset.none()
-            else:
-                from django.db.models import Q
-                # Deduplicate: if an office has a schedule with the same name, hide the template
-                local_names = Schedule.objects.filter(office_id=office_id).values_list('name', flat=True)
-                queryset = queryset.filter(
-                    Q(office_id=office_id) |
-                    (Q(office_id__isnull=True) & ~Q(name__in=local_names))
+            
+            # Otherwise (no chart filter), apply standard office restrictions
+            elif allowed:
+                # Check if user has 'view_any' permission before restricting to 'allowed'
+                # Check for either 'duties.view_any_office_chart' OR 'schedules.view_any_office'
+                can_view_any = (
+                    user_has_permission_slug(user, 'duties.view_any_office_chart') or 
+                    user_has_permission_slug(user, 'schedules.view_any_office')
                 )
+                
+                if not can_view_any:
 
-        # Apply duty_chart filter if provided (via M2M on DutyChart.schedules)
+
+                    from django.db.models import Q
+                    
+                    # Default: Only show office schedules
+                    q_filter = Q(office_id__in=allowed)
+    
+                    # If user has permission to view schedule templates, ALSO include global templates
+                    if user_has_permission_slug(user, 'schedule_templates.view'):
+                         q_filter |= Q(office_id__isnull=True)
+                    
+                    queryset = queryset.filter(q_filter)
+
+
+
+        # Apply office filter if explicit
+        if office_id:
+            # Re-verify allowed if not superadmin
+            if not IsSuperAdmin().has_permission(self.request, self):
+                can_view_any = (
+                    user_has_permission_slug(user, 'duties.view_any_office_chart') or 
+                    user_has_permission_slug(user, 'schedules.view_any_office')
+                )
+                if not can_view_any:
+                    allowed = get_allowed_office_ids(user)
+                    if allowed and int(office_id) not in allowed:
+                        return queryset.none()
+
+
+
+            
+            from django.db.models import Q
+            local_names = Schedule.objects.filter(office_id=office_id).values_list('name', flat=True)
+            queryset = queryset.filter(
+                Q(office_id=office_id) |
+                (Q(office_id__isnull=True) & ~Q(name__in=local_names))
+            )
+
+        # Apply duty_chart filter
         if duty_chart_id:
             queryset = queryset.filter(duty_charts__id=duty_chart_id)
 
-        # Avoid duplicates when both filters intersect
-        queryset = queryset.distinct()
-
-        return queryset
+        return queryset.distinct()
 
     def perform_create(self, serializer):
         if IsSuperAdmin().has_permission(self.request, self):
@@ -130,13 +176,20 @@ class ScheduleView(viewsets.ModelViewSet):
 
         # Allow creating global templates (office=null) if status is 'template'
         if status_val == "template" and not office_id:
+            if not user_has_permission_slug(self.request.user, 'schedule_templates.create'):
+                 raise ValidationError("You do not have permission to create global schedule templates.")
             serializer.save()
             return
+
+        if not user_has_permission_slug(self.request.user, 'schedules.create') and \
+           not user_has_permission_slug(self.request.user, 'schedules.create_office_schedule'):
+            raise ValidationError("You do not have permission to create schedules.")
 
         allowed = get_allowed_office_ids(self.request.user)
         if not office_id or int(office_id) not in allowed:
             raise ValidationError("Not allowed to create schedule for this office.")
         serializer.save()
+
 
     def perform_update(self, serializer):
         if IsSuperAdmin().has_permission(self.request, self):
@@ -147,6 +200,8 @@ class ScheduleView(viewsets.ModelViewSet):
         office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
 
         if status_val == "template" and not office_id:
+            if not user_has_permission_slug(self.request.user, 'schedule_templates.edit'):
+                 raise ValidationError("You do not have permission to edit global schedule templates.")
             serializer.save()
             return
 
@@ -154,6 +209,24 @@ class ScheduleView(viewsets.ModelViewSet):
         if not office_id or int(office_id) not in allowed:
             raise ValidationError("Not allowed to update schedule for this office.")
         serializer.save()
+
+    def perform_destroy(self, instance):
+        if IsSuperAdmin().has_permission(self.request, self):
+            instance.delete()
+            return
+
+        # Check if it's a global template
+        if instance.status == "template" and not instance.office:
+             if not user_has_permission_slug(self.request.user, 'schedule_templates.delete'):
+                  raise ValidationError("You do not have permission to delete global schedule templates.")
+             instance.delete()
+             return
+
+        allowed = get_allowed_office_ids(self.request.user)
+        if instance.office_id and instance.office_id not in allowed:
+            raise ValidationError("Not allowed to delete schedule for this office.")
+        instance.delete()
+
 
     @action(detail=False, methods=["post"], url_path="sync-from-roster")
     def sync_from_roster(self, request):
@@ -232,14 +305,22 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         office_id = self.request.query_params.get("office", None)
         user = self.request.user
         if not IsSuperAdmin().has_permission(self.request, self):
-            allowed = get_allowed_office_ids(user)
-            if allowed:
-                queryset = queryset.filter(office_id__in=allowed)
+            # Check for special 'view_any' permission
+            can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
+            
+            if not can_view_any:
+                allowed = get_allowed_office_ids(user)
+                if allowed:
+                    queryset = queryset.filter(office_id__in=allowed)
+
         if office_id:
             if not IsSuperAdmin().has_permission(self.request, self):
-                allowed = get_allowed_office_ids(user)
-                if allowed and int(office_id) not in allowed:
-                    return DutyChart.objects.none()
+                can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
+                if not can_view_any:
+                    allowed = get_allowed_office_ids(user)
+                    if allowed and int(office_id) not in allowed:
+                        return DutyChart.objects.none()
+
             queryset = queryset.filter(office_id=office_id)
         return queryset.order_by("-id")
 
@@ -294,16 +375,22 @@ class DutyViewSet(viewsets.ModelViewSet):
 
         user = self.request.user
         if not IsSuperAdmin().has_permission(self.request, self):
-            allowed = get_allowed_office_ids(user)
-            if allowed:
-                queryset = queryset.filter(office_id__in=allowed)
+            can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
+            if not can_view_any:
+                allowed = get_allowed_office_ids(user)
+                if allowed:
+                    queryset = queryset.filter(office_id__in=allowed)
+
 
         if office_id:
             if not IsSuperAdmin().has_permission(self.request, self):
-                allowed = get_allowed_office_ids(user)
-                if allowed and int(office_id) not in allowed:
-                    return Duty.objects.none()
+                can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
+                if not can_view_any:
+                    allowed = get_allowed_office_ids(user)
+                    if allowed and int(office_id) not in allowed:
+                        return Duty.objects.none()
             queryset = queryset.filter(office_id=office_id)
+
         if user_id:
             queryset = queryset.filter(user_id=user_id)
         if schedule_id:
@@ -320,6 +407,9 @@ class DutyViewSet(viewsets.ModelViewSet):
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
+        if not user_has_permission_slug(user, 'duties.assign_employee'):
+            raise ValidationError("You do not have permission to assign employees.")
+
         allowed = get_allowed_office_ids(user)
         office_id = self.request.data.get("office")
         if office_id is None:
@@ -329,7 +419,25 @@ class DutyViewSet(viewsets.ModelViewSet):
                 office_id = getattr(chart, "office_id", None)
         if not office_id or int(office_id) not in allowed:
             raise ValidationError("Not allowed to create duty for this office.")
+
+        # Check if the assigned user belongs to the same office (unless permission allows otherwise)
+        target_user_id = self.request.data.get("user")
+        if target_user_id:
+             # We need to check the target user's office
+             # Assuming 'User' model has an 'office_id' or similar relationship.
+             # If using 'users.views', we might need to import User model.
+             from users.models import User
+             target_user = User.objects.filter(id=target_user_id).first()
+             
+             if target_user and target_user.office_id:
+                 # If target user belongs to a different office than the Duty Chart's office
+                 # we check for 'assign_any_office_employee' permission
+                 if int(target_user.office_id) != int(office_id):
+                     if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
+                         raise ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
+        
         serializer.save()
+
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -367,7 +475,10 @@ class DutyViewSet(viewsets.ModelViewSet):
     def bulk_upsert(self, request):
         data = request.data
         if not IsSuperAdmin().has_permission(request, self):
+            if not user_has_permission_slug(request.user, 'duties.assign_employee'):
+                raise ValidationError("You do not have permission to assign employees.")
             allowed = get_allowed_office_ids(request.user)
+
             for item in data:
                 office_id = item.get("office")
                 if not office_id or int(office_id) not in allowed:
@@ -385,7 +496,27 @@ class DutyViewSet(viewsets.ModelViewSet):
                     "currently_available": item.get("currently_available", True),
                 },
             )
+            
+            # --- Restriction Check in Bulk Upsert ---
+            # If a new user is being assigned, we should ideally check their office.
+            # However, bulk_upsert input 'item' has 'user' (ID).
+            # To avoid N+1 queries loop efficiently?
+            # For now, we'll do a basic check if we can.
+            # But the requirement is strict. Let's do a quick check if 'user' key exists.
+            if item.get("user"):
+                 from users.models import User
+                 # We have to fetch to be sure. 
+                 # Optimization: cache users? Or just fetch.
+                 t_user = User.objects.filter(id=item["user"]).first()
+                 if t_user and t_user.office_id and office_id:
+                      if int(t_user.office_id) != int(office_id):
+                           if not user_has_permission_slug(request.user, 'duties.assign_any_office_employee'):
+                                # We raise error to abort entire transaction or skip? 
+                                # Usually better to error out.
+                                raise ValidationError(f"Cannot assign employee {t_user.username} from different office without permission.")
+
             if was_created:
+
                 created += 1
             else:
                 updated += 1
@@ -1201,6 +1332,12 @@ class DutyChartImportView(APIView):
                         if not user:
                             errors.append(f"Row {row_num}: Employee '{emp_id or emp_name}' not found.")
                             continue
+
+                        # --- Office check for User (unless assign_any_office_employee permission) ---
+                        if user.office_id and int(user.office_id) != int(office_id):
+                             if not user_has_permission_slug(request.user, 'duties.assign_any_office_employee'):
+                                 errors.append(f"Row {row_num}: You cannot assign employee {user.username} from another office ({user.office.name}) to this chart.")
+                                 continue
 
                         # --- D. Schedule & Time Validation ---
                         sch_name_str = str(sch_name).strip()

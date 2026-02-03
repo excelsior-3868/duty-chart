@@ -10,8 +10,10 @@ import { RBACAdmin } from "@/components/settings/RBACAdmin";
 import { useEffect, useState } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 const Settings = () => {
+  const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -70,10 +72,12 @@ const Settings = () => {
             <SettingsIcon className="h-4 w-4" />
             General
           </TabsTrigger>
-          <TabsTrigger value="rbac" className="flex items-center gap-2">
-            <Lock className="h-4 w-4" />
-            RBAC Admin
-          </TabsTrigger>
+          {hasPermission('system.manage_rbac') && (
+            <TabsTrigger value="rbac" className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              RBAC Admin
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -285,9 +289,11 @@ const Settings = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="rbac">
-          <RBACAdmin />
-        </TabsContent>
+        {hasPermission('system.manage_rbac') && (
+          <TabsContent value="rbac">
+            <RBACAdmin />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

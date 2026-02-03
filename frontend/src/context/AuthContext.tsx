@@ -90,8 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const hasPermission = (permissionSlug: string): boolean => {
     if (!user) return false;
-    // Superadmin has all permissions usually, but backend returns them all in list anyway.
-    // If backend returns *all* perms for superadmin, this check is enough.
+    if (user.role === 'SUPERADMIN') return true;
     return user.permissions.includes(permissionSlug);
   };
 
@@ -102,15 +101,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const canManageOffice = (officeId: number): boolean => {
     if (!user) return false;
+
+    // Check if user is SuperAdmin - usually they can manage all
     if (user.role === 'SUPERADMIN') return true;
 
-    // Check if primary office matches
-    if (user.office_id === officeId) return true;
+    // Strict check for Primary Office only (removed secondary office check as requested)
+    if (user.office_id === null || user.office_id === undefined) return false;
 
-    // Check secondary offices
-    if (user.secondary_offices.includes(officeId)) return true;
-
-    return false;
+    return Number(user.office_id) === Number(officeId);
   };
 
   const value = {

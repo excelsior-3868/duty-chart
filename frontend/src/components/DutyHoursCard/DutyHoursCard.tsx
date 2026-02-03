@@ -1,7 +1,8 @@
-import { Clock, Calendar, Building2, AlertTriangle } from "lucide-react";
+import { Clock, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createSchedule, updateSchedule, getSchedules, type Schedule as ScheduleType } from "@/services/schedule";
 import { getOffices, Office } from "@/services/offices";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -28,6 +29,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   initialSchedule = null,
   mode = "create",
 }) => {
+  const { canManageOffice } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     start_time: "",
@@ -52,15 +54,11 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
         ]);
         setOffices(officesData);
 
-        // Extract unique templates from existing schedules
-        // Strategy: Prefer schedules explicitly marked as 'template'
-        // Fallback: Schedules with no office (global templates)
         const templateSchedules = allSchedules.filter(s => s.status === 'template' || (!s.office && !s.status));
 
         if (templateSchedules.length > 0) {
           setScheduleTemplates(templateSchedules);
         } else {
-          // Fallback: unique by name from global/unassigned schedules if any, or just unique names
           const uniqueMap = new Map();
           allSchedules.forEach(s => {
             if (s.name && !uniqueMap.has(s.name) && !s.office) {
@@ -76,7 +74,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
     loadData();
   }, []);
 
-  // Prefill form when editing
+  // Prefill form when editing or when selectedOffice changes
   useEffect(() => {
     if (initialSchedule) {
       setFormData({
@@ -85,8 +83,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
         end_time: initialSchedule.end_time || "",
         office: initialSchedule.office ? String(initialSchedule.office) : "",
       });
-      // If editing, assume custom schedule to allow edits unless we want to enforce templates there too.
-      // For now, enabling custom mode for edit ensures backward compatibility.
       if (mode === "edit") {
         setIsCustomSchedule(true);
       }
@@ -96,7 +92,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const errorInputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-500";
   const labelClass = "text-sm font-medium text-[hsl(var(--title))]";
-  const sublabelClass = "text-xs text-[hsl(var(--muted-text))]";
   const errorClass = "text-xs text-red-500 mt-1";
 
   const validateForm = () => {
@@ -118,28 +113,8 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
       newErrors.office = "Office is required";
     }
 
-    // Time validation
-    // Note: Removed simple comparison because Night shift might cross midnight (e.g. 22:00 to 06:00)
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedTemplateName = e.target.value;
-    const templateData = scheduleTemplates.find(s => s.name === selectedTemplateName);
-
-    setFormData(prev => ({
-      ...prev,
-      name: selectedTemplateName,
-      start_time: templateData ? templateData.start_time?.slice(0, 5) : prev.start_time,
-      end_time: templateData ? templateData.end_time?.slice(0, 5) : prev.end_time
-    }));
-
-    // Clear name error if any
-    if (errors.name) {
-      setErrors(prev => ({ ...prev, name: "" }));
-    }
   };
 
   const toggleCustomSchedule = () => {
@@ -158,13 +133,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
     e.preventDefault();
     if (!validateForm()) return;
 
-    // Check if times differ from template defaults ONLY if not custom schedule
-    // (Actually if it's not custom, times are disabled so they can't differ, 
-    // but we keep this logic just in case we allow edits later)
     if (!isCustomSchedule) {
       const template = scheduleTemplates.find(s => s.name === formData.name);
       if (template) {
-        // Normalize times for comparison (HH:MM)
         const cleanTime = (t: string) => t ? t.slice(0, 5) : "";
 
         if (cleanTime(template.start_time) !== cleanTime(formData.start_time) ||
@@ -175,7 +146,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
       }
     }
 
-    // If custom name or times match, proceed directly
     submitData();
   };
 
@@ -212,11 +182,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
       }
       onScheduleAdded?.();
     } catch (error: any) {
-      console.error("Failed to save template:", error);
+      console.error("Failed to save schedule:", error);
       if (error.response?.data) {
         const apiErrors = error.response.data;
-
-        // Show detail or non_field_errors in toast
         if (apiErrors.detail) {
           toast.error(apiErrors.detail);
         } else if (apiErrors.non_field_errors) {
@@ -224,7 +192,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
         }
 
         const fieldErrors: Record<string, string> = {};
-
         Object.keys(apiErrors).forEach(key => {
           if (Array.isArray(apiErrors[key])) {
             fieldErrors[key] = apiErrors[key][0];
@@ -232,7 +199,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
             fieldErrors[key] = apiErrors[key];
           }
         });
-
         setErrors(fieldErrors);
       } else {
         const genericError = "Failed to save schedule. Please try again.";
@@ -246,7 +212,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: "" }));
     }
@@ -308,9 +273,6 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                             {template.name}
                           </SelectItem>
                         ))}
-                        {formData.name && !scheduleTemplates.some(s => s.name === formData.name) && (
-                          <SelectItem value={formData.name}>{formData.name}</SelectItem>
-                        )}
                       </SelectContent>
                     </Select>
                   )}
@@ -323,7 +285,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     onClick={toggleCustomSchedule}
                     className="text-xs text-primary hover:underline focus:outline-none"
                   >
-                    {isCustomSchedule ? "Select from Templates" : "+ Add New Template"}
+                    {isCustomSchedule ? "Select from Templates" : "+ Add New Schedule"}
                   </button>
                 </div>
               </div>
@@ -339,11 +301,13 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     <SelectValue placeholder="Select Office" />
                   </SelectTrigger>
                   <SelectContent>
-                    {offices.map((office) => (
-                      <SelectItem key={office.id} value={String(office.id)}>
-                        {office.name}
-                      </SelectItem>
-                    ))}
+                    {offices
+                      .filter(office => canManageOffice(office.id))
+                      .map((office) => (
+                        <SelectItem key={office.id} value={String(office.id)}>
+                          {office.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 {errors.office && <div className={errorClass}>{errors.office}</div>}
@@ -399,6 +363,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           </form>
         </CardContent>
       </Card>
+
       {/* Confirmation Dialog */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>

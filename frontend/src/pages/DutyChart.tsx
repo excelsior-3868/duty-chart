@@ -4,6 +4,7 @@ import { getOffices } from "@/services/offices";
 import { CalendarRosterHybrid, Office, DutyChart } from "@/components/CalendarRosterHybrid";
 import { useLocation } from "react-router-dom";
 import { Loader2, AlertCircle } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // ---------- Types ----------
 export interface Person {
@@ -27,6 +28,7 @@ interface Duty {
 
 // ---------- Wrapper Page ----------
 const DutyChartPage: React.FC = () => {
+  const { canManageOffice, hasPermission } = useAuth();
   const [offices, setOffices] = useState<Office[]>([]);
   const [dutyCharts, setDutyCharts] = useState<DutyChart[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -215,7 +217,7 @@ const DutyChartPage: React.FC = () => {
         <p className="text-muted-foreground">View and manage the weekly duty roster for all offices.</p>
       </div>
       <CalendarRosterHybrid
-        offices={offices}
+        offices={offices.filter(o => canManageOffice(Number(o.id)) || hasPermission("duties.assign_any_office_employee"))}
         dutyCharts={dutyCharts}
         selectedOfficeId={selectedOfficeId}
         selectedDutyChartId={selectedDutyChartId}

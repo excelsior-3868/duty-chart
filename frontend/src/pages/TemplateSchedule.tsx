@@ -21,8 +21,12 @@ import {
 import { createSchedule, getSchedules, deleteSchedule, updateSchedule, type Schedule } from "@/services/schedule";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/context/AuthContext";
+
 
 const TemplateSchedule = () => {
+    const { hasPermission } = useAuth();
+
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(false);
@@ -138,77 +142,80 @@ const TemplateSchedule = () => {
                 <p className="text-muted-foreground">Manage and configure reusable shift templates.</p>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card className="h-full">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            {editingId ? <Pencil className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
-                            {editingId ? "Edit Schedule" : "Create Schedule"}
-                        </CardTitle>
-                        <CardDescription>Define a new shift timing to be used across offices.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                            {/* Column 1: Schedule Name */}
-                            <div className="space-y-2">
-                                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schedule Name <span className="text-destructive">*</span></Label>
-                                <Input
-                                    placeholder="Enter schedule name (e.g. Morning Shift)"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="h-11"
-                                />
-                            </div>
-
-                            {/* Column 2: Start and End Times side-by-side */}
-                            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-1 ${hasPermission('schedule_templates.create') ? 'xl:grid-cols-2' : ''} gap-6`}>
+                {hasPermission('schedule_templates.create') && (
+                    <Card className="h-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                {editingId ? <Pencil className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
+                                {editingId ? "Edit Schedule" : "Create Schedule"}
+                            </CardTitle>
+                            <CardDescription>Define a new shift timing to be used across offices.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                                {/* Column 1: Schedule Name */}
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Start Time <span className="text-destructive">*</span></Label>
-                                    <div className="relative">
-                                        <Input
-                                            type="time"
-                                            className="h-11 px-3"
-                                            value={formData.start_time}
-                                            onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                                        />
-                                    </div>
+                                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schedule Name <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        placeholder="Enter schedule name (e.g. Morning Shift)"
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        className="h-11"
+                                    />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">End Time <span className="text-destructive">*</span></Label>
-                                    <div className="relative">
-                                        <Input
-                                            type="time"
-                                            className="h-11 px-3"
-                                            value={formData.end_time}
-                                            onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                                        />
+                                {/* Column 2: Start and End Times side-by-side */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Start Time <span className="text-destructive">*</span></Label>
+                                        <div className="relative">
+                                            <Input
+                                                type="time"
+                                                className="h-11 px-3"
+                                                value={formData.start_time}
+                                                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">End Time <span className="text-destructive">*</span></Label>
+                                        <div className="relative">
+                                            <Input
+                                                type="time"
+                                                className="h-11 px-3"
+                                                value={formData.end_time}
+                                                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex justify-end pt-4 gap-3">
-                            {editingId && (
+                            <div className="flex justify-end pt-4 gap-3">
+                                {editingId && (
+                                    <Button
+                                        variant="ghost"
+                                        onClick={cancelEdit}
+                                        className="h-11"
+                                    >
+                                        Cancel
+                                    </Button>
+                                )}
                                 <Button
-                                    variant="ghost"
-                                    onClick={cancelEdit}
-                                    className="h-11"
+                                    onClick={handleSave}
+                                    disabled={loading}
+                                    className="bg-primary hover:bg-primary-hover px-10 h-11 transition-all"
                                 >
-                                    Cancel
+                                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    {editingId ? "Update Schedule" : "Create Schedule"}
                                 </Button>
-                            )}
-                            <Button
-                                onClick={handleSave}
-                                disabled={loading}
-                                className="bg-primary hover:bg-primary-hover px-10 h-11 transition-all"
-                            >
-                                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {editingId ? "Update Schedule" : "Create Schedule"}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
 
                 <Card className="h-full">
                     <CardHeader>
@@ -242,22 +249,27 @@ const TemplateSchedule = () => {
                                             </div>
                                         </div>
                                         <div className="mt-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 px-2 text-primary hover:bg-primary/5"
-                                                onClick={() => handleEdit(schedule)}
-                                            >
-                                                <Pencil className="h-4 w-4 mr-1" /> Edit
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                onClick={() => handleDelete(schedule.id)}
-                                            >
-                                                <Trash2 className="h-4 w-4 mr-1" /> Delete
-                                            </Button>
+                                            {hasPermission('schedule_templates.edit') && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 px-2 text-primary hover:bg-primary/5"
+                                                    onClick={() => handleEdit(schedule)}
+                                                >
+                                                    <Pencil className="h-4 w-4 mr-1" /> Edit
+                                                </Button>
+                                            )}
+                                            {hasPermission('schedule_templates.delete') && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    onClick={() => handleDelete(schedule.id)}
+                                                >
+                                                    <Trash2 className="h-4 w-4 mr-1" /> Delete
+                                                </Button>
+                                            )}
+
                                         </div>
                                     </div>
                                 ))}

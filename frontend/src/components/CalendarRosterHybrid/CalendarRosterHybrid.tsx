@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -278,7 +279,18 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
   const [officesCache, setOfficesCache] = useState<Map<number, OfficeInfo>>(new Map());
   const [selectedDutyChartInfo, setSelectedDutyChartInfo] = useState<DutyChartInfo | null>(null);
 
-  const { hasPermission, canManageOffice } = useAuth();
+  const { hasPermission, canManageOffice, user } = useAuth();
+
+  const sortedOffices = useMemo(() => {
+    if (!user?.office_id) return offices;
+    return [...offices].sort((a, b) => {
+      const isAAssigned = Number(a.id) === Number(user.office_id);
+      const isBAssigned = Number(b.id) === Number(user.office_id);
+      if (isAAssigned && !isBAssigned) return -1;
+      if (!isAAssigned && isBAssigned) return 1;
+      return 0;
+    });
+  }, [offices, user?.office_id]);
 
   // Fetch selected duty chart details (office, date range) for permission scoping
   useEffect(() => {
@@ -369,16 +381,22 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
       ? Number((selectedDutyChartInfo.office as any)?.id)
       : Number(selectedDutyChartInfo.office);
 
-    return canManageOffice(chartOfficeId);
+    return canManageOffice(chartOfficeId) || hasPermission("duties.assign_any_office_employee");
   }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
 
   // Calculate if user can create duties for the currently selected chart
   const canCreateDutyForSelectedChart = useMemo(() => {
     if (!selectedDutyChartInfo) return false;
+
+    // Check base permission
     if (!hasPermission('duties.create_duty')) return false;
+
+    // Resolve chart office
     const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
       ? Number((selectedDutyChartInfo.office as any)?.id)
       : Number(selectedDutyChartInfo.office);
+
+    // Security: Restrict to assigned office manager
     return canManageOffice(chartOfficeId);
   }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
 
@@ -409,6 +427,8 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
     const missingOfficeIds = new Set<number>();
     (duties || []).forEach((d) => {
       if (d.office && !officesCache.has(d.office)) missingOfficeIds.add(d.office);
+      const u = d.user ? usersCache.get(d.user) : null;
+      if (u?.office && !officesCache.has(u.office)) missingOfficeIds.add(u.office);
     });
     if (missingOfficeIds.size === 0) return;
     const fetchOffices = async () => {
@@ -424,7 +444,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
       setOfficesCache(newCache);
     };
     fetchOffices();
-  }, [duties]);
+  }, [duties, usersCache]);
 
   // Derive unique shifts from schedules (by name + time)
   const shifts = useMemo<Shift[]>(() => {
@@ -467,12 +487,12 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
         end_time: d.end_time || "",
         date: new Date(d.date),
         shift: d.schedule_name || "Shift",
-        phone_number: userDetail?.phone_number || "",
-        email: userDetail?.email || "",
-        directorate: officeDetail?.directorate_name || "",
-        department: officeDetail?.department_name || "",
-        position: userDetail?.position_name || d.position_name || "",
-        office: d.office_name || "",
+        phone_number: d.phone_number || userDetail?.phone_number || "",
+        email: d.email || userDetail?.email || "",
+        directorate: d.user_directorate_name || (userDetail as any)?.directorate_name || officeDetail?.directorate_name || "",
+        department: d.user_department_name || (userDetail as any)?.department_name || officeDetail?.department_name || "",
+        position: d.position_name || userDetail?.position_name || "",
+        office: d.user_office_name || (userDetail as any)?.office_name || d.office_name || "",
         avatar: "",
       } as DutyAssignment;
     });
@@ -580,44 +600,66 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-full md:w-[250px] p-0">
-              <Command>
-                <CommandInput placeholder="Search office..." />
+              <Command shouldFilter={false}>
+                <CommandInput
+                  placeholder="Search office..."
+                  value={searchQuery}
+                  onValueChange={setSearchQuery}
+                />
                 <CommandList className="max-h-[200px]">
                   <CommandEmpty>No office found.</CommandEmpty>
                   <CommandGroup>
-                    <CommandItem
-                      value="Select Office"
-                      onSelect={() => {
-                        onOfficeChange?.(0);
-                        setOfficeOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          !selectedOfficeId ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      Select Office
-                    </CommandItem>
-                    {offices.map((office) => (
+                    {searchQuery === "" && (
                       <CommandItem
-                        key={office.id}
-                        value={office.name}
+                        value="Select Office"
                         onSelect={() => {
-                          onOfficeChange?.(Number(office.id));
+                          onOfficeChange?.(0);
                           setOfficeOpen(false);
                         }}
                       >
                         <Check
                           className={cn(
                             "mr-2 h-4 w-4",
-                            String(selectedOfficeId) === String(office.id) ? "opacity-100" : "opacity-0"
+                            !selectedOfficeId ? "opacity-100" : "opacity-0"
                           )}
                         />
-                        {office.name}
+                        Select Office
                       </CommandItem>
-                    ))}
+                    )}
+                    {sortedOffices
+                      .filter(office =>
+                        office.name.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((office) => {
+                        const isAssigned = user?.office_id && Number(office.id) === Number(user.office_id);
+                        return (
+                          <CommandItem
+                            key={office.id}
+                            value={office.name}
+                            onSelect={() => {
+                              onOfficeChange?.(Number(office.id));
+                              setOfficeOpen(false);
+                            }}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center">
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    String(selectedOfficeId) === String(office.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {office.name}
+                              </div>
+                              {isAssigned && (
+                                <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/20">
+                                  My Office
+                                </Badge>
+                              )}
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
                   </CommandGroup>
                 </CommandList>
               </Command>
@@ -808,7 +850,10 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
                   return (
                     <div
                       key={day.toString()}
-                      className="p-2 min-h-[100px] border-l last:border-r cursor-pointer hover:ring-2 hover:ring-blue-300 transition-shadow overflow-hidden min-w-[160px]"
+                      className={cn(
+                        "p-2 min-h-[100px] border-l last:border-r transition-shadow overflow-hidden min-w-[160px]",
+                        canCreateDutyForSelectedChart ? "cursor-pointer hover:ring-2 hover:ring-blue-300" : "cursor-default"
+                      )}
                       style={{
                         backgroundColor: (
                           [

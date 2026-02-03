@@ -156,7 +156,7 @@ const Dashboard = () => {
       const officeName = d.office_name || "Unknown Office";
       const userObj = userById.get(d.user);
       const fullName = userObj?.full_name || d.user_name || "Unknown";
-      const phone = userObj?.phone_number || null;
+      const phone = userObj?.phone_number || d.phone_number || null;
 
       // --- Time Check Logic ---
       const now = new Date();

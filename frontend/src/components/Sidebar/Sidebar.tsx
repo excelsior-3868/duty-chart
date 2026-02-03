@@ -44,14 +44,16 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     title: 'Schedule Template',
     href: ROUTES.TEMPLATE_SCHEDULE,
     icon: 'ClipboardList',
-    permission: 'duties.view_chart'
+    permission: 'schedule_templates.view'
   },
+
   {
     title: 'Office Schedule',
     href: ROUTES.OFFICE_SCHEDULE,
     icon: 'FileText',
-    permission: 'duties.view_chart'
+    permission: 'schedules.view_office_schedule'
   },
+
   {
     title: 'Duty Calendar',
     href: ROUTES.DUTY_CALENDAR,
@@ -73,7 +75,8 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   {
     title: 'Settings',
     href: ROUTES.SETTINGS,
-    icon: 'Settings'
+    icon: 'Settings',
+    permission: 'system.view_settings'
   }
 ];
 

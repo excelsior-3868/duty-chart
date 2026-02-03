@@ -27,7 +27,24 @@ class Command(BaseCommand):
             {"slug": "schedules.view", "name": "View Schedule", "description": "Viewing and Listing the Schedule"}, # 18
             {"slug": "schedules.edit", "name": "Edit Schedule", "description": "Editing Schedule"}, # 19
             {"slug": "duties.delete", "name": "Remove Emp", "description": "Remove Employee From Duty"}, # 20
+            {"slug": "users.create_any_office_employee", "name": "Create Employee (Any Office)", "description": "Can create employees in any office"}, # 21
+            {"slug": "system.view_settings", "name": "Access Settings Menu", "description": "Can access the settings menu"}, # 22
+            {"slug": "duties.view_available_shifts", "name": "View Available Shifts", "description": "Can view the Available Shift tab"}, # 23
+            {"slug": "duties.view_any_office_chart", "name": "View Any Office Chart", "description": "Can view duty charts from any office"}, # 24
+            {"slug": "schedule_templates.view", "name": "View Schedule Templates", "description": "Can view schedule templates"}, # 25
+            {"slug": "schedule_templates.create", "name": "Create Schedule Templates", "description": "Can create schedule templates"}, # 26
+            {"slug": "schedule_templates.edit", "name": "Edit Schedule Templates", "description": "Can edit schedule templates"}, # 27
+            {"slug": "schedule_templates.delete", "name": "Delete Schedule Templates", "description": "Can delete schedule templates"}, # 28
+            {"slug": "schedules.view_office_schedule", "name": "View Office Schedule", "description": "Can access Office Schedule page"}, # 29
+            {"slug": "duties.assign_employee", "name": "Assign Employee", "description": "Can assign employee to duty chart"}, # 30
+            {"slug": "duties.assign_any_office_employee", "name": "Assign Employee (Any Office)", "description": "Can assign employees from any office to a duty"}, # 31
+            {"slug": "schedules.view_any_office", "name": "View Any Office Schedule", "description": "Can view schedules from any office"}, # 32
+            
         ]
+
+
+
+
 
         self.stdout.write("Seeding permissions...")
         perms_map = {}
@@ -80,12 +97,18 @@ class Command(BaseCommand):
                 "duties.view_chart", "duties.create_chart", "duties.edit_chart", 
                 "duties.generate_rotation", "users.view_employee", "users.create_employee", 
                 "users.edit_employee", "org.view_office", "duties.create_duty", 
-                "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view"
+                "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view",
+                "system.view_settings", "schedules.view_office_schedule", "duties.view_available_shifts",
+                "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee"
             ],
+
+
             "USER": [
                 "duties.view_chart", "users.view_employee", "duties.export_chart", 
-                "duties.view_schedule", "schedules.view"
+                "duties.view_schedule", "schedules.view", "schedules.view_office_schedule",
+                "duties.view_available_shifts"
             ]
+
         }
 
         self.stdout.write("Assigning permissions to roles...")

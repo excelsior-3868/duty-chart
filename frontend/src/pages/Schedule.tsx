@@ -67,11 +67,11 @@ const Schedule = () => {
     refreshUser().catch(() => { });
   }, []);
 
+  const canCreateAtAll = hasPermission("schedules.create") || hasPermission("schedules.create_office_schedule");
+  const canViewSchedules = hasPermission("schedules.view");
+
   const canManageSelectedOffice =
     selectedOffice !== null ? canManageOffice(selectedOffice) : false;
-  const canCreateSchedule =
-    hasPermission("schedules.create") && canManageSelectedOffice;
-  const canViewSchedules = hasPermission("schedules.view");
   const canEditSchedules =
     hasPermission("schedules.edit") && canManageSelectedOffice;
 
@@ -153,6 +153,24 @@ const Schedule = () => {
       {/* Sections: Office Filter, Schedules List & Create Form in two columns */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
+          {/* Create Schedule Card - Always visible if user has creation permission */}
+          {canCreateAtAll && (
+            <DutyHoursCard
+              onScheduleAdded={() => {
+                // When a schedule is added, refresh the list if the added office 
+                // matches the one we are currently viewing in the right panel.
+                getSchedules().then((all) => {
+                  if (selectedOffice) {
+                    const filtered = all.filter((s) => s.office === selectedOffice);
+                    setSchedules(filtered);
+                  }
+                });
+              }}
+            />
+          )}
+        </div>
+
+        <div className="space-y-6">
           {canViewSchedules && (
             <Card>
               <CardHeader className="pb-2">
@@ -171,11 +189,13 @@ const Schedule = () => {
                       <SelectValue placeholder="Select Office" />
                     </SelectTrigger>
                     <SelectContent>
-                      {offices.map((office) => (
-                        <SelectItem key={office.id} value={String(office.id)}>
-                          {office.name}
-                        </SelectItem>
-                      ))}
+                      {offices
+                        .filter(office => canManageOffice(office.id) || hasPermission("duties.assign_any_office_employee"))
+                        .map((office) => (
+                          <SelectItem key={office.id} value={String(office.id)}>
+                            {office.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -237,22 +257,6 @@ const Schedule = () => {
                 )}
               </CardContent>
             </Card>
-          )}
-        </div>
-
-        <div className="space-y-6">
-          {/* Create Schedule Card */}
-          {canCreateSchedule && (
-            <DutyHoursCard
-              onScheduleAdded={() => {
-                if (selectedOffice) {
-                  getSchedules().then((all) => {
-                    const filtered = all.filter((s) => s.office === selectedOffice);
-                    setSchedules(filtered);
-                  });
-                }
-              }}
-            />
           )}
         </div>
       </div>

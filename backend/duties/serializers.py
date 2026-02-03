@@ -110,12 +110,19 @@ class DutySerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['user_name'] = getattr(instance.user, 'full_name', None)
+        user = instance.user
+        data['user_name'] = getattr(user, 'full_name', None)
         data['office_name'] = getattr(instance.office, 'name', None)
         data['schedule_name'] = instance.schedule.name if instance.schedule else None
         data['start_time'] = instance.schedule.start_time if instance.schedule else None
         data['end_time'] = instance.schedule.end_time if instance.schedule else None
         data['duty_chart_name'] = getattr(instance.duty_chart, 'name', None)
+        data['phone_number'] = user.phone_number if user else None
+        data['user_office_name'] = user.office.name if user and user.office else None
+        data['user_department_name'] = user.department.name if user and user.department else None
+        data['user_directorate_name'] = user.directorate.name if user and user.directorate else None
+        data['position_name'] = user.position.name if user and user.position else None
+        data['email'] = user.email if user else None
         return data
 
 
