@@ -10,7 +10,8 @@ import {
   ClipboardList,
   Clock,
   FileText,
-  ChevronDown
+  ChevronDown,
+  ShieldAlert
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ROUTES } from '@/utils/constants';
@@ -48,8 +49,8 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   },
 
   {
-    title: 'Office Schedule',
-    href: ROUTES.OFFICE_SCHEDULE,
+    title: 'Duty Schedule',
+    href: ROUTES.DUTY_SCHEDULE,
     icon: 'FileText',
     permission: 'schedules.view_office_schedule'
   },
@@ -203,6 +204,30 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
               </Button>
             );
           })}
+
+
+          {user?.role === 'SUPERADMIN' && (
+            <Button
+              variant="ghost"
+              asChild
+              className="w-full justify-start gap-3 text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary mt-2"
+              onClick={onClose}
+            >
+              <NavLink
+                to="/admin/audit-logs"
+                className={({ isActive }) =>
+                  cn(
+                    'flex w-full items-center gap-3 px-2 py-2 rounded-md',
+                    isActive && 'bg-primary/10 text-primary'
+                  )
+                }
+              >
+                <ShieldAlert className="h-5 w-5" />
+                Audit Logs
+              </NavLink>
+            </Button>
+          )}
+
         </nav>
 
 

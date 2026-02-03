@@ -181,7 +181,8 @@ class ScheduleView(viewsets.ModelViewSet):
             serializer.save()
             return
 
-        if not user_has_permission_slug(self.request.user, 'schedules.create') and \
+        if not user_has_permission_slug(self.request.user, 'duties.manage_schedule') and \
+           not user_has_permission_slug(self.request.user, 'schedules.create') and \
            not user_has_permission_slug(self.request.user, 'schedules.create_office_schedule'):
             raise ValidationError("You do not have permission to create schedules.")
 
@@ -205,9 +206,14 @@ class ScheduleView(viewsets.ModelViewSet):
             serializer.save()
             return
 
-        allowed = get_allowed_office_ids(self.request.user)
-        if not office_id or int(office_id) not in allowed:
-            raise ValidationError("Not allowed to update schedule for this office.")
+        if not user_has_permission_slug(self.request.user, 'duties.manage_schedule'):
+            if not user_has_permission_slug(self.request.user, 'schedules.edit'):
+                 raise ValidationError("You do not have permission to update schedules.")
+
+            allowed = get_allowed_office_ids(self.request.user)
+            if not office_id or int(office_id) not in allowed:
+                raise ValidationError("Not allowed to update schedule for this office.")
+        
         serializer.save()
 
     def perform_destroy(self, instance):
@@ -222,9 +228,13 @@ class ScheduleView(viewsets.ModelViewSet):
              instance.delete()
              return
 
-        allowed = get_allowed_office_ids(self.request.user)
-        if instance.office_id and instance.office_id not in allowed:
-            raise ValidationError("Not allowed to delete schedule for this office.")
+        if not user_has_permission_slug(self.request.user, 'duties.manage_schedule'):
+            if not user_has_permission_slug(self.request.user, 'schedules.delete'):
+                 raise ValidationError("You do not have permission to delete schedules.")
+
+            allowed = get_allowed_office_ids(self.request.user)
+            if instance.office_id and instance.office_id not in allowed:
+                raise ValidationError("Not allowed to delete schedule for this office.")
         instance.delete()
 
 
@@ -496,6 +506,26 @@ class DutyViewSet(viewsets.ModelViewSet):
                     "currently_available": item.get("currently_available", True),
                 },
             )
+
+            # ✅ Force validation (Time Overlap check in clean())
+            try:
+                obj.full_clean()
+                obj.save() 
+            except ValidationError as e:
+                # If validation fails, we might want to DELETE the object if it was just created?
+                # or better: we should validate BEFORE saving?
+                # Django update_or_create saves immediately.
+                # If we want to be safe, we should fetch, clean, then save.
+                # But since we are inside a transaction (atomic request usually), we can just raise.
+                # However, loop continues? No, raising ValidationError will stop the request if not caught.
+                # We want to stop the whole request if one fails? The user implied "Strict".
+                # Standard DRF behavior is to 500 or 400.
+                # Let's re-raise as DRF ValidationError to return 400.
+                if was_created:
+                   obj.delete() # Rollback this single creation
+                
+                message = getattr(e, 'message_dict', None) or {'detail': str(e)}
+                raise serializers.ValidationError(message)
             
             # --- Restriction Check in Bulk Upsert ---
             # If a new user is being assigned, we should ideally check their office.

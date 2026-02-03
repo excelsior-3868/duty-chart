@@ -21,12 +21,13 @@ class Command(BaseCommand):
             {"slug": "system.manage_rbac", "name": "Manage RBAC", "description": "Can manage roles and permissions"}, # 12
             {"slug": "duties.create_duty", "name": "Create Duties", "description": "Creating Duties for the Duty Charts"}, # 13
             {"slug": "duties.export_chart", "name": "Export Chart", "description": "Exporting Chart on Duties"}, # 14
-            {"slug": "duties.view_schedule", "name": "Viewing Schedule", "description": "Viewing Schedule"}, # 15
-            {"slug": "duties.manage_schedule", "name": "Manage Schedule", "description": "Managing Schedule"}, # 16
+            {"slug": "duties.view_schedule", "name": "Duty Schedule View", "description": "Can view the Duty Schedule page"}, # 15
+            {"slug": "duties.manage_schedule", "name": "Manage Duty Schedule", "description": "Can manage and edit Duty Schedules"}, # 16
             {"slug": "schedules.create", "name": "Schedule Create", "description": "Creating a Schedule for the Office"}, # 17
             {"slug": "schedules.view", "name": "View Schedule", "description": "Viewing and Listing the Schedule"}, # 18
             {"slug": "schedules.edit", "name": "Edit Schedule", "description": "Editing Schedule"}, # 19
-            {"slug": "duties.delete", "name": "Remove Emp", "description": "Remove Employee From Duty"}, # 20
+            {"slug": "schedules.delete", "name": "Delete Schedule", "description": "Deleting Schedule"}, # 20
+            {"slug": "duties.delete", "name": "Remove Emp", "description": "Remove Employee From Duty"}, # 21
             {"slug": "users.create_any_office_employee", "name": "Create Employee (Any Office)", "description": "Can create employees in any office"}, # 21
             {"slug": "system.view_settings", "name": "Access Settings Menu", "description": "Can access the settings menu"}, # 22
             {"slug": "duties.view_available_shifts", "name": "View Available Shifts", "description": "Can view the Available Shift tab"}, # 23
@@ -99,7 +100,7 @@ class Command(BaseCommand):
                 "users.edit_employee", "org.view_office", "duties.create_duty", 
                 "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view",
                 "system.view_settings", "schedules.view_office_schedule", "duties.view_available_shifts",
-                "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee"
+                "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee", "schedules.delete"
             ],
 
 

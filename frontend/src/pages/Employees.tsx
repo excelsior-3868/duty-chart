@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserCard, UserData } from "@/components/UserCard";
-import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw } from 'lucide-react';
+import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw, Loader2 } from 'lucide-react';
 import { toast } from "sonner";
 import { createUser } from "@/services/users";
 import { getPositions, type Position as PositionType } from "@/services/positions";
@@ -657,21 +657,25 @@ const Employees = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-primary/10">
-                  <th className="p-2 text-left font-semibold text-primary">Employee ID</th>
-                  <th className="p-2 text-left font-semibold text-primary">Full Name</th>
-                  <th className="p-2 text-left font-semibold text-primary">Position</th>
-                  <th className="p-2 text-left font-semibold text-primary">Department</th>
-                  <th className="p-2 text-left font-semibold text-primary">Email</th>
-                  <th className="p-2 text-left font-semibold text-primary">Phone</th>
-                  <th className="p-2 text-left font-semibold text-primary">Status</th>
-                  <th className="p-2 text-right font-semibold text-primary">Actions</th>
+                <tr className="border-b bg-primary text-white">
+                  <th className="p-2 text-left font-semibold">Employee ID</th>
+                  <th className="p-2 text-left font-semibold">Full Name</th>
+                  <th className="p-2 text-left font-semibold">Position</th>
+                  <th className="p-2 text-left font-semibold">Department</th>
+                  <th className="p-2 text-left font-semibold">Email</th>
+                  <th className="p-2 text-left font-semibold">Phone</th>
+                  <th className="p-2 text-left font-semibold">Status</th>
+                  <th className="p-2 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loadingEmployees ? (
                   <tr>
-                    <td colSpan={8} className="p-4 text-center">Loading…</td>
+                    <td colSpan={8} className="p-12 text-center">
+                      <div className="flex justify-center items-center">
+                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                      </div>
+                    </td>
                   </tr>
                 ) : employeesList.length === 0 ? (
                   <tr>

@@ -104,6 +104,7 @@ import Profile from "@/pages/Profile";
 import ChangePassword from "@/pages/ChangePassword";
 import TemplateSchedule from "@/pages/TemplateSchedule";
 import DutyCalendar from "@/pages/DutyCalendar";
+import AuditLogPage from "@/pages/AuditLogPage";
 
 
 export const router = createBrowserRouter([
@@ -206,6 +207,14 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "/admin/audit-logs",
+            element: (
+              <ProtectedRoute>
+                <AuditLogPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
             path: ROUTES.TEMPLATE_SCHEDULE,
             element: (
               <ProtectedRoute requiredPermission="duties.view_chart">
@@ -216,9 +225,9 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: ROUTES.OFFICE_SCHEDULE,
+            path: ROUTES.DUTY_SCHEDULE,
             element: (
-              <ProtectedRoute requiredPermission="duties.view_chart">
+              <ProtectedRoute requiredPermission="schedules.view_office_schedule">
                 <ScheduleLayout>
                   <Schedule />
                 </ScheduleLayout>

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard } from 'lucide-react';
+import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from "react";
 import { getDutiesFiltered, Duty } from "@/services/dutiesService";
 import { getUsers, User as AppUser } from "@/services/users";
@@ -33,7 +33,7 @@ const Dashboard = () => {
   const [dutyCharts, setDutyCharts] = useState<DutyChart[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [selectedOffices, setSelectedOffices] = useState<DashboardOffice[]>([]);
-  const [nextDuty, setNextDuty] = useState<Duty | null>(null);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOffice, setExpandedOffice] = useState<Record<string, boolean>>({});
@@ -83,10 +83,7 @@ const Dashboard = () => {
         setSelectedOffices(selectedRes || []);
 
         if (myDutiesRes && myDutiesRes.length > 0) {
-          const sorted = myDutiesRes
-            .filter(d => d.date >= todayLocalISODate)
-            .sort((a, b) => a.date.localeCompare(b.date));
-          setNextDuty(sorted[0] || null);
+          // Logic for nextDuty removed
         }
       })
       .catch((e) => {
@@ -135,6 +132,8 @@ const Dashboard = () => {
     full_name: string;
     phone_number?: string | null;
     schedule_name?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
     currently_available: boolean;
   };
 
@@ -185,6 +184,8 @@ const Dashboard = () => {
         full_name: fullName,
         phone_number: phone,
         schedule_name: d.schedule_name || null,
+        start_time: d.start_time || null,
+        end_time: d.end_time || null,
         currently_available: isActive,
       };
 
@@ -275,39 +276,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Featured Header: My Next Duty (Only if exists) */}
-      {nextDuty && (
-        <Card className="bg-gradient-to-br from-primary to-primary-hover text-white border-none shadow-lg">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2 text-blue-100 mb-1">
-              <div className="p-1 rounded bg-white/20">
-                <Clock className="h-4 w-4" />
-              </div>
-              <span className="text-xs font-bold uppercase tracking-wider">My Next Duty</span>
-            </div>
-            <CardTitle className="text-2xl font-bold">
-              {nextDuty.schedule_name || "Upcoming Shift"}
-            </CardTitle>
-            <CardDescription className="text-blue-100 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {format(new Date(nextDuty.date), "EEEE, MMMM do")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-blue-50/80">Shift Time</p>
-                <p className="text-xl font-bold">
-                  {nextDuty.start_time?.slice(0, 5) || "00:00"} - {nextDuty.end_time?.slice(0, 5) || "00:00"}
-                </p>
-              </div>
-              <Badge className="bg-white/20 hover:bg-white/30 text-white border-none px-4 py-1 text-sm">
-                {nextDuty.office_name}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* Stats Grid - 4 cards in a row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -391,10 +360,8 @@ const Dashboard = () => {
         </div>
 
         {loading && (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="animate-pulse bg-slate-50 h-48 border-none" />
-            ))}
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         )}
 
@@ -460,7 +427,14 @@ const Dashboard = () => {
                           <p className="text-xs text-muted-foreground truncate">{row.phone_number || "N/A"}</p>
                         </div>
                         <div className="flex items-center gap-3 mt-1 sm:mt-0">
-                          <span className="text-xs text-muted-foreground">{row.schedule_name || "—"}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-muted-foreground font-medium">{row.schedule_name || "—"}</span>
+                            {row.start_time && row.end_time && (
+                              <span className="text-[10px] text-muted-foreground/70 font-mono">
+                                ({row.start_time.substring(0, 5)} - {row.end_time.substring(0, 5)})
+                              </span>
+                            )}
+                          </div>
                           <span
                             className="inline-block w-3.5 h-3.5 rounded-full bg-green-500 ring-2 ring-green-300"
                             title="On duty"

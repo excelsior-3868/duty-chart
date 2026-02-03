@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getUsers, getUser, type User } from "@/services/users";
 import { getOffice, type Office } from "@/services/offices";
-import { bulkUpsertDuties, createDuty } from "@/services/dutiesService";
+import { bulkUpsertDuties, createDuty, getDutiesFiltered } from "@/services/dutiesService";
 import { getSchedules, getScheduleById, type Schedule } from "@/services/schedule";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
@@ -172,8 +173,72 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       return;
     }
 
+    // Helper to get time in minutes for comparison
+    const timeToMinutes = (timeStr: string) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const isOverlap = (start1: string, end1: string, start2: string, end2: string) => {
+      const s1 = timeToMinutes(start1);
+      const e1 = timeToMinutes(end1);
+      const s2 = timeToMinutes(start2);
+      const e2 = timeToMinutes(end2);
+      // (StartA < EndB) and (EndA > StartB)
+      return s1 < e2 && e1 > s2;
+    };
+
     try {
       setLoading(true);
+
+      // Validate Time Overlap on Frontend before sending
+      // Ideally we fetch user's duties for this date range
+      // We know the date(s) we are assigning.
+
+      const datesToCheck = isRange
+        ? eachDayOfInterval({ start: parseISO(dateISO), end: parseISO(endDateISO) }).map(d => format(d, "yyyy-MM-dd"))
+        : [dateISO];
+
+      // For each date, check existing duties
+      // We can optimize by fetching range or loop. 
+      // Since users won't usually select huge ranges, 1-by-1 or smart filter is fine.
+      // The `getDutiesFiltered` doesn't support date__in or range yet via simple params without backend changes or multiple calls.
+      // But wait, the user *approved* backend validation. Frontend validation is " nice to have " but backend is CRITICAL.
+      // To provide immediate feedback, let's just make a best-effort check or rely on backend error message.
+      // Actually, the user specifically asked for "validation where User cant be assigned...".
+      // If I do strictly backend, it matches the request "Just implement this validation".
+      // However, a frontend pre-check is better UX.
+      // Let's do a fetch for the specific single date if not range, or just rely on backend if range is complex.
+
+      if (!isRange) {
+        const existing = await getDutiesFiltered({ user: parseInt(selectedUserId), date: dateISO });
+        // Check overlap with requested schedule
+        let currentSchedule = scheduleDetail;
+        if (!currentSchedule && finalScheduleId) {
+          // If we don't have detail (e.g. from props only id), find it in 'schedules' list
+          currentSchedule = schedules.find(s => s.id === finalScheduleId) || null;
+          // If still null (maybe because it was passed as initialScheduleId but not loaded in list),
+          // we might skip frontend check or fetch it.
+          if (!currentSchedule && initialScheduleId) {
+            currentSchedule = await getScheduleById(initialScheduleId);
+          }
+        }
+
+        if (currentSchedule && existing.length > 0) {
+          for (const d of existing) {
+            if (d.start_time && d.end_time && currentSchedule.start_time && currentSchedule.end_time) {
+              if (isOverlap(currentSchedule.start_time, currentSchedule.end_time, d.start_time, d.end_time)) {
+                // Found overlap
+                toast.error(`Time overlap detected! User already is assigned to ${d.schedule_name} (${d.start_time} - ${d.end_time}) on this date.`);
+                setLoading(false);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+
       if (isRange) {
         if (isRange && new Date(endDateISO) < new Date(dateISO)) {
           toast.error("End date cannot be before start date");
@@ -220,9 +285,13 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       const data = error?.response?.data;
       if (data) {
         if (data.non_field_errors) {
+          // DRF ValidationErrors often come here
           msg = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
         } else if (data.detail) {
           msg = data.detail;
+        } else if (data.schedule) {
+          // Our specific schedule overlap error might come as field error
+          msg = Array.isArray(data.schedule) ? data.schedule[0] : data.schedule;
         }
       }
       toast.error(msg);
@@ -326,20 +395,23 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             {!initialScheduleId && (
               <div className="space-y-1">
                 <label className="text-sm font-medium">Shift *</label>
-                <select
+                <Select
                   value={selectedScheduleId}
-                  onChange={(e) => setSelectedScheduleId(e.target.value)}
-                  className={inputClass}
+                  onValueChange={setSelectedScheduleId}
                   disabled={loading}
                   required
                 >
-                  <option value="">Select Shift</option>
-                  {schedules.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.start_time} - {s.end_time})
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Shift" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schedules.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name} ({s.start_time} - {s.end_time})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
@@ -402,7 +474,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             <div className="flex items-center gap-3 px-1">
               <span className="font-bold text-slate-700 text-sm">Shift:</span>
               {scheduleDetail ? (
-                <div className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold shadow-sm transition-all animate-in zoom-in-95 duration-200">
+                <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold shadow-sm transition-all animate-in zoom-in-95 duration-200">
                   {scheduleDetail.name} ({scheduleDetail.start_time} – {scheduleDetail.end_time})
                 </div>
               ) : (
@@ -413,14 +485,14 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             {selectedUserDetail && (
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                 {/* Contact Section */}
-                <div className="bg-blue-50/40 p-3 border-b border-blue-100/50">
+                <div className="bg-primary/5 p-3 border-b border-primary/10">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col">
-                      <span className="text-blue-600 font-bold text-[10px] mb-0.5">Phone Number</span>
+                      <span className="text-primary font-bold text-[10px] mb-0.5">Phone Number</span>
                       <span className="text-slate-800 text-xs font-medium">{selectedUserDetail.phone_number || "—"}</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-blue-600 font-bold text-[10px] mb-0.5">Email ID</span>
+                      <span className="text-primary font-bold text-[10px] mb-0.5">Email ID</span>
                       <span className="text-slate-800 text-xs font-medium truncate">{selectedUserDetail.email || "—"}</span>
                     </div>
                   </div>

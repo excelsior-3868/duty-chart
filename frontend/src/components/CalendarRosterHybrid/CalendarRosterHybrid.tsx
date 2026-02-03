@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Search, Plus, Phone, Mail, Download, Pencil, Check, ChevronsUpDown, Building2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Plus, Phone, Mail, Download, Pencil, Check, ChevronsUpDown, Building2, User as UserIcon } from "lucide-react";
 import NepaliDate from "nepali-date-converter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,7 @@ export interface DutyAssignment {
   position: string;
   office: string;
   avatar: string;
+  employee_id?: string;
 }
 
 export interface Shift {
@@ -94,143 +95,9 @@ const generateShiftColor = (shiftName: string): string => {
   return colors[shiftName as keyof typeof colors] || "bg-gray-500";
 };
 
-// Mock data generators
-const generateMockOffices = (): Office[] => {
-  return [
-    { id: "1", name: "INOC Main Office" },
-    { id: "2", name: "INOC Backup Site" },
-    { id: "3", name: "Regional Office North" },
-    { id: "4", name: "Regional Office South" },
-    { id: "5", name: "Mobile Command Center" },
-  ];
-};
 
-const generateMockDutyCharts = (): DutyChart[] => {
-  return [
-    { id: "1", name: "Network Operations" },
-    { id: "2", name: "Security Operations" },
-    { id: "3", name: "Infrastructure Support" },
-    { id: "4", name: "Emergency Response" },
-  ];
-};
 
-const generateMockShifts = (): Shift[] => {
-  return [
-    { id: "1", name: "Morning", start_time: "06:00", end_time: "14:00", color: "bg-blue-500" },
-    { id: "2", name: "Afternoon", start_time: "14:00", end_time: "22:00", color: "bg-amber-500" },
-    { id: "3", name: "Night", start_time: "22:00", end_time: "06:00", color: "bg-indigo-500" },
-    { id: "4", name: "Day", start_time: "08:00", end_time: "17:00", color: "bg-green-500" },
-    { id: "5", name: "Evening", start_time: "17:00", end_time: "01:00", color: "bg-purple-500" },
-    { id: "6", name: "24 Hours", start_time: "00:00", end_time: "23:59", color: "bg-red-500" },
-  ];
-};
 
-const generateMockDutyAssignments = (): DutyAssignment[] => {
-  const shifts = generateMockShifts();
-  const today = new Date();
-  const assignments: DutyAssignment[] = [];
-
-  const roles = [
-    "Network Engineer",
-    "Security Analyst",
-    "System Administrator",
-    "Database Administrator",
-    "Support Specialist",
-    "NOC Technician",
-    "Incident Responder",
-    "Infrastructure Engineer"
-  ];
-
-  const directorates = [
-    "Network Operations",
-    "Security Operations",
-    "IT Infrastructure",
-    "Technical Support"
-  ];
-
-  const departments = [
-    "Core Network",
-    "Access Network",
-    "Security Operations Center",
-    "Infrastructure Management",
-    "Field Operations",
-    "Technical Support"
-  ];
-
-  const positions = [
-    "Senior Engineer",
-    "Junior Engineer",
-    "Team Lead",
-    "Specialist",
-    "Analyst",
-    "Supervisor",
-    "Manager",
-    "Technician"
-  ];
-
-  const offices = [
-    "INOC Main Office",
-    "INOC Backup Site",
-    "Regional Office North",
-    "Regional Office South",
-    "Mobile Command Center"
-  ];
-
-  // Generate random assignments for the next 7 days
-  for (let i = 0; i < 7; i++) {
-    const date = addDays(today, i);
-
-    // Generate 2-4 assignments per day
-    const assignmentsPerDay = Math.floor(Math.random() * 3) + 2;
-
-    for (let j = 0; j < assignmentsPerDay; j++) {
-      const shiftIndex = Math.floor(Math.random() * shifts.length);
-      const shift = shifts[shiftIndex];
-
-      const roleIndex = Math.floor(Math.random() * roles.length);
-      const directorateIndex = Math.floor(Math.random() * directorates.length);
-      const departmentIndex = Math.floor(Math.random() * departments.length);
-      const positionIndex = Math.floor(Math.random() * positions.length);
-      const officeIndex = Math.floor(Math.random() * offices.length);
-
-      // Generate a random name
-      const firstNames = ["John", "Jane", "Michael", "Sarah", "David", "Lisa", "Robert", "Emma", "William", "Olivia"];
-      const lastNames = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Garcia", "Rodriguez", "Wilson"];
-      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-      const name = `${firstName} ${lastName}`;
-
-      // Generate a random phone number
-      const phoneNumber = `+1 (${Math.floor(Math.random() * 900) + 100}) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`;
-
-      // Generate an email based on the name
-      const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@telecom.com`;
-
-      // Generate avatar using DiceBear API
-      const avatarStyle = ["adventurer", "avataaars", "bottts", "initials", "micah"][Math.floor(Math.random() * 5)];
-      const avatar = `https://api.dicebear.com/7.x/${avatarStyle}/svg?seed=${encodeURIComponent(name)}`;
-
-      assignments.push({
-        id: `${i}-${j}`,
-        employee_name: name,
-        role: roles[roleIndex],
-        start_time: shift.start_time,
-        end_time: shift.end_time,
-        date: date,
-        shift: shift.name,
-        phone_number: phoneNumber,
-        email: email,
-        directorate: directorates[directorateIndex],
-        department: departments[departmentIndex],
-        position: positions[positionIndex],
-        office: offices[officeIndex],
-        avatar: avatar
-      });
-    }
-  }
-
-  return assignments;
-};
 
 // Main component
 export interface CalendarRosterHybridProps {
@@ -261,7 +128,9 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
   const [showQuickAssign, setShowQuickAssign] = useState<boolean>(false);
   const [showCreateDutyChart, setShowCreateDutyChart] = useState<boolean>(false);
   const [showEditDutyChart, setShowEditDutyChart] = useState<boolean>(false);
-  const [selectedProfile, setSelectedProfile] = useState<DutyAssignment | null>(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+
+
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
@@ -475,6 +344,13 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
 
   // Map duties from backend to UI-friendly assignment blocks
   const assignments = useMemo<DutyAssignment[]>(() => {
+    const resolveAvatar = (path: string | null | undefined) => {
+      if (!path) return "";
+      if (path.startsWith("http")) return path;
+      const backend = import.meta.env.VITE_BACKEND_HOST || "http://localhost:8000";
+      return `${backend}${path}`;
+    };
+
     return (duties || []).map((d) => {
       const name = d.user_name || "Unknown";
       const userDetail = d.user ? usersCache.get(d.user) : undefined;
@@ -493,10 +369,15 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
         department: d.user_department_name || (userDetail as any)?.department_name || officeDetail?.department_name || "",
         position: d.position_name || userDetail?.position_name || "",
         office: d.user_office_name || (userDetail as any)?.office_name || d.office_name || "",
-        avatar: "",
+        avatar: resolveAvatar(userDetail?.image),
+        employee_id: userDetail?.employee_id || "",
       } as DutyAssignment;
     });
   }, [duties, usersCache, officesCache]);
+
+  const selectedProfile = useMemo(() =>
+    assignments.find(a => a.id === selectedAssignmentId) || null
+    , [assignments, selectedAssignmentId]);
 
   // Derived state
   const weekStart = useMemo(() => startOfWeek(currentWeek, { weekStartsOn: 0 }), [currentWeek]);
@@ -537,7 +418,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
   };
 
   const handleAssignmentClick = (assignment: DutyAssignment) => {
-    setSelectedProfile(assignment);
+    setSelectedAssignmentId(assignment.id);
     setShowProfileModal(true);
   };
 
@@ -960,18 +841,24 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
       )}
       <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
         <DialogContent className="sm:max-w-md md:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={selectedProfile?.avatar} alt={selectedProfile?.employee_name} />
-                <AvatarFallback>{selectedProfile?.employee_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+          <DialogHeader className="flex flex-col items-center justify-center pb-6 border-b">
+            <div className="relative mb-3">
+              <Avatar className="h-24 w-24 border-4 border-white shadow-lg">
+                <AvatarImage src={selectedProfile?.avatar} alt={selectedProfile?.employee_name} className="object-cover" />
+                <AvatarFallback className="text-2xl">{selectedProfile?.employee_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
               </Avatar>
-              <div>
-                <span className="text-sm sm:text-base">{selectedProfile?.employee_name}</span>
-              </div>
+            </div>
+            <DialogTitle className="text-2xl font-bold text-center mb-2">
+              {selectedProfile?.employee_name}
             </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
-              {selectedProfile?.phone_number}
+            {selectedProfile?.phone_number && (
+              <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-1 rounded-full text-sm font-medium text-gray-700">
+                <Phone className="h-3.5 w-3.5" />
+                <span>{selectedProfile.phone_number}</span>
+              </div>
+            )}
+            <DialogDescription className="sr-only">
+              Profile Details
             </DialogDescription>
           </DialogHeader>
 
@@ -1007,7 +894,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
               </span>
             </div>
             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
-              <span className="md:text-right font-medium">Duty Times:</span>
+              <span className="md:text-right font-medium">Duty Time:</span>
               <span className="col-span-2 md:col-span-3">
                 <span className="text-xs sm:text-sm">{selectedProfile?.start_time} - {selectedProfile?.end_time}</span>
               </span>

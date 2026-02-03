@@ -100,8 +100,8 @@
 //   );
 // };
 
-import { useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+// import { useState } from "react";
+import { NavLink } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -112,7 +112,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Menu, Bell, User, Settings, LogOut, UserCircle } from "lucide-react";
+import { Menu } from "lucide-react";
 import { COMPANY_NAME, APP_NAME, ROUTES } from "@/utils/constants";
 import logo from "../../assets/telecom.png"; // Adjust path if needed
 
@@ -121,8 +121,6 @@ interface HeaderProps {
 }
 
 export const Header = ({ onMenuClick }: HeaderProps) => {
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const navigate = useNavigate();
   const { logout } = useAuth();
 
   const handleLogout = () => {
@@ -161,24 +159,6 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
 
         {/* Right side - Actions */}
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-[hsl(var(--header-foreground))] hover:bg-[hsl(var(--primary-hover))]"
-            onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-          >
-            <Bell className="h-5 w-5" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-[hsl(var(--header-foreground))] hover:bg-[hsl(var(--primary-hover))]"
-            onClick={() => navigate(ROUTES.SETTINGS)}
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-
           {/* Profile button removed (moved to sidebar profile section) */}
         </div>
       </div>

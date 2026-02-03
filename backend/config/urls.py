@@ -126,6 +126,7 @@ urlpatterns = [
     # Specific API endpoints
     path("api/v1/auth/", include("authentication.urls")),
     path("api/v1/otp/", include("otp_service.urls")),
+    path("api/v1/auditlogs/", include("auditlogs.urls")),
     path("api/v1/reports/", include("reports.urls")),
 
     path(

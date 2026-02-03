@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,9 @@ export interface DutyAssignment {
     position: string;
     office: string;
     avatar: string;
+    avatar: string;
     schedule_id: number;
+    employee_id?: string;
 }
 
 
@@ -113,7 +115,8 @@ const DutyCalendar = () => {
     const [showCreateDuty, setShowCreateDuty] = useState(false);
     const [createDutyContext, setCreateDutyContext] = useState<{ dateISO: string } | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
-    const [selectedProfile, setSelectedProfile] = useState<DutyAssignment | null>(null);
+    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     // --- State: Schedules (Available Shifts) ---
@@ -296,6 +299,13 @@ const DutyCalendar = () => {
 
     // --- 6. Transform Duties to Assignments UI Model ---
     const assignments = useMemo<DutyAssignment[]>(() => {
+        const resolveAvatar = (path: string | null | undefined) => {
+            if (!path) return "";
+            if (path.startsWith("http")) return path;
+            const backend = import.meta.env.VITE_BACKEND_HOST || "http://localhost:8000";
+            return `${backend}${path}`;
+        };
+
         return (duties || []).map((d) => {
             const name = d.user_name || "Unknown";
             const userDetail = d.user ? usersCache.get(d.user) : undefined;
@@ -314,11 +324,16 @@ const DutyCalendar = () => {
                 department: officeDetail?.department_name || "",
                 position: userDetail?.position_name || d.position_name || "",
                 office: d.office_name || "",
-                avatar: "",
+                avatar: resolveAvatar(userDetail?.image),
                 schedule_id: d.schedule,
+                employee_id: userDetail?.employee_id || "",
             } as DutyAssignment;
         });
     }, [duties, usersCache, officesCache]);
+
+    const selectedProfile = useMemo(() =>
+        assignments.find(a => a.id === selectedAssignmentId) || null
+        , [assignments, selectedAssignmentId]);
 
 
     // --- 7. Calendar Grid Logic ---
@@ -449,7 +464,7 @@ const DutyCalendar = () => {
     };
 
     const handleAssignmentClick = (assignment: DutyAssignment) => {
-        setSelectedProfile(assignment);
+        setSelectedAssignmentId(assignment.id);
         setShowProfileModal(true);
     };
 
@@ -927,18 +942,24 @@ const DutyCalendar = () => {
                 {/* Profile Modal */}
                 <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
                     <DialogContent className="sm:max-w-md md:max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Avatar className="h-10 w-10">
-                                    <AvatarImage src={selectedProfile?.avatar} alt={selectedProfile?.employee_name} />
-                                    <AvatarFallback>{selectedProfile?.employee_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                        <DialogHeader className="flex flex-col items-center justify-center pb-6 border-b">
+                            <div className="relative mb-3">
+                                <Avatar className="h-24 w-24 border-4 border-white shadow-lg">
+                                    <AvatarImage src={selectedProfile?.avatar} alt={selectedProfile?.employee_name} className="object-cover" />
+                                    <AvatarFallback className="text-2xl">{selectedProfile?.employee_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                                 </Avatar>
-                                <div>
-                                    <span className="text-sm sm:text-base">{selectedProfile?.employee_name}</span>
-                                </div>
+                            </div>
+                            <DialogTitle className="text-2xl font-bold text-center mb-2">
+                                {selectedProfile?.employee_name}
                             </DialogTitle>
-                            <DialogDescription className="text-xs sm:text-sm">
-                                {selectedProfile?.phone_number}
+                            {selectedProfile?.phone_number && (
+                                <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-1 rounded-full text-sm font-medium text-gray-700">
+                                    <Phone className="h-3.5 w-3.5" />
+                                    <span>{selectedProfile.phone_number}</span>
+                                </div>
+                            )}
+                            <DialogDescription className="sr-only">
+                                Profile Details
                             </DialogDescription>
                         </DialogHeader>
 
@@ -974,7 +995,7 @@ const DutyCalendar = () => {
                                 </span>
                             </div>
                             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
-                                <span className="md:text-right font-medium">Duty Times:</span>
+                                <span className="md:text-right font-medium">Duty Time:</span>
                                 <span className="col-span-2 md:col-span-3">
                                     <span className="text-xs sm:text-sm">{selectedProfile?.start_time} - {selectedProfile?.end_time}</span>
                                 </span>

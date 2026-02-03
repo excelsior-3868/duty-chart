@@ -68,20 +68,8 @@ class DutySerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
-        # Ensure a user is not assigned multiple shifts (duties) on the same day
-        user = attrs.get('user') or getattr(self.instance, 'user', None)
-        date = attrs.get('date') or getattr(self.instance, 'date', None)
-
-        if user and date:
-            qs = Duty.objects.filter(user=user, date=date)
-            if self.instance and getattr(self.instance, 'pk', None):
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                # Use 'detail' to make sure frontend toast displays this message
-                raise serializers.ValidationError({
-                    'detail': 'Same person cannot have duties of two shifts in the same day.'
-                })
-
+        # We now rely on Duty.clean() for strict time-overlap checking.
+        # This allows multiple non-overlapping duties on the same day.
         return attrs
     # Call full_clean() and convert Django ValidationError -> DRF ValidationError
     # so the API responds with 400 and a clear message instead of 500.

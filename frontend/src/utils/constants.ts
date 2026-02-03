@@ -11,7 +11,7 @@ export const ROUTES = {
   EMPLOYEES: '/employees',
   ATTENDANCE: '/attendance',
   TEMPLATE_SCHEDULE: '/schedule-management/templates',
-  OFFICE_SCHEDULE: '/schedule',
+  DUTY_SCHEDULE: '/duty-schedule',
   REPORTS: '/reports',
   SETTINGS: '/settings',
   CHANGE_PASSWORD: "/change-password",

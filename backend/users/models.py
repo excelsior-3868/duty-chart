@@ -2,10 +2,11 @@
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
-from org.models import Directorate, Department, Office  # import your org models
+from org.models import Directorate, Department, Office
 from django.core.validators import MinValueValidator, MaxValueValidator
+from auditlogs.mixins import AuditableMixin
 
-class User(AbstractUser):
+class User(AuditableMixin, AbstractUser):
     employee_id = models.CharField(max_length=50, unique=True)
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
@@ -28,7 +29,6 @@ class User(AbstractUser):
         blank=True,
         related_name='users'
     )
-    # Users can optionally be members of multiple offices in addition to their primary office
     secondary_offices = models.ManyToManyField(
         Office,
         related_name='secondary_members',
@@ -62,31 +62,44 @@ class User(AbstractUser):
 
     def clean(self):
         super().clean()
-        # Ensure department belongs to the selected directorate
         if self.department and self.directorate:
             if self.department.directorate != self.directorate:
-                raise ValidationError({
-                    "department": "Selected department does not belong to the chosen directorate."
-                })
-        # Ensure office belongs to the selected department
+                raise ValidationError({"department": "Selected department does not belong to the chosen directorate."})
         if self.office and self.department:
             if self.office.department != self.department:
-                raise ValidationError({
-                    "office": "Selected office does not belong to the chosen department."
-                })
+                raise ValidationError({"office": "Selected office does not belong to the chosen department."})
 
     def __str__(self):
         return self.full_name
 
-class Position(models.Model):
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"USER MANAGEMENT: Created new user account for {self.full_name} (ID: {self.employee_id})."
+        elif action == 'UPDATE':
+            fields = ", ".join(changes.keys())
+            return f"USER MANAGEMENT: Updated account for {self.full_name}. Modified: {fields}."
+        elif action == 'DELETE':
+            return f"USER MANAGEMENT: Removed user account for {self.full_name} (ID: {self.employee_id})."
+        return ""
+
+class Position(AuditableMixin, models.Model):
     name = models.CharField(max_length=255)
     level = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
     
     def __str__(self):
         return self.name
 
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"CONFIGURATION: Created new Position/Designation '{self.name}' (Level: {self.level})."
+        elif action == 'UPDATE':
+            return f"CONFIGURATION: Updated Position '{self.name}'."
+        elif action == 'DELETE':
+            return f"CONFIGURATION: Deleted Position '{self.name}'."
+        return ""
+
 # ---------------- RBAC MODELS ----------------
-class Permission(models.Model):
+class Permission(AuditableMixin, models.Model):
     slug = models.CharField(max_length=128, unique=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -97,7 +110,10 @@ class Permission(models.Model):
     def __str__(self):
         return self.slug
 
-class Role(models.Model):
+    def get_audit_details(self, action, changes):
+        return f"RBAC: {action.capitalize()}d system permission '{self.slug}'."
+
+class Role(AuditableMixin, models.Model):
     slug = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
@@ -107,7 +123,10 @@ class Role(models.Model):
     def __str__(self):
         return self.slug
 
-class RolePermission(models.Model):
+    def get_audit_details(self, action, changes):
+        return f"RBAC: {action.capitalize()}d system role '{self.slug}'."
+
+class RolePermission(AuditableMixin, models.Model):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='role_permissions')
     permission = models.ForeignKey(Permission, on_delete=models.CASCADE, related_name='permission_roles')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -118,7 +137,14 @@ class RolePermission(models.Model):
     def __str__(self):
         return f"{self.role.slug} -> {self.permission.slug}"
 
-class UserPermission(models.Model):
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"RBAC: Assigned permission '{self.permission.slug}' to role '{self.role.slug}'."
+        elif action == 'DELETE':
+            return f"RBAC: Removed permission '{self.permission.slug}' from role '{self.role.slug}'."
+        return ""
+
+class UserPermission(AuditableMixin, models.Model):
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name='direct_permissions')
     permission = models.ForeignKey(Permission, on_delete=models.CASCADE, related_name='permission_users')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -129,7 +155,10 @@ class UserPermission(models.Model):
     def __str__(self):
         return f"{self.user_id} -> {self.permission.slug}"
 
-class UserDashboardOffice(models.Model):
+    def get_audit_details(self, action, changes):
+        return f"RBAC: Modified direct permissions for User ID {self.user_id}."
+
+class UserDashboardOffice(AuditableMixin, models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dashboard_offices')
     office = models.ForeignKey(Office, on_delete=models.CASCADE, related_name='dashboard_users')
 
@@ -141,3 +170,9 @@ class UserDashboardOffice(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.office.name}"
 
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"PREFERENCE: User {self.user.username} pinned {self.office.name} to dashboard."
+        elif action == 'DELETE':
+            return f"PREFERENCE: User {self.user.username} unpinned {self.office.name} from dashboard."
+        return ""

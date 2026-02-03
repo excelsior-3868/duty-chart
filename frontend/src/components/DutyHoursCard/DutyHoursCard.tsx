@@ -161,18 +161,18 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           start_time: formData.start_time,
           end_time: formData.end_time,
           office: parseInt(formData.office),
-          status: initialSchedule.status || "office_schedule",
+          status: initialSchedule.status || "duty_schedule",
         });
-        toast.success("Schedule Updated Successfully");
+        toast.success("Duty Schedule Updated Successfully");
       } else {
         await createSchedule({
           name: formData.name,
           start_time: formData.start_time,
           end_time: formData.end_time,
           office: parseInt(formData.office),
-          status: "office_schedule",
+          status: "duty_schedule",
         });
-        toast.success("Schedule Created Successfully");
+        toast.success("Duty Schedule Created Successfully");
         setFormData({
           name: "",
           start_time: "",
@@ -223,7 +223,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
-            {mode === "edit" ? "Edit Shift Schedule" : "Add Shift Schedule for Office"}
+            {mode === "edit" ? "Edit Duty Schedule" : "Add Duty Schedule for Office"}
           </CardTitle>
           <CardDescription>
             Define duty hours and assign them to specific offices.
@@ -357,7 +357,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               >
                 {isSubmitting
                   ? mode === "edit" ? "Updating..." : "Creating..."
-                  : mode === "edit" ? "Update Schedule" : "Create Schedule"}
+                  : mode === "edit" ? "Update Duty Schedule" : "Create Duty Schedule"}
               </Button>
             </div>
           </form>

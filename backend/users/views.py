@@ -123,7 +123,7 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 
-class PositionViewSet(viewsets.ReadOnlyModelViewSet):
+class PositionViewSet(viewsets.ModelViewSet):
     queryset = Position.objects.all().order_by('name')
     serializer_class = PositionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -152,13 +152,18 @@ class RoleViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'permissions must be a list of slugs'}, status=400)
         valid_perms = list(Permission.objects.filter(slug__in=perm_slugs, is_active=True))
         valid_set = set(p.slug for p in valid_perms)
-        # Remove mappings not in desired set
-        RolePermission.objects.filter(role=role).exclude(permission__slug__in=valid_set).delete()
+        
+        # Remove mappings not in desired set - Process individually for Audit Logging
+        to_remove = RolePermission.objects.filter(role=role).exclude(permission__slug__in=valid_set)
+        for rp in to_remove:
+            rp.delete() 
+
         # Add missing
         existing_set = set(RolePermission.objects.filter(role=role).values_list('permission__slug', flat=True))
         to_add = [p for p in valid_perms if p.slug not in existing_set]
         for p in to_add:
             RolePermission.objects.get_or_create(role=role, permission=p)
+            
         slugs = list(RolePermission.objects.filter(role=role).values_list('permission__slug', flat=True))
         return Response({'role': role.slug, 'permissions': slugs})
 

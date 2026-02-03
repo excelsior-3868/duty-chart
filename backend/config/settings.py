@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     'org',
     'duties',
     'otp_service',
+    'auditlogs',
 
 ]
 
@@ -94,6 +95,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'auditlogs.middleware.AuditContextMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'

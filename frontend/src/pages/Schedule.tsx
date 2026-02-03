@@ -10,12 +10,12 @@ import { BulkUpload } from "@/components/WeekScheduleTable/Bulkupload";
 import { getSchedules } from "@/services/schedule";
 import { getOffices } from "@/services/offices";
 import { useAuth } from "@/context/AuthContext";
-import { updateSchedule } from "@/services/schedule";
+import { updateSchedule, deleteSchedule } from "@/services/schedule";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Loader2 } from "lucide-react";
+import { Pencil, Loader2, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -24,6 +24,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { toast } from "sonner";
 
@@ -61,19 +71,23 @@ const Schedule = () => {
     office: "",
     status: "office_schedule",
   });
+  const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     // Ensure we have the latest auth/user state when entering this page
     refreshUser().catch(() => { });
   }, []);
 
-  const canCreateAtAll = hasPermission("schedules.create") || hasPermission("schedules.create_office_schedule");
-  const canViewSchedules = hasPermission("schedules.view");
+  const canCreateAtAll = hasPermission("duties.manage_schedule") || hasPermission("schedules.create");
+  const canViewSchedules = hasPermission("duties.view_schedule") || hasPermission("schedules.view") || hasPermission("schedules.view_office_schedule");
 
   const canManageSelectedOffice =
     selectedOffice !== null ? canManageOffice(selectedOffice) : false;
   const canEditSchedules =
-    hasPermission("schedules.edit") && canManageSelectedOffice;
+    (hasPermission("duties.manage_schedule") || hasPermission("schedules.edit")) && canManageSelectedOffice;
+  const canDeleteSchedules =
+    (hasPermission("duties.manage_schedule") || hasPermission("schedules.delete")) && canManageSelectedOffice;
 
   const visibleSchedules = schedules.filter(
     (s) => selectedOffice ? s.office === selectedOffice : true
@@ -127,7 +141,7 @@ const Schedule = () => {
   }, [selectedOffice]);
 
   useEffect(() => {
-    document.title = "Schedule Management | INOC Duty Roster";
+    document.title = "Duty Schedule | INOC Duty Roster";
     const meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       const m = document.createElement("meta");
@@ -146,8 +160,8 @@ const Schedule = () => {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-primary">Office Schedule</h1>
-        <p className="text-muted-foreground">Modify shift times and assign personnel for the upcoming week.</p>
+        <h1 className="text-2xl font-bold text-primary">Duty Schedule</h1>
+        <p className="text-muted-foreground">Define shift times and assign them to specific offices.</p>
       </div>
 
       {/* Sections: Office Filter, Schedules List & Create Form in two columns */}
@@ -223,7 +237,7 @@ const Schedule = () => {
                                 variant={s.status === 'expired' ? 'destructive' : 'default'}
                                 className="text-[10px] h-4"
                               >
-                                {s.status === 'expired' ? 'expired' : 'office schedule'}
+                                {s.status === 'expired' ? 'expired' : 'duty schedule'}
                               </Badge>
                             )}
                           </div>
@@ -231,26 +245,41 @@ const Schedule = () => {
                             {s.start_time} - {s.end_time}
                           </div>
                         </div>
-                        {canEditSchedules && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => {
-                              setEditingSchedule(s);
-                              setEditForm({
-                                name: s.name || "",
-                                start_time: s.start_time || "",
-                                end_time: s.end_time || "",
-                                office: s.office ? String(s.office) : "",
-                                status: s.status || "template",
-                              });
-                              setEditOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {canEditSchedules && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => {
+                                setEditingSchedule(s);
+                                setEditForm({
+                                  name: s.name || "",
+                                  start_time: s.start_time || "",
+                                  end_time: s.end_time || "",
+                                  office: s.office ? String(s.office) : "",
+                                  status: s.status || "template",
+                                });
+                                setEditOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
+                          {canDeleteSchedules && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                setScheduleToDelete(s);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -310,20 +339,6 @@ const Schedule = () => {
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-sm font-medium">Status</label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, status: e.target.value }))
-                  }
-                  className="w-full rounded-md border text-sm px-3 py-2"
-                >
-                  <option value="office_schedule">Office Schedule</option>
-                  <option value="template">Template</option>
-                  <option value="expired">Expired</option>
-                </select>
-              </div>
             </div>
             <DialogFooter>
               <Button
@@ -357,7 +372,7 @@ const Schedule = () => {
                     }
                     setEditOpen(false);
                     setEditingSchedule(null);
-                    toast.success("Schedule updated successfully");
+                    toast.success("Duty Schedule updated successfully");
                   } catch (error: any) {
                     const data = error.response?.data;
                     let errorMessage = "Failed to update schedule";
@@ -372,7 +387,8 @@ const Schedule = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
+      )
+      }
 
 
 
@@ -431,7 +447,46 @@ const Schedule = () => {
       */}
 
 
-    </div>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the schedule <strong>{scheduleToDelete?.name}</strong>.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (scheduleToDelete) {
+                  try {
+                    await deleteSchedule(scheduleToDelete.id);
+                    toast.success("Schedule deleted successfully");
+                    // Refresh schedules
+                    if (selectedOffice) {
+                      const all = await getSchedules();
+                      const filtered = all.filter(
+                        (s) => s.office === selectedOffice
+                      );
+                      setSchedules(filtered);
+                    }
+                  } catch (error: any) {
+                    toast.error("Failed to delete schedule");
+                  }
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+    </div >
   );
 };
 
