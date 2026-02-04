@@ -88,6 +88,8 @@ class Schedule(AuditableMixin, models.Model):
     end_time = models.TimeField()
     name = models.CharField(max_length=100, help_text="Schedule name (e.g., 'Morning Shift', 'Night Duty')")
     office = models.ForeignKey('org.Office', on_delete=models.CASCADE, related_name='schedules', blank=True, null=True)
+    shift_type = models.CharField(max_length=50, blank=True, null=True, help_text="Type of shift (e.g. Regular, On-Call)")
+    alias = models.CharField(max_length=20, blank=True, null=True, help_text="Short code or alias for the shift")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

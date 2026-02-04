@@ -343,6 +343,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       };
       const updatedChart = await patchDutyChart(parseInt(selectedChartId), payload);
       toast.success("Duty Chart updated successfully");
+      setShowManualConfirm(false);
       onOpenChange(false);
       onUpdateSuccess?.(updatedChart);
     } catch (error: any) {

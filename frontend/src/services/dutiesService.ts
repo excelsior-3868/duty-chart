@@ -13,6 +13,8 @@ export interface Duty {
   office_name?: string;
   schedule_name?: string;
   schedule_shift?: string;
+  shift_type?: string;
+  alias?: string;
   start_time?: string;
   end_time?: string;
   position_name?: string;

@@ -8,6 +8,8 @@ export interface Schedule {
   office?: number;
   office_name?: string;
   status?: 'template' | 'default' | 'expired' | string;
+  shift_type?: string;
+  alias?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -102,8 +102,25 @@ class RequestOTPView(APIView):
         # 1. Find User
         user = None
         if email and phone:
-            # New direct flow: find by email and phone
-            user = User.objects.filter(email=email, phone_number=phone).first()
+            # Special handling for forgot_password to provide specific errors
+            if purpose == 'forgot_password':
+                user_candidate = User.objects.filter(email=email).first()
+                if not user_candidate:
+                    return Response({"message": "No account found with this email."}, status=status.HTTP_404_NOT_FOUND)
+                
+                if not user_candidate.phone_number:
+                    return Response({"message": "No mobile number is registered for this account. Please contact administrator."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                if user_candidate.phone_number != phone:
+                    return Response({"message": "The provided mobile number does not match our records."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                if not user_candidate.is_activated:
+                    return Response({"message": "This account is not yet activated. Please use the Employee Activation page first."}, status=status.HTTP_400_BAD_REQUEST)
+                
+                user = user_candidate
+            else:
+                # New direct flow: find by email and phone
+                user = User.objects.filter(email=email, phone_number=phone).first()
         elif employee_id and phone:
             # Signup/Employee activation flow
             user = User.objects.filter(employee_id__iexact=employee_id, phone_number=phone).first()
@@ -113,8 +130,11 @@ class RequestOTPView(APIView):
             
         if not user:
             # Special case for signup: if we explicitly gave ID/Phone and it's wrong, tell them.
-            if (email and phone) or (employee_id and phone):
-                 return Response({"message": "Invalid credentials provided."}, status=status.HTTP_400_BAD_REQUEST)
+            if employee_id and phone:
+                 return Response({"message": "Invalid Employee ID or Phone number."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Generic response for other cases to prevent enumeration, 
+            # though forgot_password above already gives specific ones as requested
             return Response({"message": "If an account exists, an OTP has been sent."}, status=status.HTTP_200_OK)
             
         # 2. Rate Limiting Check (Basic) - FR-13 / 8.2
@@ -375,6 +395,9 @@ class SignupLookupView(APIView):
             print(f"DEBUG: Search '{employee_id}' failed. DB has: {sample_ids}")
             return Response({"message": f"Employee ID '{employee_id}' not found."}, status=status.HTTP_404_NOT_FOUND)
             
+        if user.is_activated:
+            return Response({"message": "This account is already activated. Please use the login page."}, status=status.HTTP_400_BAD_REQUEST)
+            
         return Response({
             "email": user.email,
             "phone": user.phone_number,
@@ -409,6 +432,7 @@ class SignupCompleteView(APIView):
             
         user.set_password(password)
         user.is_active = True
+        user.is_activated = True
         user.save()
         
         # Mark request as completed

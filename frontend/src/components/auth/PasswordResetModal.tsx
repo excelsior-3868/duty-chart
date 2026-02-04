@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import publicApi from "@/services/publicApi";
 import { toast } from "sonner";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, Clock } from "lucide-react";
 
 interface PasswordResetModalProps {
     isOpen: boolean;
@@ -38,6 +38,27 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
     const [maskedPhone, setMaskedPhone] = useState("");
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [timer, setTimer] = useState(300); // 5 minutes
+    const [canResend, setCanResend] = useState(false);
+
+    useEffect(() => {
+        let interval: any;
+        if (step === "VALIDATE" && timer > 0) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (timer === 0) {
+            setCanResend(true);
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [step, timer]);
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
 
     const handleSendOTP = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -59,6 +80,9 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
             } else {
                 toast.success("OTP sent.");
             }
+            setTimer(300);
+            setCanResend(false);
+            setOtp("");
             setStep("VALIDATE");
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to send OTP");
@@ -155,7 +179,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                                     disabled={isLoading}
                                     className="h-12 px-6 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]"
                                 >
-                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "SEND OTP"}
+                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send OTP"}
                                 </Button>
                             </div>
                         </div>
@@ -170,13 +194,37 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                                 id="otp"
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value)}
-                                placeholder="Enter 4-digit OTP"
+                                placeholder="••••"
                                 required
+                                maxLength={4}
+                                className="h-12 text-center text-2xl tracking-[1em] font-bold border-2 focus:border-primary transition-all placeholder:text-slate-200 placeholder:opacity-100"
+                                autoFocus
                             />
                         </div>
-                        <Button type="submit" className="w-full h-12 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]" disabled={isLoading}>
+
+                        <div className="flex flex-col items-center gap-3 py-2">
+                            <div className="text-sm font-medium text-slate-500">
+                                {timer > 0 ? (
+                                    <span className="flex items-center gap-2">
+                                        <Clock className="h-3.5 w-3.5 text-primary animate-pulse" />
+                                        Resend code in <span className="text-primary font-bold">{formatTime(timer)}</span>
+                                    </span>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleSendOTP}
+                                        className="text-primary font-bold hover:underline transition-all"
+                                        disabled={isLoading}
+                                    >
+                                        Resend Verification Code
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <Button type="submit" className="w-full h-12 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]" disabled={isLoading || otp.length < 4}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            VERIFY OTP
+                            Verify OTP
                         </Button>
                         <Button
                             type="button"

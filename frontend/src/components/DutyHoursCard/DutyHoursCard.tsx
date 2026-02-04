@@ -20,12 +20,14 @@ import { Button } from "@/components/ui/button";
 
 interface AddScheduleCardProps {
   onScheduleAdded?: () => void;
+  onCancelEdit?: () => void;
   initialSchedule?: ScheduleType | null;
   mode?: "create" | "edit";
 }
 
 export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   onScheduleAdded,
+  onCancelEdit,
   initialSchedule = null,
   mode = "create",
 }) => {
@@ -35,6 +37,8 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
     start_time: "",
     end_time: "",
     office: "",
+    shift_type: "",
+    alias: "",
   });
 
   const [offices, setOffices] = useState<Office[]>([]);
@@ -82,10 +86,22 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
         start_time: initialSchedule.start_time || "",
         end_time: initialSchedule.end_time || "",
         office: initialSchedule.office ? String(initialSchedule.office) : "",
+        shift_type: initialSchedule.shift_type || "",
+        alias: initialSchedule.alias || "",
       });
       if (mode === "edit") {
         setIsCustomSchedule(true);
       }
+    } else {
+      setFormData({
+        name: "",
+        start_time: "",
+        end_time: "",
+        office: "",
+        shift_type: "",
+        alias: "",
+      });
+      setIsCustomSchedule(false);
     }
   }, [initialSchedule, mode]);
 
@@ -124,7 +140,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
       ...prev,
       name: "",
       start_time: "",
-      end_time: ""
+      end_time: "",
+      shift_type: "",
+      alias: ""
     }));
     setErrors({});
   };
@@ -161,7 +179,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           start_time: formData.start_time,
           end_time: formData.end_time,
           office: parseInt(formData.office),
-          status: initialSchedule.status || "duty_schedule",
+          shift_type: formData.shift_type,
+          alias: formData.alias,
+          status: initialSchedule.status || "office_schedule",
         });
         toast.success("Duty Schedule Updated Successfully");
       } else {
@@ -170,7 +190,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           start_time: formData.start_time,
           end_time: formData.end_time,
           office: parseInt(formData.office),
-          status: "duty_schedule",
+          shift_type: formData.shift_type,
+          alias: formData.alias,
+          status: "office_schedule",
         });
         toast.success("Duty Schedule Created Successfully");
         setFormData({
@@ -178,6 +200,8 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           start_time: "",
           end_time: "",
           office: "",
+          shift_type: "",
+          alias: "",
         });
       }
       onScheduleAdded?.();
@@ -259,7 +283,9 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                           ...prev,
                           name: val,
                           start_time: templateData ? templateData.start_time?.slice(0, 5) : prev.start_time,
-                          end_time: templateData ? templateData.end_time?.slice(0, 5) : prev.end_time
+                          end_time: templateData ? templateData.end_time?.slice(0, 5) : prev.end_time,
+                          shift_type: templateData ? (templateData.shift_type || "") : prev.shift_type,
+                          alias: templateData ? (templateData.alias || "") : prev.alias,
                         }));
                         if (errors.name) setErrors(prev => ({ ...prev, name: "" }));
                       }}
@@ -314,6 +340,38 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               </div>
             </div>
 
+            {/* Shift Type and Alias */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className={labelClass}>Shift Alias / Code</label>
+                <input
+                  type="text"
+                  value={formData.alias}
+                  onChange={(e) => handleInputChange("alias", e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. MS"
+                  disabled={!isCustomSchedule && mode !== 'edit'}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className={labelClass}>Shift Type</label>
+                <Select
+                  value={formData.shift_type}
+                  onValueChange={(v) => handleInputChange("shift_type", v)}
+                  disabled={!isCustomSchedule && mode !== 'edit'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Regular">Regular</SelectItem>
+                    <SelectItem value="Shift">Shift</SelectItem>
+                    <SelectItem value="OnCall">OnCall</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Time Section */}
             <div className="grid grid-cols-2 gap-4">
               {/* Start Time */}
@@ -349,7 +407,17 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 gap-2">
+              {mode === "edit" && onCancelEdit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onCancelEdit}
+                  disabled={isSubmitting}
+                >
+                  Cancel Edit
+                </Button>
+              )}
               <Button
                 type="submit"
                 disabled={isSubmitting}

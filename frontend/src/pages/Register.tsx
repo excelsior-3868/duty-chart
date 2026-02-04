@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2, KeyRound, UserCheck, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Loader2, KeyRound, UserCheck, ShieldCheck, Clock } from "lucide-react";
 import publicApi from "@/services/publicApi";
 import { toast } from "sonner";
 import { ROUTES, APP_NAME, COMPANY_NAME } from "@/utils/constants";
@@ -24,6 +24,27 @@ const Register = () => {
   const [requestId, setRequestId] = useState("");
   const [passwordData, setPasswordData] = useState({ password: "", confirmPassword: "" });
   const [showPasswords, setShowPasswords] = useState({ p1: false, p2: false });
+  const [timer, setTimer] = useState(300); // 5 minutes
+  const [canResend, setCanResend] = useState(false);
+
+  useEffect(() => {
+    let interval: any;
+    if (step === "OTP" && timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (timer === 0) {
+      setCanResend(true);
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [step, timer]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     document.title = "Signup - Duty Chart";
@@ -55,6 +76,9 @@ const Register = () => {
         purpose: "signup"
       });
       setRequestId(data.request_id);
+      setTimer(300);
+      setCanResend(false);
+      setOtp("");
       toast.success("OTP sent to your registered mobile number.");
       setStep("OTP");
     } catch (err: any) {
@@ -165,18 +189,46 @@ const Register = () => {
             {/* STEP 3: OTP */}
             {step === "OTP" && (
               <form onSubmit={handleValidateOTP} className="space-y-4">
-                <p className="text-center text-xs text-gray-500">
-                  Sent to {userData?.phone.substring(0, 3)}****{userData?.phone.slice(-3)}
-                </p>
+                <div className="text-center">
+                  <p className="text-[11px] text-slate-500 font-medium tracking-wide uppercase">
+                    Verification Code
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Sent to {userData?.phone.substring(0, 3)}****{userData?.phone.slice(-3)}
+                  </p>
+                </div>
+
                 <Input
-                  placeholder="4-digit OTP"
+                  placeholder="••••"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   maxLength={4}
                   required
-                  className="h-11 text-center text-xl tracking-widest"
+                  className="h-12 text-center text-2xl tracking-[1em] font-bold border-2 focus:border-primary transition-all placeholder:text-slate-200 placeholder:opacity-100"
+                  autoFocus
                 />
-                <Button type="submit" className="w-full h-11 bg-primary" disabled={isLoading}>
+
+                <div className="flex flex-col items-center gap-3">
+                  <div className="text-sm font-medium text-slate-500">
+                    {timer > 0 ? (
+                      <span className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5 text-primary animate-pulse" />
+                        Resend code in <span className="text-primary font-bold">{formatTime(timer)}</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleRequestOTP}
+                        className="text-primary font-bold hover:underline transition-all"
+                        disabled={isLoading}
+                      >
+                        Resend Verification Code
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 font-bold shadow-md shadow-primary/20" disabled={isLoading || otp.length < 4}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify OTP"}
                 </Button>
               </form>
@@ -194,7 +246,7 @@ const Register = () => {
                     required
                     className="h-11 pr-10"
                   />
-                  <button type="button" onClick={() => setShowPasswords({ ...showPasswords, p1: !showPasswords.p1 })} className="absolute right-3 top-3.5 text-gray-400">
+                  <button type="button" tabIndex={-1} onClick={() => setShowPasswords({ ...showPasswords, p1: !showPasswords.p1 })} className="absolute right-3 top-3.5 text-gray-400">
                     {showPasswords.p1 ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
@@ -207,15 +259,15 @@ const Register = () => {
                     required
                     className="h-11 pr-10"
                   />
-                  <button type="button" onClick={() => setShowPasswords({ ...showPasswords, p2: !showPasswords.p2 })} className="absolute right-3 top-3.5 text-gray-400">
+                  <button type="button" tabIndex={-1} onClick={() => setShowPasswords({ ...showPasswords, p2: !showPasswords.p2 })} className="absolute right-3 top-3.5 text-gray-400">
                     {showPasswords.p2 ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 <div className="text-[10px] text-gray-500 bg-slate-50 p-2 rounded">
                   * Password must be at least 8 characters long and include numbers and special characters.
                 </div>
-                <Button type="submit" className="w-full h-11 bg-green-600 hover:bg-green-700 font-bold" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "ACTIVATE ACCOUNT"}
+                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 font-bold" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Activate Account"}
                 </Button>
               </form>
             )}

@@ -18,13 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Pencil, Loader2, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -63,14 +56,6 @@ const Schedule = () => {
   const [selectedOffice, setSelectedOffice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [editOpen, setEditOpen] = useState<boolean>(false);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    start_time: "",
-    end_time: "",
-    office: "",
-    status: "office_schedule",
-  });
   const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -170,9 +155,15 @@ const Schedule = () => {
           {/* Create Schedule Card - Always visible if user has creation permission */}
           {canCreateAtAll && (
             <DutyHoursCard
+              mode={editingSchedule ? "edit" : "create"}
+              initialSchedule={editingSchedule}
+              onCancelEdit={() => setEditingSchedule(null)}
               onScheduleAdded={() => {
-                // When a schedule is added, refresh the list if the added office 
+                // When a schedule is added or updated, refresh the list if the added office 
                 // matches the one we are currently viewing in the right panel.
+                if (editingSchedule) {
+                  setEditingSchedule(null);
+                }
                 getSchedules().then((all) => {
                   if (selectedOffice) {
                     const filtered = all.filter((s) => s.office === selectedOffice);
@@ -253,14 +244,8 @@ const Schedule = () => {
                               className="h-8 w-8 p-0"
                               onClick={() => {
                                 setEditingSchedule(s);
-                                setEditForm({
-                                  name: s.name || "",
-                                  start_time: s.start_time || "",
-                                  end_time: s.end_time || "",
-                                  office: s.office ? String(s.office) : "",
-                                  status: s.status || "template",
-                                });
-                                setEditOpen(true);
+                                // Scroll to top to show the edit form
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
                               <Pencil className="h-3 w-3" />
@@ -290,105 +275,6 @@ const Schedule = () => {
         </div>
       </div>
 
-      {/* Edit Schedule Modal */}
-      {editingSchedule && canEditSchedules && (
-        <Dialog open={editOpen} onOpenChange={(o) => setEditOpen(o)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Schedule</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium">Schedule Name</label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  className="w-full rounded-md border text-sm px-3 py-2"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium">Start Time</label>
-                  <input
-                    type="time"
-                    value={editForm.start_time}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        start_time: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-md border text-sm px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">End Time</label>
-                  <input
-                    type="time"
-                    value={editForm.end_time}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        end_time: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-md border text-sm px-3 py-2"
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditOpen(false);
-                  setEditingSchedule(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!editingSchedule?.id) return;
-                  try {
-                    await updateSchedule(editingSchedule.id, {
-                      name: editForm.name,
-                      start_time: editForm.start_time,
-                      end_time: editForm.end_time,
-                      status: editForm.status,
-                      office:
-                        editingSchedule.office ??
-                        (selectedOffice ?? undefined),
-                    });
-                    if (selectedOffice) {
-                      const all = await getSchedules();
-                      const filtered = all.filter(
-                        (s) => s.office === selectedOffice
-                      );
-                      setSchedules(filtered);
-                    }
-                    setEditOpen(false);
-                    setEditingSchedule(null);
-                    toast.success("Duty Schedule updated successfully");
-                  } catch (error: any) {
-                    const data = error.response?.data;
-                    let errorMessage = "Failed to update schedule";
-                    if (data?.detail) errorMessage = data.detail;
-                    else if (data?.non_field_errors) errorMessage = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : String(data.non_field_errors);
-                    toast.error(errorMessage);
-                  }
-                }}
-              >
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )
-      }
 
 
 

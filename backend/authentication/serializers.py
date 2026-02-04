@@ -14,8 +14,20 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         # We need to handle the case where username is passed as email or employee_id
         # TokenObtainPairSerializer uses self.username_field, which is usually 'username' (email in our case)
         
+        # Custom check for inactive users to provide specific message
+        from django.db.models import Q
+        username = attrs.get('email') # field named 'email' but contains username/email/id
+        user = User.objects.filter(Q(email=username) | Q(username=username) | Q(employee_id=username)).first()
+        
+        if user and not user.is_active:
+            raise serializers.ValidationError({"detail": "Your Account is not active. Please contact your administrator."})
+
         # Validate credentials normally
         data = super().validate(attrs)
+        
+        user = getattr(self, 'user', None)
+        if user and not user.is_activated:
+            raise serializers.ValidationError({"detail": "Account not activated. Please use the Employee Activation page to set your password first."})
             
         # If we are here, password is correct. Check global 2FA setting.
         system_setting = SystemSetting.objects.first()

@@ -82,24 +82,49 @@ class Verify2FAView(APIView):
             return Response({"detail": "Username and OTP are required."}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
-            user = User.objects.get(email=username)
+            from django.db.models import Q
+            user = User.objects.get(Q(email=username) | Q(username=username) | Q(employee_id=username))
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except User.MultipleObjectsReturned:
+            user = User.objects.filter(email=username).first()
+        if not user.is_active:
+            return Response({"detail": "Your Account is not active. Please contact your administrator."}, status=status.HTTP_403_FORBIDDEN)
             
         # Find the latest pending 2FA OTP request for this user
+        # We also check recently expired ones to give a better error message
         otp_request = OTPRequest.objects.filter(
             user=user, 
-            purpose='login_2fa', 
-            status='pending',
-            expires_at__gt=timezone.now()
+            purpose='login_2fa'
         ).order_by('-created_at').first()
         
         if not otp_request:
-            return Response({"detail": "No active 2FA request found. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "No 2FA request found for this user. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
             
-        # Validate OTP
-        if otp_request.otp_code and otp_request.otp_code != otp:
-             return Response({"detail": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+        if otp_request.status != 'pending':
+            return Response({"detail": f"OTP has already been {otp_request.status}. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if otp_request.expires_at < timezone.now():
+            return Response({"detail": "OTP has expired. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Validate OTP using NTC gateway if seq_no is present
+        from otp_service.utils import validate_otp_ntc
+        
+        if otp_request.seq_no:
+            success, msg = validate_otp_ntc(
+                seq_no=otp_request.seq_no, 
+                otp=otp, 
+                phone=user.phone_number
+            )
+            if not success:
+                # User-friendly message for incorrect OTP
+                if "OTP Value Verification Failed" in msg:
+                    return Response({"detail": "OTP Verification Failed. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": f"OTP Validation Failed: {msg}"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Fallback to local validation if no seq_no (e.g. for non-NTC channels if added later)
+            if otp_request.otp_code and otp_request.otp_code != otp:
+                return Response({"detail": "Invalid OTP code."}, status=status.HTTP_400_BAD_REQUEST)
              
         # Mark as consumed
         otp_request.status = 'consumed'

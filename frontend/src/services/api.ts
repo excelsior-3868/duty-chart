@@ -22,11 +22,8 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access");
-    if (token) {
-      config.headers = {
-        ...(config.headers || {}),
-        Authorization: `Bearer ${token}`,
-      };
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -79,9 +76,9 @@ api.interceptors.response.use(
     }
 
     // -----------------------------
-    // If refresh fails → logout
+    // If refresh fails → logout (only 401)
     // -----------------------------
-    if ((status === 401 || status === 403) && !isAuthEndpoint) {
+    if (status === 401 && !isAuthEndpoint) {
       try {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");

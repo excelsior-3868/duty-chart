@@ -167,6 +167,14 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       return;
     }
 
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    if (dateISO < todayStr) {
+      toast.error("Backdated assignment not allowed", {
+        description: "Employee assignment in the past is not allowed."
+      });
+      return;
+    }
+
     const finalScheduleId = initialScheduleId || parseInt(selectedScheduleId);
     if (!finalScheduleId) {
       toast.error("Please select a shift");

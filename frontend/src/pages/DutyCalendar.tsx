@@ -68,8 +68,8 @@ export interface DutyAssignment {
     position: string;
     office: string;
     avatar: string;
-    avatar: string;
     schedule_id: number;
+    alias?: string;
     employee_id?: string;
 }
 
@@ -130,6 +130,7 @@ const DutyCalendar = () => {
 
     const { hasPermission, canManageOffice } = useAuth();
     const location = useLocation();
+    const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
     // --- 0. Handle Preselection from Navigation State (Removed to keep "Select Office" as default) ---
     /*
@@ -326,6 +327,7 @@ const DutyCalendar = () => {
                 office: d.office_name || "",
                 avatar: resolveAvatar(userDetail?.image),
                 schedule_id: d.schedule,
+                alias: d.alias,
                 employee_id: userDetail?.employee_id || "",
             } as DutyAssignment;
         });
@@ -591,7 +593,9 @@ const DutyCalendar = () => {
                                 <SelectContent>
                                     <SelectItem value="all">All Shifts</SelectItem>
                                     {schedules.map((s) => (
-                                        <SelectItem key={s.id} value={String(s.id)}>{s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})</SelectItem>
+                                        <SelectItem key={s.id} value={String(s.id)}>
+                                            {s.alias ? `[${s.alias}] ` : ""}{s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -714,7 +718,23 @@ const DutyCalendar = () => {
                                             const dayAssignments = assignments.filter(a =>
                                                 isSameDay(a.date, date) &&
                                                 (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)
-                                            );
+                                            ).map(a => {
+                                                const now = new Date();
+                                                const isOnShift = (() => {
+                                                    if (!isSameDay(a.date, now)) return false;
+                                                    if (!a.start_time || !a.end_time) return false;
+                                                    const [sh, sm] = a.start_time.split(':').map(Number);
+                                                    const [eh, em] = a.end_time.split(':').map(Number);
+                                                    const nowH = now.getHours();
+                                                    const nowM = now.getMinutes();
+                                                    const sMin = sh * 60 + sm;
+                                                    const eMin = eh * 60 + em;
+                                                    const nMin = nowH * 60 + nowM;
+                                                    if (eMin < sMin) return nMin >= sMin || nMin < eMin;
+                                                    return nMin >= sMin && nMin < eMin;
+                                                })();
+                                                return { ...a, isOnShift };
+                                            }).sort((a, b) => (a.isOnShift === b.isOnShift ? 0 : a.isOnShift ? -1 : 1));
                                             const isSaturday = date.getDay() === 6;
 
                                             return (
@@ -747,47 +767,34 @@ const DutyCalendar = () => {
                                                     </div>
 
                                                     <div className="space-y-1 overflow-y-auto max-h-[90px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                                                        {dayAssignments.map((assignment) => {
-                                                            // Generate distinctive color based on employee name
-                                                            const getUserColor = (name: string) => {
-                                                                let hash = 0;
-                                                                for (let i = 0; i < name.length; i++) {
-                                                                    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-                                                                }
-                                                                const index = Math.abs(hash % SHIFT_COLORS.length);
-                                                                return SHIFT_COLORS[index];
-                                                            };
+                                                        {dayAssignments.map((assignment: any) => {
+                                                            const shiftColor = getShiftColor(assignment.schedule_id);
+                                                            const isOnShift = assignment.isOnShift;
 
-                                                            const userColor = getUserColor(assignment.employee_name || "Unknown");
-
-                                                            return selectedScheduleId === "all" ? (
+                                                            return (
                                                                 <div
                                                                     key={assignment.id}
                                                                     className={cn(
-                                                                        "flex items-center p-1 bg-white rounded-md border shadow-sm transition-all hover:shadow-md",
-                                                                        userColor.border,
-                                                                        userColor.bg
+                                                                        "flex items-center gap-1.5 p-1 rounded-md border shadow-sm transition-all hover:shadow-md",
+                                                                        shiftColor.border,
+                                                                        shiftColor.bg
                                                                     )}
                                                                 >
-                                                                    <div className="flex flex-col min-w-0">
-                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", userColor.text)}>
-                                                                            {assignment.employee_name}
+                                                                    {isOnShift && (
+                                                                        <span className="relative flex h-2 w-2 shrink-0">
+                                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                                                         </span>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div
-                                                                    key={assignment.id}
-                                                                    className={cn(
-                                                                        "flex items-center p-1 rounded-md border shadow-sm transition-all",
-                                                                        userColor.bg,
-                                                                        userColor.border
                                                                     )}
-                                                                >
-                                                                    <div className="flex flex-col min-w-0">
-                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", userColor.text)}>
+                                                                    <div className="flex items-center justify-between flex-1 min-w-0">
+                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", shiftColor.text)}>
                                                                             {assignment.employee_name}
                                                                         </span>
+                                                                        {assignment.alias && (
+                                                                            <span className={cn("text-[8px] font-black opacity-60 uppercase shrink-0 ml-1", shiftColor.text)}>
+                                                                                {assignment.alias}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             );
@@ -795,7 +802,7 @@ const DutyCalendar = () => {
                                                     </div>
 
                                                     {/* Add Button on Hover */}
-                                                    {canAssignDuties && (
+                                                    {canAssignDuties && format(date, "yyyy-MM-dd") >= todayStr && (
                                                         <Button
                                                             variant="secondary"
                                                             size="icon"
@@ -803,14 +810,22 @@ const DutyCalendar = () => {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
 
+                                                                // --- Validate Date ---
+                                                                const dateStr = format(date, "yyyy-MM-dd");
+                                                                if (dateStr < todayStr) {
+                                                                    toast.error("Backdated assignment not allowed", {
+                                                                        description: "Employee assignment in the past is not allowed."
+                                                                    });
+                                                                    return;
+                                                                }
+
                                                                 // --- Validate if date is within chart range ---
                                                                 if (selectedDutyChartInfo) {
-                                                                    const dateStr = format(date, "yyyy-MM-dd");
                                                                     const eff = selectedDutyChartInfo.effective_date;
                                                                     const end = selectedDutyChartInfo.end_date;
 
                                                                     if (dateStr < eff || (end && dateStr > end)) {
-                                                                        toast.error("Employee Cant be assigned", {
+                                                                        toast.error("Outside Chart Range", {
                                                                             description: "The selected date is outside the duty chart's effective range."
                                                                         });
                                                                         return;
@@ -851,25 +866,51 @@ const DutyCalendar = () => {
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
+                                                        <TableHead className="w-16">Theme</TableHead>
                                                         <TableHead>Shift Name</TableHead>
+                                                        <TableHead className="text-center">Alias</TableHead>
+                                                        <TableHead className="text-center">Type</TableHead>
                                                         <TableHead>Start Time</TableHead>
                                                         <TableHead>End Time</TableHead>
                                                         <TableHead>Status</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {schedules.map((s) => (
-                                                        <TableRow key={s.id}>
-                                                            <TableCell className="font-medium">{s.name}</TableCell>
-                                                            <TableCell>{s.start_time.slice(0, 5)}</TableCell>
-                                                            <TableCell>{s.end_time.slice(0, 5)}</TableCell>
-                                                            <TableCell>
-                                                                <Badge variant={s.status === 'active' ? 'default' : 'secondary'} className="capitalize">
-                                                                    {s.status || 'Active'}
-                                                                </Badge>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
+                                                    {schedules.map((s) => {
+                                                        const shiftColor = getShiftColor(s.id);
+                                                        return (
+                                                            <TableRow key={s.id} className="hover:bg-slate-50/50">
+                                                                <TableCell>
+                                                                    <div className={cn("w-5 h-5 rounded border shadow-sm", shiftColor.bg, shiftColor.border)} />
+                                                                </TableCell>
+                                                                <TableCell className="font-semibold">
+                                                                    <span className={cn("text-xs", shiftColor.text)}>
+                                                                        {s.name}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell className="text-slate-500 text-xs text-center">
+                                                                    {s.alias || "-"}
+                                                                </TableCell>
+                                                                <TableCell className="text-slate-500 text-xs text-center">
+                                                                    {s.shift_type || "-"}
+                                                                </TableCell>
+                                                                <TableCell className="text-slate-700 text-xs font-medium">{s.start_time.slice(0, 5)}</TableCell>
+                                                                <TableCell className="text-slate-700 text-xs font-medium">{s.end_time.slice(0, 5)}</TableCell>
+                                                                <TableCell>
+                                                                    <Badge
+                                                                        variant="secondary"
+                                                                        className={cn(
+                                                                            "capitalize text-[10px] font-medium px-2 py-0 h-5",
+                                                                            s.status === 'office_schedule' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                                                s.status === 'template' ? "bg-amber-50 text-amber-600 border-amber-100" : ""
+                                                                        )}
+                                                                    >
+                                                                        {(s.status || 'Active').replace('_', ' ')}
+                                                                    </Badge>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
                                                 </TableBody>
                                             </Table>
                                         )}

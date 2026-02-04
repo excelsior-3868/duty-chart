@@ -8,7 +8,9 @@ class IsSuperAdmin(permissions.BasePermission):
     Allows access only to superusers.
     """
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_superuser)
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return bool(request.user.is_superuser or request.user.role == 'SUPERADMIN')
 
 from rest_framework.pagination import PageNumberPagination
 

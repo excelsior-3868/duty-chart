@@ -484,69 +484,64 @@ class DutyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="bulk-upsert")
     def bulk_upsert(self, request):
         data = request.data
-        if not IsSuperAdmin().has_permission(request, self):
+        is_super = IsSuperAdmin().has_permission(request, self)
+        if not is_super:
             if not user_has_permission_slug(request.user, 'duties.assign_employee'):
-                raise ValidationError("You do not have permission to assign employees.")
-            allowed = get_allowed_office_ids(request.user)
-
+                raise serializers.ValidationError("You do not have permission to assign employees.")
+            allowed_offices = get_allowed_office_ids(request.user)
             for item in data:
-                office_id = item.get("office")
-                if not office_id or int(office_id) not in allowed:
-                    raise ValidationError("Not allowed to upsert duty for this office.")
+                oid = item.get("office")
+                if not oid or int(oid) not in allowed_offices:
+                    raise serializers.ValidationError(f"Not allowed to assign duty for office ID {oid}.")
+
         created, updated = 0, 0
+        from users.models import User
+        
+        # Optimization: prefetch users
+        u_ids = {i.get("user") for i in data if i.get("user")}
+        users_map = {u.id: u for u in User.objects.filter(id__in=u_ids)}
+        can_assign_any = is_super or user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
+
         for item in data:
+            user_id = item.get("user")
+            office_id = item.get("office")
+            chart_id = item.get("duty_chart")
+            schedule_id = item.get("schedule")
+            duty_date = item.get("date")
+
+            if not user_id or not schedule_id or not duty_date:
+                 raise serializers.ValidationError("Missing required fields: user, schedule, or date.")
+
+            # --- Restriction Check ---
+            if not can_assign_any:
+                t_user = users_map.get(user_id)
+                if t_user and t_user.office_id and office_id and int(t_user.office_id) != int(office_id):
+                    raise serializers.ValidationError(f"Cannot assign employee {t_user.username} from different office without permission.")
+
+            # Create or Update based on unique_together = ['user', 'duty_chart', 'date', 'schedule']
             obj, was_created = Duty.objects.update_or_create(
-                user_id=item["user"],
-                office_id=item["office"],
-                schedule_id=item["schedule"],
-                date=item["date"],
+                user_id=user_id,
+                duty_chart_id=chart_id,
+                schedule_id=schedule_id,
+                date=duty_date,
                 defaults={
-                    "duty_chart_id": item.get("duty_chart"),
+                    "office_id": office_id,
                     "is_completed": item.get("is_completed", False),
                     "currently_available": item.get("currently_available", True),
                 },
             )
 
-            # ✅ Force validation (Time Overlap check in clean())
+            # ✅ Force validation
             try:
                 obj.full_clean()
                 obj.save() 
             except ValidationError as e:
-                # If validation fails, we might want to DELETE the object if it was just created?
-                # or better: we should validate BEFORE saving?
-                # Django update_or_create saves immediately.
-                # If we want to be safe, we should fetch, clean, then save.
-                # But since we are inside a transaction (atomic request usually), we can just raise.
-                # However, loop continues? No, raising ValidationError will stop the request if not caught.
-                # We want to stop the whole request if one fails? The user implied "Strict".
-                # Standard DRF behavior is to 500 or 400.
-                # Let's re-raise as DRF ValidationError to return 400.
                 if was_created:
-                   obj.delete() # Rollback this single creation
-                
+                   obj.delete()
                 message = getattr(e, 'message_dict', None) or {'detail': str(e)}
                 raise serializers.ValidationError(message)
-            
-            # --- Restriction Check in Bulk Upsert ---
-            # If a new user is being assigned, we should ideally check their office.
-            # However, bulk_upsert input 'item' has 'user' (ID).
-            # To avoid N+1 queries loop efficiently?
-            # For now, we'll do a basic check if we can.
-            # But the requirement is strict. Let's do a quick check if 'user' key exists.
-            if item.get("user"):
-                 from users.models import User
-                 # We have to fetch to be sure. 
-                 # Optimization: cache users? Or just fetch.
-                 t_user = User.objects.filter(id=item["user"]).first()
-                 if t_user and t_user.office_id and office_id:
-                      if int(t_user.office_id) != int(office_id):
-                           if not user_has_permission_slug(request.user, 'duties.assign_any_office_employee'):
-                                # We raise error to abort entire transaction or skip? 
-                                # Usually better to error out.
-                                raise ValidationError(f"Cannot assign employee {t_user.username} from different office without permission.")
 
             if was_created:
-
                 created += 1
             else:
                 updated += 1

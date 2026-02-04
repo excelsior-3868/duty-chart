@@ -102,6 +102,8 @@ class DutySerializer(serializers.ModelSerializer):
         data['user_name'] = getattr(user, 'full_name', None)
         data['office_name'] = getattr(instance.office, 'name', None)
         data['schedule_name'] = instance.schedule.name if instance.schedule else None
+        data['shift_type'] = instance.schedule.shift_type if instance.schedule else None
+        data['alias'] = instance.schedule.alias if instance.schedule else None
         data['start_time'] = instance.schedule.start_time if instance.schedule else None
         data['end_time'] = instance.schedule.end_time if instance.schedule else None
         data['duty_chart_name'] = getattr(instance.duty_chart, 'name', None)
@@ -292,7 +294,7 @@ class ScheduleSerializer(serializers.ModelSerializer):
         model = Schedule
         fields = [
             'id', 'name', 'start_time', 'end_time',
-            'office', 'office_name', 'status', 'created_at', 'updated_at'
+            'office', 'office_name', 'status', 'shift_type', 'alias', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
         extra_kwargs = {

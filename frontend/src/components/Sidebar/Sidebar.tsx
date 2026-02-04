@@ -42,14 +42,14 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   // },
 
   {
-    title: 'Schedule Template',
+    title: 'Duty Schedule Template',
     href: ROUTES.TEMPLATE_SCHEDULE,
     icon: 'ClipboardList',
     permission: 'schedule_templates.view'
   },
 
   {
-    title: 'Duty Schedule',
+    title: 'Office Duty Schedule',
     href: ROUTES.DUTY_SCHEDULE,
     icon: 'FileText',
     permission: 'schedules.view_office_schedule'

@@ -34,6 +34,46 @@ const Login = () => {
     const [showOTP, setShowOTP] = useState(false);
     const [otp, setOtp] = useState("");
     const [login2FAInfo, setLogin2FAInfo] = useState<{ '2fa_required'?: boolean, phone_mask?: string, username?: string } | null>(null);
+    const [timer, setTimer] = useState(300);
+    const [canResend, setCanResend] = useState(false);
+
+    useEffect(() => {
+        let interval: any;
+        if (showOTP && timer > 0) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        } else if (timer === 0) {
+            setCanResend(true);
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [showOTP, timer]);
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const handleResendOTP = async () => {
+        if (!canResend) return;
+        setSubmitting(true);
+        try {
+            await publicApi.post("/token/", {
+                email: formData.username.trim(),
+                password: formData.password,
+            });
+            setTimer(300);
+            setCanResend(false);
+            setOtp("");
+            toast.success("A new verification code has been sent.");
+        } catch (error) {
+            toast.error("Failed to resend OTP. Please try logging in again.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     useEffect(() => {
         document.title = "Login - Duty Chart";
@@ -52,26 +92,25 @@ const Login = () => {
             if (res.data['2fa_required']) {
                 setLogin2FAInfo(res.data);
                 setShowOTP(true);
-                toast.info(`Two-Factor Authentication required. OTP sent to ${res.data.phone_mask}`);
+                setTimer(300);
+                setCanResend(false);
+                setOtp("");
+                // toast.info(`Two-Factor Authentication required. OTP sent to ${res.data.phone_mask}`);
                 return;
             }
-
+            // ... rest of the logic ...
             const { access, refresh, first_login } = res.data;
-
+            // ... (lines 61-111) ...
             localStorage.setItem("access", access);
             localStorage.setItem("refresh", refresh);
 
-            // Store first_login flag if present
             if (first_login !== undefined) {
                 localStorage.setItem("first_login", String(first_login));
             }
 
-            // Fetch user data to populate AuthContext
             await refreshUser();
-
             toast.success("Login successful");
 
-            // Navigate based on first_login flag
             if (first_login) {
                 navigate(ROUTES.CHANGE_PASSWORD);
             } else {
@@ -177,6 +216,7 @@ const Login = () => {
                                     />
                                     <button
                                         type="button"
+                                        tabIndex={-1}
                                         className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
                                         onClick={() => setShowPassword(!showPassword)}
                                         disabled={submitting}
@@ -248,50 +288,73 @@ const Login = () => {
             </div>
 
             {/* 2FA Dialog */}
-            <Dialog open={showOTP} onOpenChange={setShowOTP}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <ShieldCheck className="h-5 w-5 text-primary" />
-                            Two-Factor Authentication
-                        </DialogTitle>
-                        <DialogDescription>
-                            We've sent a 4-digit verification code to your phone: <strong>{login2FAInfo?.phone_mask}</strong>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleVerify2FA}>
-                        <div className="py-4">
-                            <Label htmlFor="2fa-otp" className="sr-only">OTP</Label>
-                            <Input
-                                id="2fa-otp"
-                                placeholder="Enter 4-digit code"
-                                value={otp}
-                                onChange={(e) => setOtp(e.target.value)}
-                                className="text-center text-2xl tracking-widest"
-                                maxLength={4}
-                                required
-                                autoFocus
-                            />
+            <Dialog open={showOTP} onOpenChange={(open) => {
+                if (!open && !submitting) setShowOTP(false);
+            }}>
+                <DialogContent className="sm:max-w-md border-0 shadow-2xl p-0 overflow-hidden" style={{ borderRadius: '16px' }}>
+                    <div className="p-8 space-y-6">
+                        <div className="space-y-2 text-center">
+                            <h2 className="text-xl font-bold text-gray-800 flex items-center justify-center gap-2">
+                                🔐 Enter Verification Code
+                            </h2>
+                            <p className="text-sm text-gray-500">
+                                Enter the verification code we sent to your registered mobile number ending in <span className="font-semibold text-primary">{login2FAInfo?.phone_mask?.slice(-4)}</span>
+                            </p>
                         </div>
-                        <DialogFooter>
+
+                        <div className="text-center space-y-1">
+                            <p className="text-sm font-medium text-gray-400">Code expires in</p>
+                            <p className={`text-2xl font-mono font-bold ${timer < 30 ? 'text-red-500 animate-pulse' : 'text-primary'}`}>
+                                {formatTime(timer)}
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleVerify2FA} className="space-y-6">
+                            <div className="flex justify-center">
+                                <Input
+                                    id="2fa-otp"
+                                    placeholder="••••"
+                                    value={otp}
+                                    onChange={(e) => setOtp(e.target.value)}
+                                    className="text-center text-3xl tracking-[1em] h-16 w-full max-w-[240px] border-2 border-gray-100 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:text-gray-200"
+                                    maxLength={6}
+                                    required
+                                    autoFocus
+                                    autoComplete="one-time-code"
+                                />
+                            </div>
+
+                            <Button
+                                type="submit"
+                                className="w-full h-12 text-lg font-semibold bg-primary hover:bg-primary-hover shadow-lg shadow-primary/20"
+                                disabled={submitting || otp.length < 4 || timer === 0}
+                            >
+                                {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
+                                {submitting ? "Verifying..." : "Verify Code"}
+                            </Button>
+                        </form>
+
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                className="flex-1 h-11 font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                onClick={handleResendOTP}
+                                disabled={!canResend || submitting}
+                            >
+                                {canResend ? "Resend Code" : `Resend in ${timer}s`}
+                            </Button>
                             <Button
                                 type="button"
                                 variant="outline"
+                                className="flex-1 h-11 font-medium border-slate-200 text-slate-500 hover:bg-slate-50"
                                 onClick={() => setShowOTP(false)}
                                 disabled={submitting}
                             >
-                                Cancel
+                                ← Back
                             </Button>
-                            <Button
-                                type="submit"
-                                className="bg-primary text-white"
-                                disabled={submitting || otp.length < 4}
-                            >
-                                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                Verify & Login
-                            </Button>
-                        </DialogFooter>
-                    </form>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
 

@@ -21,6 +21,7 @@ class User(AuditableMixin, AbstractUser):
         ),
         default='USER',
     )
+    is_activated = models.BooleanField(default=False)
 
     office = models.ForeignKey(
         Office,

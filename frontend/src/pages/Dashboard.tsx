@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2 } from 'lucide-react';
+import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from "react";
 import { getDutiesFiltered, Duty } from "@/services/dutiesService";
 import { getUsers, User as AppUser } from "@/services/users";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 
 const Dashboard = () => {
   // State
@@ -33,11 +34,14 @@ const Dashboard = () => {
   const [dutyCharts, setDutyCharts] = useState<DutyChart[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
   const [selectedOffices, setSelectedOffices] = useState<DashboardOffice[]>([]);
+  const [myDuties, setMyDuties] = useState<Duty[]>([]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOffice, setExpandedOffice] = useState<Record<string, boolean>>({});
   const [isAddCardOpen, setIsAddCardOpen] = useState(false);
+  const [selectedForAdd, setSelectedForAdd] = useState<number[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -82,9 +86,7 @@ const Dashboard = () => {
         setOffices(officesRes || []);
         setSelectedOffices(selectedRes || []);
 
-        if (myDutiesRes && myDutiesRes.length > 0) {
-          // Logic for nextDuty removed
-        }
+        setMyDuties(myDutiesRes || []);
       })
       .catch((e) => {
         if (!mounted) return;
@@ -208,7 +210,44 @@ const Dashboard = () => {
     return Array.from(groups.entries()).map(([name, count]) => ({ name, count }));
   }, [duties]);
 
+  const myCurrentDuty = useMemo(() => {
+    if (!myDuties || myDuties.length === 0) return null;
+
+    // Filter duties for today
+    const todaysDuties = myDuties.filter(d => d.date === todayLocalISODate);
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return todaysDuties.find(d => {
+      if (d.start_time && d.end_time) {
+        const parseTime = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          return h * 60 + m;
+        };
+        const start = parseTime(d.start_time);
+        const end = parseTime(d.end_time);
+
+        if (start <= end) {
+          return currentMinutes >= start && currentMinutes <= end;
+        } else {
+          return currentMinutes >= start || currentMinutes <= end;
+        }
+      }
+      return false;
+    });
+  }, [myDuties, todayLocalISODate]);
+
   const stats = [
+    {
+      title: "My Current Duty",
+      value: myCurrentDuty ? (myCurrentDuty.schedule_name || "On Duty") : "No Active Duty",
+      description: myCurrentDuty ? `${myCurrentDuty.office_name || 'Office'}` : "Not scheduled currently",
+      icon: LayoutDashboard,
+      trend: myCurrentDuty ? (myCurrentDuty.start_time && myCurrentDuty.end_time ? `${myCurrentDuty.start_time.substring(0, 5)} - ${myCurrentDuty.end_time.substring(0, 5)}` : "") : "Free",
+      variant: myCurrentDuty ? "success" : "secondary",
+      isDuty: true
+    },
     {
       title: "Active Duty Charts",
       value: activeDutyCharts.length.toString(),
@@ -248,6 +287,24 @@ const Dashboard = () => {
     }
   };
 
+  const handleAddMultipleOffices = async () => {
+    if (selectedForAdd.length === 0) return;
+    setLoading(true);
+    try {
+      await Promise.all(selectedForAdd.map(id => addDashboardOffice(id)));
+      const updatedSelected = await getDashboardOffices();
+      setSelectedOffices(updatedSelected);
+      toast.success(`${selectedForAdd.length} office(s) added to board`);
+      setIsAddCardOpen(false);
+      setSelectedForAdd([]);
+      setSearchTerm("");
+    } catch (e) {
+      toast.error("Failed to add some offices to board");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRemoveOffice = async (officeId: number) => {
     const pref = selectedOffices.find(so => so.office === officeId);
     if (!pref) return;
@@ -261,7 +318,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-primary">Dashboard</h1>
@@ -278,23 +335,28 @@ const Dashboard = () => {
 
 
 
-      {/* Stats Grid - 4 cards in a row */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {/* Stats Grid - 5 cards in a row */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat) => {
           const IconComponent = stat.icon;
           return (
-            <Card key={stat.title} className="hover:border-primary/30 transition-colors">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500">{stat.title}</CardTitle>
-                <div className="p-2 rounded-lg bg-slate-50">
-                  <IconComponent className="h-5 w-5 text-primary" />
+            <Card key={stat.title} className={`hover:border-primary/30 transition-colors shadow-sm ${stat.isDuty && myCurrentDuty ? 'bg-emerald-50/30 border-emerald-100' : ''}`}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+                <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{stat.title}</CardTitle>
+                <div className={`p-1.5 rounded-md ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100' : 'bg-slate-50'}`}>
+                  <IconComponent className={`h-3.5 w-3.5 ${stat.isDuty && myCurrentDuty ? 'text-emerald-600' : 'text-primary'}`} />
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
-                <p className="text-xs text-slate-500 mt-1">{stat.description}</p>
+              <CardContent className="p-3 pt-0">
+                <div className={`text-xl font-bold ${stat.isDuty && myCurrentDuty ? 'text-emerald-900' : 'text-slate-900'} truncate`} title={stat.value}>
+                  {stat.value}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{stat.description}</p>
                 {stat.trend && (
-                  <Badge variant={stat.variant as any || "secondary"} className="mt-2 text-[10px] font-bold">
+                  <Badge
+                    variant={stat.variant as any || "secondary"}
+                    className={`mt-1.5 px-1.5 py-0 text-[9px] font-bold ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none' : ''}`}
+                  >
                     {stat.trend}
                   </Badge>
                 )}
@@ -326,35 +388,88 @@ const Dashboard = () => {
               <DialogHeader>
                 <DialogTitle>Add Office Card</DialogTitle>
                 <DialogDescription>
-                  Select an office to monitor on your dashboard.
+                  Select one or more offices to monitor on your dashboard.
                 </DialogDescription>
               </DialogHeader>
+              <div className="mt-4 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search offices..."
+                  className="pl-9"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
               <ScrollArea className="mt-4 h-[300px] pr-4">
                 <div className="space-y-2">
                   {offices
                     .filter(o => !selectedOfficeIds.includes(o.id))
+                    .filter(o =>
+                      o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (o.department_name && o.department_name.toLowerCase().includes(searchTerm.toLowerCase()))
+                    )
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(office => (
-                      <button
+                      <div
                         key={office.id}
+                        className={`w-full text-left p-3 rounded-lg border transition-all flex items-center justify-between group cursor-pointer ${selectedForAdd.includes(office.id)
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "hover:bg-slate-50 border-slate-100"
+                          }`}
                         onClick={() => {
-                          handleAddOffice(office.id);
-                          setIsAddCardOpen(false);
+                          const isSelecting = !selectedForAdd.includes(office.id);
+                          setSelectedForAdd(prev =>
+                            isSelecting
+                              ? [...prev, office.id]
+                              : prev.filter(id => id !== office.id)
+                          );
+                          if (isSelecting) {
+                            setSearchTerm("");
+                          }
                         }}
-                        className="w-full text-left p-3 rounded-lg border hover:bg-slate-50 transition-colors flex items-center justify-between group"
                       >
-                        <div>
-                          <p className="font-medium text-sm">{office.name}</p>
-                          <p className="text-xs text-muted-foreground">{office.department_name}</p>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedForAdd.includes(office.id)
+                            ? "bg-primary border-primary text-white"
+                            : "border-slate-300 bg-white"
+                            }`}>
+                            {selectedForAdd.includes(office.id) && <Plus className="h-3.5 w-3.5 stroke-[3]" />}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm text-slate-900">{office.name}</p>
+                            <p className="text-[10px] text-slate-500">{office.department_name}</p>
+                          </div>
                         </div>
-                        <Plus className="h-4 w-4 text-slate-400 group-hover:text-primary" />
-                      </button>
+                      </div>
                     ))}
                   {offices.filter(o => !selectedOfficeIds.includes(o.id)).length === 0 && (
                     <p className="text-center py-8 text-sm text-muted-foreground">All offices are already on your board.</p>
                   )}
                 </div>
               </ScrollArea>
+
+              <div className="mt-6 flex justify-between items-center bg-slate-50 -mx-6 -mb-6 p-4 border-t">
+                <span className="text-xs text-slate-500 font-medium">
+                  {selectedForAdd.length > 0 ? `${selectedForAdd.length} selected` : "Select offices to add"}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setIsAddCardOpen(false);
+                    setSelectedForAdd([]);
+                    setSearchTerm("");
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={selectedForAdd.length === 0 || loading}
+                    onClick={handleAddMultipleOffices}
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                    Add Selected
+                  </Button>
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -388,7 +503,7 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex gap-4 overflow-x-auto snap-x pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           {groupedByOffice.map((group) => {
             const onDutyRows = group.rows.filter((r) => r.currently_available);
             const expanded = !!expandedOffice[group.officeName];
@@ -396,7 +511,10 @@ const Dashboard = () => {
             const hasMore = onDutyRows.length > 3;
 
             return (
-              <Card key={group.officeId} className="rounded-xl hover:shadow-md transition-shadow relative group/card">
+              <Card
+                key={group.officeId}
+                className="rounded-xl hover:shadow-md transition-shadow relative group/card flex-none w-[280px] sm:w-[320px] md:w-[calc((100%-32px)/3)] lg:w-[calc((100%-48px)/4)] xl:w-[calc((100%-64px)/5)] snap-start"
+              >
                 <button
                   onClick={() => handleRemoveOffice(group.officeId)}
                   className="absolute top-4 right-4 p-1 rounded-md opacity-0 group-hover/card:opacity-100 hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-all z-10"
@@ -405,40 +523,39 @@ const Dashboard = () => {
                   <X className="h-4 w-4" />
                 </button>
 
-                <CardHeader className="pb-3 pr-10">
-                  <CardTitle className="text-lg">{group.officeName}</CardTitle>
-                  <CardDescription>
+                <CardHeader className="p-4 pb-2 pr-10">
+                  <CardTitle className="text-base truncate">{group.officeName}</CardTitle>
+                  <CardDescription className="text-[11px] mt-0.5">
                     {onDutyRows.length > 0 ? (
-                      <span className="text-green-600 font-medium">{onDutyRows.length} on duty</span>
+                      <span className="text-emerald-600 font-semibold">{onDutyRows.length} active</span>
                     ) : (
-                      "No one on duty"
+                      "No active duty"
                     )}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 pt-0">
                   <div className="space-y-3">
                     {visibleRows.map((row) => (
                       <div
                         key={row.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 rounded-md bg-primary/10 px-3 py-2"
+                        className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/50 border border-emerald-100/50 px-2.5 py-1.5"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate text-primary">{row.full_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{row.phone_number || "N/A"}</p>
+                          <p className="text-[13px] font-bold truncate text-emerald-900 leading-tight">{row.full_name}</p>
+                          <p className="text-[10px] text-emerald-700/70 truncate">{row.phone_number || "No contact"}</p>
                         </div>
-                        <div className="flex items-center gap-3 mt-1 sm:mt-0">
-                          <div className="flex flex-col items-end">
-                            <span className="text-xs text-muted-foreground font-medium">{row.schedule_name || "—"}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex flex-col items-end leading-none">
+                            <span className="text-[10px] text-emerald-800 font-semibold">{row.schedule_name || "—"}</span>
                             {row.start_time && row.end_time && (
-                              <span className="text-[10px] text-muted-foreground/70 font-mono">
-                                ({row.start_time.substring(0, 5)} - {row.end_time.substring(0, 5)})
+                              <span className="text-[9px] text-emerald-600/60 font-medium">
+                                {row.start_time.substring(0, 5)}-{row.end_time.substring(0, 5)}
                               </span>
                             )}
                           </div>
                           <span
-                            className="inline-block w-3.5 h-3.5 rounded-full bg-green-500 ring-2 ring-green-300"
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
                             title="On duty"
-                            aria-label="On duty"
                           />
                         </div>
                       </div>

@@ -36,6 +36,8 @@ const TemplateSchedule = () => {
         name: '',
         start_time: '',
         end_time: '',
+        shift_type: '',
+        alias: '',
     });
 
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -71,6 +73,8 @@ const TemplateSchedule = () => {
                     name: formData.name,
                     start_time: formData.start_time,
                     end_time: formData.end_time,
+                    shift_type: formData.shift_type,
+                    alias: formData.alias,
                     status: 'template'
                 });
                 toast.success("Schedule updated successfully");
@@ -79,11 +83,13 @@ const TemplateSchedule = () => {
                     name: formData.name,
                     start_time: formData.start_time,
                     end_time: formData.end_time,
+                    shift_type: formData.shift_type,
+                    alias: formData.alias,
                     status: 'template'
                 });
                 toast.success("Schedule created successfully");
             }
-            setFormData({ name: '', start_time: '', end_time: '' });
+            setFormData({ name: '', start_time: '', end_time: '', shift_type: '', alias: '' });
             setEditingId(null);
             fetchTemplates();
         } catch (error: any) {
@@ -114,14 +120,15 @@ const TemplateSchedule = () => {
         setFormData({
             name: schedule.name,
             start_time: schedule.start_time.slice(0, 5),
-            end_time: schedule.end_time.slice(0, 5)
+            end_time: schedule.end_time.slice(0, 5),
+            shift_type: schedule.shift_type || '',
+            alias: schedule.alias || ''
         });
         setEditingId(schedule.id);
-        // Scroll to top or form if needed, but side-by-side should be visible
     };
 
     const cancelEdit = () => {
-        setFormData({ name: '', start_time: '', end_time: '' });
+        setFormData({ name: '', start_time: '', end_time: '', shift_type: '', alias: '' });
         setEditingId(null);
     };
 
@@ -138,7 +145,7 @@ const TemplateSchedule = () => {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-primary">Schedule Template</h1>
+                <h1 className="text-2xl font-bold text-primary">Duty Schedule Template</h1>
                 <p className="text-muted-foreground">Manage and configure reusable shift templates.</p>
             </div>
 
@@ -148,48 +155,75 @@ const TemplateSchedule = () => {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 {editingId ? <Pencil className="h-5 w-5 text-primary" /> : <Plus className="h-5 w-5 text-primary" />}
-                                {editingId ? "Edit Schedule" : "Create Schedule"}
+                                {editingId ? "Edit Duty Schedule Template" : "Create Duty Schedule Template"}
                             </CardTitle>
-                            <CardDescription>Define a new shift timing to be used across offices.</CardDescription>
+                            <CardDescription>Define a new shift timing to be used as a template across offices.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                                {/* Column 1: Schedule Name */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Schedule Name */}
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Schedule Name <span className="text-destructive">*</span></Label>
+                                    <Label className="text-sm font-medium">Schedule Name <span className="text-destructive">*</span></Label>
                                     <Input
                                         placeholder="Enter schedule name (e.g. Morning Shift)"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="h-11"
+                                        className="h-10"
                                     />
                                 </div>
 
-                                {/* Column 2: Start and End Times side-by-side */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Start Time <span className="text-destructive">*</span></Label>
-                                        <div className="relative">
-                                            <Input
-                                                type="time"
-                                                className="h-11 px-3"
-                                                value={formData.start_time}
-                                                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
+                                {/* Placeholder for Office alignment in DutyHoursCard */}
+                                <div className="hidden md:block"></div>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">End Time <span className="text-destructive">*</span></Label>
-                                        <div className="relative">
-                                            <Input
-                                                type="time"
-                                                className="h-11 px-3"
-                                                value={formData.end_time}
-                                                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                                            />
-                                        </div>
-                                    </div>
+                                {/* Alias / Code */}
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Shift Alias / Code</Label>
+                                    <Input
+                                        placeholder="e.g. MS"
+                                        value={formData.alias}
+                                        onChange={(e) => setFormData({ ...formData, alias: e.target.value })}
+                                        className="h-10"
+                                    />
+                                </div>
+
+                                {/* Shift Type */}
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Shift Type</Label>
+                                    <Select
+                                        value={formData.shift_type}
+                                        onValueChange={(val) => setFormData({ ...formData, shift_type: val })}
+                                    >
+                                        <SelectTrigger className="h-10">
+                                            <SelectValue placeholder="Select Type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Regular">Regular</SelectItem>
+                                            <SelectItem value="Shift">Shift</SelectItem>
+                                            <SelectItem value="OnCall">OnCall</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Start Time */}
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Start Time <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        type="time"
+                                        className="h-10 px-3"
+                                        value={formData.start_time}
+                                        onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* End Time */}
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">End Time <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        type="time"
+                                        className="h-10 px-3"
+                                        value={formData.end_time}
+                                        onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                                    />
                                 </div>
                             </div>
 
@@ -209,7 +243,7 @@ const TemplateSchedule = () => {
                                     className="bg-primary hover:bg-primary-hover px-10 h-11 transition-all"
                                 >
                                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    {editingId ? "Update Schedule" : "Create Schedule"}
+                                    {editingId ? "Update Duty Schedule Template" : "Create Duty Schedule Template"}
                                 </Button>
                             </div>
                         </CardContent>
@@ -232,7 +266,7 @@ const TemplateSchedule = () => {
                             </div>
                         ) : schedules.length === 0 ? (
                             <div className="p-12 text-center border-2 border-dashed rounded-lg bg-muted/50">
-                                <p className="text-muted-foreground">No Schedule template found.</p>
+                                <p className="text-muted-foreground">No Duty Schedule template found.</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -242,11 +276,21 @@ const TemplateSchedule = () => {
                                             <h3 className="font-semibold text-sm truncate pr-2">{schedule.name}</h3>
                                             <Badge variant="outline" className="text-[10px] h-4 bg-primary/5 text-primary border-primary/20 px-1.5">Template</Badge>
                                         </div>
-                                        <div className="flex items-center text-xs text-muted-foreground gap-4">
-                                            <div className="flex items-center gap-1">
+                                        <div className="flex items-center text-xs text-muted-foreground gap-1.5 flex-wrap">
+                                            <div className="flex items-center gap-1 font-medium bg-secondary/30 px-2 py-0.5 rounded">
                                                 <Clock className="h-3 w-3" />
                                                 {schedule.start_time.slice(0, 5)} - {schedule.end_time.slice(0, 5)}
                                             </div>
+                                            {schedule.alias && (
+                                                <Badge variant="secondary" className="text-[10px] h-5 font-normal">
+                                                    Code: {schedule.alias}
+                                                </Badge>
+                                            )}
+                                            {schedule.shift_type && (
+                                                <Badge variant="outline" className="text-[10px] h-5 font-normal">
+                                                    Type: {schedule.shift_type}
+                                                </Badge>
+                                            )}
                                         </div>
                                         <div className="mt-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             {hasPermission('schedule_templates.edit') && (
