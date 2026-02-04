@@ -1104,7 +1104,7 @@ class DutyChartImportTemplateView(APIView):
         ws = wb.active
         ws.title = "Duty Import Template"
 
-        headers = ["Date", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position"]
+        headers = ["Date (BS)", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position"]
         ws.append(headers)
 
         days = (end_date - start_date).days + 1
@@ -1218,10 +1218,14 @@ class DutyChartImportView(APIView):
         except Exception as e:
             return Response({"detail": f"Invalid Excel file: {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 0. Check for required columns
-        required_cols = ["Date", "Employee ID", "Employee Name", "Schedule", "Office"]
-        missing_cols = [c for c in required_cols if c not in df.columns]
-        if missing_cols:
+        # 0. Check for required columns (allow both "Date" and "Date (BS)")
+        valid_date_headers = ["Date", "Date (BS)"]
+        date_col = next((c for c in valid_date_headers if c in df.columns), None)
+        
+        required_cols = ["Employee ID", "Employee Name", "Schedule", "Office"]
+        if not date_col or any(c not in df.columns for c in required_cols):
+            missing_cols = [c for c in required_cols if c not in df.columns]
+            if not date_col: missing_cols.insert(0, "Date (BS)")
             return Response({
                 "detail": f"Missing required columns in Excel: {', '.join(missing_cols)}. Please use the provided template."
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -1297,7 +1301,7 @@ class DutyChartImportView(APIView):
                 preview_data = []
                 for idx, row in df.iterrows():
                     row_num = idx + 2
-                    row_date_val = row.get("Date")
+                    row_date_val = row.get(date_col)
                     emp_id = row.get("Employee ID")
                     emp_name = row.get("Employee Name")
                     sch_name = row.get("Schedule")
@@ -1315,14 +1319,22 @@ class DutyChartImportView(APIView):
 
                         # --- B. Date Validation ---
                         if isinstance(row_date_val, (datetime.datetime, datetime.date)):
-                            duty_date = row_date_val.date() if isinstance(row_date_val, datetime.datetime) else row_date_val
+                            temp_date = row_date_val.date() if isinstance(row_date_val, datetime.datetime) else row_date_val
+                            # If year > 2070, treat as BS date incorrectly parsed by Excel/Pandas as AD
+                            if temp_date.year > 2070 and nepali_datetime:
+                                date_str = temp_date.strftime("%Y-%m-%d")
+                                try:
+                                    duty_date = nepali_datetime.datetime.strptime(date_str, "%Y-%m-%d").to_datetime_date()
+                                except:
+                                    duty_date = temp_date
+                            else:
+                                duty_date = temp_date
                         else:
                             date_str = str(row_date_val).strip()
                             duty_date = None
-                            # Try BS parsing first if nepali_datetime is available
                             if nepali_datetime:
                                 try:
-                                    # Handle common formats
+                                    # Try BS parsing first
                                     if "-" in date_str:
                                         duty_date = nepali_datetime.datetime.strptime(date_str, "%Y-%m-%d").to_datetime_date()
                                     elif "/" in date_str:
@@ -1330,6 +1342,7 @@ class DutyChartImportView(APIView):
                                 except:
                                     pass
                             
+                            # Fallback to AD parsing
                             if not duty_date:
                                 duty_date = parse_date(date_str)
 

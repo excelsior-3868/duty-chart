@@ -22,4 +22,6 @@ psycopg2-binary
 python-dotenv==1.0.1
 drf-spectacular==0.26.4
 reportlab
+django-filter==25.2
 python-docx>=0.8.11
+nepali-datetime
