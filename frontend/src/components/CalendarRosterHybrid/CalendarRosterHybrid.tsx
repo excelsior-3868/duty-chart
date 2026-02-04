@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Search, Plus, Phone, Mail, Download, Pencil, Check, ChevronsUpDown, Building2, User as UserIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, Plus, Phone, Mail, Download, Pencil, Check, ChevronsUpDown, Building2, User as UserIcon, Loader2 } from "lucide-react";
 import NepaliDate from "nepali-date-converter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -696,14 +696,12 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
             </div>
 
             {/* Shifts Rows */}
-            {shifts.length === 0 && (
-              <div className="p-4 text-sm text-muted-foreground">
-                {schedulesLoading
-                  ? "Loading schedules..."
-                  : schedulesError || "No shifts found for the selected duty chart."
-                }
-              </div>
-            )}
+            <div className="p-4 flex justify-center">
+              {schedulesLoading
+                ? <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                : <span className="text-sm text-muted-foreground">{schedulesError || "No shifts found for the selected duty chart."}</span>
+              }
+            </div>
             {shifts.map((shift, shiftIndex) => (
               <div key={shift.id} className="grid grid-cols-[200px_repeat(7,1fr)] border-b last:border-b-0">
                 {/* Shift Column */}

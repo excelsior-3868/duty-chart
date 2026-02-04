@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from org.models import Directorate, Department, Office
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from auditlogs.mixins import AuditableMixin
 
 class User(AuditableMixin, AbstractUser):
@@ -58,8 +60,18 @@ class User(AuditableMixin, AbstractUser):
         related_name='users'
     )
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'employee_id', 'full_name']
+    USERNAME_FIELD = 'employee_id'
+    REQUIRED_FIELDS = ['username', 'email', 'full_name']
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            try:
+                old_user = User.objects.get(pk=self.pk)
+                if old_user.image and self.image != old_user.image:
+                    old_user.image.delete(save=False)
+            except User.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
 
     def clean(self):
         super().clean()
@@ -177,3 +189,8 @@ class UserDashboardOffice(AuditableMixin, models.Model):
         elif action == 'DELETE':
             return f"PREFERENCE: User {self.user.username} unpinned {self.office.name} from dashboard."
         return ""
+
+@receiver(post_delete, sender=User)
+def delete_user_image(sender, instance, **kwargs):
+    if instance.image:
+        instance.image.delete(save=False)

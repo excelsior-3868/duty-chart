@@ -65,12 +65,14 @@ CORS_ALLOW_METHODS = [
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'reports',
     # Third party apps
     'rest_framework',
@@ -83,6 +85,7 @@ INSTALLED_APPS = [
     'duties',
     'otp_service',
     'auditlogs',
+    'notification_service',
 
 ]
 
@@ -264,3 +267,29 @@ LOGGING = {
 # Swagger / DRF login fix
 LOGIN_URL = '/api-auth/login/'
 LOGOUT_URL = '/api-auth/logout/'
+
+# Django Channels Configuration
+ASGI_APPLICATION = 'config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'), 6379)],
+        },
+    },
+}
+
+# Celery Configuration
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f"redis://{os.environ.get('REDIS_HOST', '127.0.0.1')}:6379/0")
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    'send-duty-reminders-every-15-minutes': {
+        'task': 'notification_service.tasks.send_duty_reminders',
+        'schedule': 900.0,  # 15 minutes
+    },
+}

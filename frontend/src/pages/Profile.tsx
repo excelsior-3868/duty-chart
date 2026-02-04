@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     User, Mail, Shield, Phone, Camera,
     Building2, Briefcase, Save, X, Pencil,
-    AlertCircle, Lock, Hash, Globe, MapPin,
+    AlertCircle, Lock, Fingerprint, Globe, MapPin,
     Network, LayoutGrid, Layers, Key, Eye, EyeOff, Loader2
 } from "lucide-react";
 import { toast } from "sonner";
@@ -232,7 +232,7 @@ const Profile = () => {
                                 </div>
                                 <div className="mt-3 text-center">
                                     <h2 className="font-medium text-primary text-sm">{user.full_name}</h2>
-                                    <p className="text-sm text-slate-700 truncate w-full font-medium">{user.email}</p>
+                                    <p className="text-sm text-slate-700 truncate w-full font-medium">{user.employee_id}</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -249,8 +249,8 @@ const Profile = () => {
                             <div className="bg-white border p-3 rounded-xl shadow-sm">
                                 <p className="text-xs font-medium text-primary mb-1.5">Employee Id</p>
                                 <div className="flex items-center gap-2">
-                                    <Hash size={16} className="text-orange-600" />
-                                    <span className="text-xs font-medium text-slate-900"># {user.employee_id}</span>
+                                    <Fingerprint size={16} className="text-orange-600" />
+                                    <span className="text-xs font-medium text-slate-900">{user.employee_id}</span>
                                 </div>
                             </div>
                         </div>
@@ -286,9 +286,9 @@ const Profile = () => {
 
                                             <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
                                                 <div className="space-y-0.5">
-                                                    <Label className="text-primary text-xs font-medium ml-1">Username</Label>
+                                                    <Label className="text-primary text-xs font-medium ml-1">Username (Employee ID)</Label>
                                                     <div className="px-2 py-1 bg-slate-50 border rounded-lg h-9 flex items-center">
-                                                        <p className="text-blue-700 font-medium text-sm">{user.email}</p>
+                                                        <p className="text-blue-700 font-medium text-sm">{user.employee_id}</p>
                                                     </div>
                                                 </div>
 

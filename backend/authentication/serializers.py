@@ -16,7 +16,7 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         
         # Custom check for inactive users to provide specific message
         from django.db.models import Q
-        username = attrs.get('email') # field named 'email' but contains username/email/id
+        username = attrs.get('employee_id') or attrs.get('email') # field named 'employee_id' but contains username/email/id
         user = User.objects.filter(Q(email=username) | Q(username=username) | Q(employee_id=username)).first()
         
         if user and not user.is_active:
@@ -38,16 +38,16 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         user = getattr(self, 'user', None)
         if not user:
             from django.contrib.auth import authenticate
-            # Use email/password from attrs to authenticate
+            # Use employee_id/password from attrs to authenticate
             user = authenticate(
                 request=self.context.get('request'),
-                email=attrs.get('email'),
+                employee_id=attrs.get('employee_id'),
                 password=attrs.get('password')
             )
             self.user = user
 
         if not user or not user.phone_number:
-            print(f"WARNING: 2FA enabled but user {user.email} has no phone number.")
+            print(f"WARNING: 2FA enabled but user {user.employee_id} has no phone number.")
             return data
 
         # Trigger OTP
@@ -73,6 +73,6 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         return {
             "2fa_required": True,
             "phone_mask": f"{user.phone_number[:3]}****{user.phone_number[-3:]}",
-            "email": user.email,
-            "username": user.email
+            "employee_id": user.employee_id,
+            "username": user.employee_id
         }

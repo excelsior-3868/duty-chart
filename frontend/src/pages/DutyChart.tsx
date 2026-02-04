@@ -189,8 +189,7 @@ const DutyChartPage: React.FC = () => {
   if (loading) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground animate-pulse text-sm">Loading duty roster data...</p>
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }

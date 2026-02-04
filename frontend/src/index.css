@@ -19,11 +19,11 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     /* Nepal Telecom Corporate Colors */
-    --primary: 205 100% 31%;
-    /* #005a9c */
+    --primary: 209 100% 32%;
+    /* Refined Corporate Blue */
     --primary-foreground: 0 0% 98%;
-    --primary-hover: 205 100% 26%;
-    /* Darker #005a9c */
+    --primary-hover: 209 100% 28%;
+    /* Darker variant */
 
     /* Nepal Red Accent */
     --accent: 0 84% 55%;
@@ -53,21 +53,21 @@
     --ring: 205 100% 31%;
 
     /* Layout specific */
-    --header-bg: 205 100% 31%;
-    /* #005a9c */
+    --header-bg: 209 100% 32%;
+    /* Refined Corporate Blue */
     --header-foreground: 0 0% 98%;
     --sidebar-bg: 0 0% 98%;
     --sidebar-foreground: 222.2 84% 4.9%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(205 100% 31%), hsl(205 100% 26%));
+    --gradient-primary: linear-gradient(135deg, hsl(209 100% 32%), hsl(209 100% 28%));
     --gradient-accent: linear-gradient(135deg, hsl(0 84% 55%), hsl(0 84% 50%));
-    --gradient-hero: linear-gradient(135deg, hsl(205 100% 31%), hsl(0 84% 55%));
+    --gradient-hero: linear-gradient(135deg, hsl(209 100% 32%), hsl(0 84% 55%));
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(205 100% 31% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(205 100% 31% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(205 100% 31% / 0.1);
+    --shadow-sm: 0 1px 2px 0 hsl(209 100% 32% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(209 100% 32% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(209 100% 32% / 0.1);
 
     --radius: 0.5rem;
 
@@ -88,9 +88,9 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Nepal Telecom Branding (Login page) */
-    --nt-primary: 205 100% 31%;
-    /* #005a9c */
-    --nt-primary-hover: 205 100% 26%;
+    --nt-primary: 209 100% 32%;
+    /* Refined Blue */
+    --nt-primary-hover: 209 100% 28%;
     --nt-accent: 44 97% 55%;
     /* #fcbf1e */
     --nt-bg: 220 20% 97%;
@@ -99,9 +99,9 @@
     /* #222 */
 
     /* Gradient animation colors */
-    --gradient-color-1: 205 100% 31%;
-    /* #005a9c */
-    --gradient-color-2: 205 100% 26%;
+    --gradient-color-1: 209 100% 32%;
+    /* Refined Blue */
+    --gradient-color-2: 209 100% 28%;
     /* Darker */
     --gradient-color-3: 210 50% 93%;
     /* #e8f1f9 */
@@ -152,7 +152,11 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground no-scrollbar;
+  }
+
+  html {
+    @apply no-scrollbar;
   }
 }
 
@@ -179,5 +183,23 @@
     100% {
       background-position: 0% 50%;
     }
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar,
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar,
+  html,
+  body {
+    -ms-overflow-style: none !important;
+    /* IE and Edge */
+    scrollbar-width: none !important;
+    /* Firefox */
   }
 }

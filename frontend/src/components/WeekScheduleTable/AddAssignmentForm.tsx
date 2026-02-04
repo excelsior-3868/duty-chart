@@ -99,7 +99,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface User {
@@ -269,7 +269,7 @@ export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
       <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
         <h4 className="font-semibold text-lg mb-2">Add Assignment</h4>
         <div className="flex items-center justify-center h-20">
-          <div className="text-gray-500">Loading form data...</div>
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </div>
     );
@@ -370,7 +370,7 @@ export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
             disabled={loading}
             className="px-8"
           >
-            {loading ? "Adding..." : "Add Duty"}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Duty"}
           </Button>
         </div>
       </CardContent>

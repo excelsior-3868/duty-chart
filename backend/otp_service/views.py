@@ -101,12 +101,12 @@ class RequestOTPView(APIView):
         
         # 1. Find User
         user = None
-        if email and phone:
+        if employee_id and phone:
             # Special handling for forgot_password to provide specific errors
             if purpose == 'forgot_password':
-                user_candidate = User.objects.filter(email=email).first()
+                user_candidate = User.objects.filter(employee_id=employee_id).first()
                 if not user_candidate:
-                    return Response({"message": "No account found with this email."}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"message": "No account found with this Employee ID."}, status=status.HTTP_404_NOT_FOUND)
                 
                 if not user_candidate.phone_number:
                     return Response({"message": "No mobile number is registered for this account. Please contact administrator."}, status=status.HTTP_400_BAD_REQUEST)
@@ -119,11 +119,11 @@ class RequestOTPView(APIView):
                 
                 user = user_candidate
             else:
-                # New direct flow: find by email and phone
-                user = User.objects.filter(email=email, phone_number=phone).first()
-        elif employee_id and phone:
-            # Signup/Employee activation flow
-            user = User.objects.filter(employee_id__iexact=employee_id, phone_number=phone).first()
+                # Signup/Employee activation flow or other employee_id+phone flows
+                user = User.objects.filter(employee_id__iexact=employee_id, phone_number=phone).first()
+        elif email and phone:
+            # New direct flow: find by email and phone
+            user = User.objects.filter(email=email, phone_number=phone).first()
         elif username:
             # Old lookup-based flow
             user = User.objects.filter(Q(email=username) | Q(username=username) | Q(phone_number=username)).first()

@@ -29,7 +29,7 @@ interface Channel {
 export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps) {
     const [step, setStep] = useState<Step>("LOOKUP");
     const [isLoading, setIsLoading] = useState(false);
-    const [email, setEmail] = useState("");
+    const [employeeId, setEmployeeId] = useState("");
     const [phone, setPhone] = useState("");
     const [requestId, setRequestId] = useState("");
     const [otp, setOtp] = useState("");
@@ -62,12 +62,12 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
 
     const handleSendOTP = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email || !phone) return;
+        if (!employeeId || !phone) return;
 
         setIsLoading(true);
         try {
             const { data } = await publicApi.post("/v1/otp/request/", {
-                email: email,
+                employee_id: employeeId,
                 phone: phone,
                 channel: "sms_ntc",
                 purpose: "forgot_password",
@@ -127,7 +127,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
             onClose();
             // Reset state
             setStep("LOOKUP");
-            setEmail("");
+            setEmployeeId("");
             setPhone("");
             setOtp("");
             setNewPassword("");
@@ -146,7 +146,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                 <DialogHeader>
                     <DialogTitle>Forgot Password?</DialogTitle>
                     <DialogDescription>
-                        {step === "LOOKUP" && "Enter your Email Address and Phone Number."}
+                        {step === "LOOKUP" && "Enter your Employee ID and Phone Number."}
                         {step === "VALIDATE" && "Enter the OTP sent to you."}
                         {step === "RESET" && "Enter your new password."}
                     </DialogDescription>
@@ -156,11 +156,11 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                     <form onSubmit={handleSendOTP} className="space-y-4">
                         <div className="space-y-4 pt-4">
                             <Input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Email Address *"
+                                id="employeeId"
+                                type="text"
+                                value={employeeId}
+                                onChange={(e) => setEmployeeId(e.target.value)}
+                                placeholder="Employee ID *"
                                 required
                                 className="h-12 text-lg"
                             />

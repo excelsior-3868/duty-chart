@@ -9,7 +9,7 @@ import { bulkUpsertDuties, createDuty, getDutiesFiltered } from "@/services/duti
 import { getSchedules, getScheduleById, type Schedule } from "@/services/schedule";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
-import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange, Search, Check, ChevronsUpDown } from "lucide-react";
+import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange, Search, Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
 import { addDays, eachDayOfInterval, format, parseISO } from "date-fns";
@@ -527,7 +527,10 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="bg-primary">Assign</Button>
+            <Button type="submit" disabled={loading} className="bg-primary">
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Assign
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

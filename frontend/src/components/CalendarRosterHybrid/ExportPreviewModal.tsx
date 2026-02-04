@@ -174,8 +174,8 @@ const ExportPreviewModal: React.FC<ExportPreviewModalProps> = ({
             <div className="p-2 border-b text-xs font-medium">Preview</div>
             <div className="p-2 max-h-[60vh] overflow-auto overflow-x-auto">
               {loading && (
-                <div className="text-xs text-muted-foreground">
-                  Loading preview...
+                <div className="flex justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               )}
 
@@ -228,8 +228,7 @@ const ExportPreviewModal: React.FC<ExportPreviewModalProps> = ({
             onClick={handleDownload}
             disabled={loading || downloading || !dutyChartId}
           >
-            {downloading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {downloading ? "Downloading..." : "Download"}
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Download"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -113,7 +113,6 @@ export default function AuditLogPage() {
                     <div className="flex justify-center p-24 bg-white rounded-xl border border-slate-100 shadow-sm">
                         <div className="flex flex-col items-center gap-3">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground animate-pulse">Loading logs...</p>
                         </div>
                     </div>
                 ) : isError ? (

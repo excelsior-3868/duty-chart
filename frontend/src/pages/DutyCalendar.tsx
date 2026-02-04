@@ -692,7 +692,6 @@ const DutyCalendar = () => {
                             <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/40 backdrop-blur-[1px] rounded-lg transition-all duration-300">
                                 <div className="flex flex-col items-center gap-2 bg-white p-4 rounded-xl shadow-lg border border-slate-100 animate-in fade-in zoom-in duration-300">
                                     <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                                    <span className="text-xs font-medium text-slate-600">Loading Roster...</span>
                                 </div>
                             </div>
                         )}

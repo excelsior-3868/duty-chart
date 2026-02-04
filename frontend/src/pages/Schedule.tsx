@@ -207,9 +207,8 @@ const Schedule = () => {
               </CardHeader>
               <CardContent>
                 {(loading || isLoading) && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse mb-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Updating data...
+                  <div className="flex justify-center mb-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   </div>
                 )}
                 {visibleSchedules.length === 0 ? (

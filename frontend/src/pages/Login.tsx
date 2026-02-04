@@ -61,7 +61,7 @@ const Login = () => {
         setSubmitting(true);
         try {
             await publicApi.post("/token/", {
-                email: formData.username.trim(),
+                employee_id: formData.username.trim(),
                 password: formData.password,
             });
             setTimer(300);
@@ -85,7 +85,7 @@ const Login = () => {
         setSubmitting(true);
         try {
             const res = await publicApi.post("/token/", {
-                email: formData.username.trim(),
+                employee_id: formData.username.trim(),
                 password: formData.password,
             });
 
@@ -185,9 +185,9 @@ const Login = () => {
                         <form onSubmit={handleSubmit} className="space-y-3">
                             <div className="space-y-1">
                                 <Input
-                                    id="username"
+                                    id="employee_id"
                                     type="text"
-                                    placeholder="Username"
+                                    placeholder="Employee ID"
                                     className="bg-white border border-gray-300 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0 focus-visible:border-primary"
                                     style={{ borderRadius: "8px" }}
                                     value={formData.username}
@@ -260,14 +260,7 @@ const Login = () => {
                                 className="w-full text-white font-medium py-2.5 transition-colors flex items-center justify-center gap-2 mt-2 bg-primary hover:bg-primary-hover rounded-lg"
                                 disabled={submitting}
                             >
-                                {submitting ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Signing in…
-                                    </>
-                                ) : (
-                                    "Login"
-                                )}
+                                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Login"}
                             </button>
 
                             <div className="text-center mt-4">
@@ -329,8 +322,7 @@ const Login = () => {
                                 className="w-full h-12 text-lg font-semibold bg-primary hover:bg-primary-hover shadow-lg shadow-primary/20"
                                 disabled={submitting || otp.length < 4 || timer === 0}
                             >
-                                {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : null}
-                                {submitting ? "Verifying..." : "Verify Code"}
+                                {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify Code"}
                             </Button>
                         </form>
 

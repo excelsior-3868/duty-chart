@@ -110,7 +110,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
   };
   const roleColor = (role?: string) => {
     switch (role) {
-      case "SUPERADMIN": return "text-red-600";
+      case "SUPERADMIN": return "text-primary";
       case "OFFICE_ADMIN": return "text-primary";
       default: return "text-muted-foreground";
     }
@@ -237,7 +237,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
       <div className="p-4 border-t mt-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="w-full flex items-center gap-3 rounded-lg bg-accent/5 p-3 hover:bg-accent/10 transition-colors cursor-pointer">
+            <div className="w-full flex items-center gap-3 rounded-lg bg-primary/5 p-3 hover:bg-primary/10 transition-colors cursor-pointer">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={(user as any)?.image || (user as any)?.avatar_url || (user as any)?.profile_image} alt={user?.full_name || "User"} />
                 <AvatarFallback className="bg-primary text-primary-foreground">

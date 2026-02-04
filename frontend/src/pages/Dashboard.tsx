@@ -503,7 +503,7 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <div className="flex gap-4 overflow-x-auto snap-x pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+        <div className="flex gap-4 overflow-x-auto snap-x pb-2 no-scrollbar">
           {groupedByOffice.map((group) => {
             const onDutyRows = group.rows.filter((r) => r.currently_available);
             const expanded = !!expandedOffice[group.officeName];
@@ -599,7 +599,7 @@ const Dashboard = () => {
             <CardDescription>Currently active schedules</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
               {activeDutyCharts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No active duty charts found.</p>
               ) : (

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 /* ===================== TYPES ===================== */
 
@@ -272,7 +273,7 @@ function UserWiseReport() {
         <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
 
         <Button onClick={loadReport} disabled={loading}>
-          {loading ? "Loading..." : "Load Preview"}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load Preview"}
         </Button>
 
         <Button onClick={downloadReport} variant="outline">

@@ -128,7 +128,7 @@ urlpatterns = [
     path("api/v1/otp/", include("otp_service.urls")),
     path("api/v1/auditlogs/", include("auditlogs.urls")),
     path("api/v1/reports/", include("reports.urls")),
-
+    path("api/v1/notifications/", include("notification_service.urls")),
     path(
         "api/v1/bulk-upload/",
         BulkDocumentUploadView.as_view(),
