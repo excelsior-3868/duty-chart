@@ -177,18 +177,18 @@ class ScheduleView(viewsets.ModelViewSet):
         # Allow creating global templates (office=null) if status is 'template'
         if status_val == "template" and not office_id:
             if not user_has_permission_slug(self.request.user, 'schedule_templates.create'):
-                 raise ValidationError("You do not have permission to create global schedule templates.")
+                 raise serializers.ValidationError("You do not have permission to create global schedule templates.")
             serializer.save()
             return
 
         if not user_has_permission_slug(self.request.user, 'duties.manage_schedule') and \
            not user_has_permission_slug(self.request.user, 'schedules.create') and \
            not user_has_permission_slug(self.request.user, 'schedules.create_office_schedule'):
-            raise ValidationError("You do not have permission to create schedules.")
+            raise serializers.ValidationError("You do not have permission to create schedules.")
 
         allowed = get_allowed_office_ids(self.request.user)
         if not office_id or int(office_id) not in allowed:
-            raise ValidationError("Not allowed to create schedule for this office.")
+            raise serializers.ValidationError("Not allowed to create schedule for this office.")
         serializer.save()
 
 
@@ -202,17 +202,17 @@ class ScheduleView(viewsets.ModelViewSet):
 
         if status_val == "template" and not office_id:
             if not user_has_permission_slug(self.request.user, 'schedule_templates.edit'):
-                 raise ValidationError("You do not have permission to edit global schedule templates.")
+                 raise serializers.ValidationError("You do not have permission to edit global schedule templates.")
             serializer.save()
             return
 
         if not user_has_permission_slug(self.request.user, 'duties.manage_schedule'):
             if not user_has_permission_slug(self.request.user, 'schedules.edit'):
-                 raise ValidationError("You do not have permission to update schedules.")
+                 raise serializers.ValidationError("You do not have permission to update schedules.")
 
             allowed = get_allowed_office_ids(self.request.user)
             if not office_id or int(office_id) not in allowed:
-                raise ValidationError("Not allowed to update schedule for this office.")
+                raise serializers.ValidationError("Not allowed to update schedule for this office.")
         
         serializer.save()
 
@@ -224,17 +224,17 @@ class ScheduleView(viewsets.ModelViewSet):
         # Check if it's a global template
         if instance.status == "template" and not instance.office:
              if not user_has_permission_slug(self.request.user, 'schedule_templates.delete'):
-                  raise ValidationError("You do not have permission to delete global schedule templates.")
+                  raise serializers.ValidationError("You do not have permission to delete global schedule templates.")
              instance.delete()
              return
 
         if not user_has_permission_slug(self.request.user, 'duties.manage_schedule'):
             if not user_has_permission_slug(self.request.user, 'schedules.delete'):
-                 raise ValidationError("You do not have permission to delete schedules.")
+                 raise serializers.ValidationError("You do not have permission to delete schedules.")
 
             allowed = get_allowed_office_ids(self.request.user)
             if instance.office_id and instance.office_id not in allowed:
-                raise ValidationError("Not allowed to delete schedule for this office.")
+                raise serializers.ValidationError("Not allowed to delete schedule for this office.")
         instance.delete()
 
 
@@ -418,7 +418,7 @@ class DutyViewSet(viewsets.ModelViewSet):
             serializer.save()
             return
         if not user_has_permission_slug(user, 'duties.assign_employee'):
-            raise ValidationError("You do not have permission to assign employees.")
+            raise serializers.ValidationError("You do not have permission to assign employees.")
 
         allowed = get_allowed_office_ids(user)
         office_id = self.request.data.get("office")
@@ -428,7 +428,7 @@ class DutyViewSet(viewsets.ModelViewSet):
                 chart = DutyChart.objects.filter(id=chart_id).first()
                 office_id = getattr(chart, "office_id", None)
         if not office_id or int(office_id) not in allowed:
-            raise ValidationError("Not allowed to create duty for this office.")
+            raise serializers.ValidationError("Not allowed to create duty for this office.")
 
         # Check if the assigned user belongs to the same office (unless permission allows otherwise)
         target_user_id = self.request.data.get("user")
@@ -444,7 +444,7 @@ class DutyViewSet(viewsets.ModelViewSet):
                  # we check for 'assign_any_office_employee' permission
                  if int(target_user.office_id) != int(office_id):
                      if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
-                         raise ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
+                         raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
         
         serializer.save()
 
@@ -460,7 +460,7 @@ class DutyViewSet(viewsets.ModelViewSet):
             chart = getattr(serializer.instance, "duty_chart", None)
             office_id = getattr(chart, "office_id", None)
         if not office_id or int(office_id) not in allowed:
-            raise ValidationError("Not allowed to update duty for this office.")
+            raise serializers.ValidationError("Not allowed to update duty for this office.")
         serializer.save()
 
     @swagger_auto_schema(
@@ -477,6 +477,7 @@ class DutyViewSet(viewsets.ModelViewSet):
                     "date": openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE),
                     "is_completed": openapi.Schema(type=openapi.TYPE_BOOLEAN),
                     "currently_available": openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    "duty_chart": openapi.Schema(type=openapi.TYPE_INTEGER),
                 },
             ),
         ),
@@ -484,11 +485,15 @@ class DutyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="bulk-upsert")
     def bulk_upsert(self, request):
         data = request.data
+        if not isinstance(data, list):
+            raise serializers.ValidationError("Expected a list of duty objects.")
+
         is_super = IsSuperAdmin().has_permission(request, self)
         if not is_super:
             if not user_has_permission_slug(request.user, 'duties.assign_employee'):
                 raise serializers.ValidationError("You do not have permission to assign employees.")
             allowed_offices = get_allowed_office_ids(request.user)
+            # Pre-validate office access for all items
             for item in data:
                 oid = item.get("office")
                 if not oid or int(oid) not in allowed_offices:
@@ -496,56 +501,100 @@ class DutyViewSet(viewsets.ModelViewSet):
 
         created, updated = 0, 0
         from users.models import User
-        
-        # Optimization: prefetch users
-        u_ids = {i.get("user") for i in data if i.get("user")}
+        from django.db import transaction, IntegrityError
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Bulk upsert started with {len(data)} items for user {request.user.username}")
+
+        # Helper to convert to int safely
+        def to_int(val):
+            try:
+                if val is None or str(val).strip() == "": return None
+                return int(val)
+            except (ValueError, TypeError):
+                return None
+
+        # Optimization: prefetch users, schedules, and charts
+        u_ids = {to_int(i.get("user")) for i in data if i.get("user")}
+        u_ids.discard(None)
+        s_ids = {to_int(i.get("schedule")) for i in data if i.get("schedule")}
+        s_ids.discard(None)
+        c_ids = {to_int(i.get("duty_chart")) for i in data if i.get("duty_chart")}
+        c_ids.discard(None)
+
         users_map = {u.id: u for u in User.objects.filter(id__in=u_ids)}
+        schedules_map = {s.id: s for s in Schedule.objects.filter(id__in=s_ids)}
+        charts_map = {c.id: c for c in DutyChart.objects.filter(id__in=c_ids)}
+
         can_assign_any = is_super or user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
 
-        for item in data:
-            user_id = item.get("user")
-            office_id = item.get("office")
-            chart_id = item.get("duty_chart")
-            schedule_id = item.get("schedule")
-            duty_date = item.get("date")
+        try:
+            with transaction.atomic():
+                for item in data:
+                    user_id = to_int(item.get("user"))
+                    office_id = to_int(item.get("office"))
+                    chart_id = to_int(item.get("duty_chart"))
+                    schedule_id = to_int(item.get("schedule"))
+                    duty_date_raw = item.get("date")
 
-            if not user_id or not schedule_id or not duty_date:
-                 raise serializers.ValidationError("Missing required fields: user, schedule, or date.")
+                    if not user_id or not schedule_id or not duty_date_raw:
+                         raise serializers.ValidationError("Missing required fields: user, schedule, or date.")
 
-            # --- Restriction Check ---
-            if not can_assign_any:
-                t_user = users_map.get(user_id)
-                if t_user and t_user.office_id and office_id and int(t_user.office_id) != int(office_id):
-                    raise serializers.ValidationError(f"Cannot assign employee {t_user.username} from different office without permission.")
+                    # Parse and Validate Date
+                    duty_date = parse_date(duty_date_raw) if isinstance(duty_date_raw, str) else duty_date_raw
+                    if not duty_date:
+                        raise serializers.ValidationError(f"Invalid date format: {duty_date_raw}")
 
-            # Create or Update based on unique_together = ['user', 'duty_chart', 'date', 'schedule']
-            obj, was_created = Duty.objects.update_or_create(
-                user_id=user_id,
-                duty_chart_id=chart_id,
-                schedule_id=schedule_id,
-                date=duty_date,
-                defaults={
-                    "office_id": office_id,
-                    "is_completed": item.get("is_completed", False),
-                    "currently_available": item.get("currently_available", True),
-                },
-            )
+                    # Check existence
+                    if user_id not in users_map:
+                        raise serializers.ValidationError(f"User with ID {user_id} does not exist.")
+                    if schedule_id not in schedules_map:
+                        raise serializers.ValidationError(f"Schedule with ID {schedule_id} does not exist.")
+                    if chart_id and chart_id not in charts_map:
+                        raise serializers.ValidationError(f"Duty Chart with ID {chart_id} does not exist.")
 
-            # ✅ Force validation
-            try:
-                obj.full_clean()
-                obj.save() 
-            except ValidationError as e:
-                if was_created:
-                   obj.delete()
-                message = getattr(e, 'message_dict', None) or {'detail': str(e)}
-                raise serializers.ValidationError(message)
+                    # --- Restriction Check ---
+                    if not can_assign_any:
+                        t_user = users_map.get(user_id)
+                        if t_user and t_user.office_id and office_id and int(t_user.office_id) != office_id:
+                            raise serializers.ValidationError(f"Cannot assign employee {t_user.username} from different office without permission.")
 
-            if was_created:
-                created += 1
-            else:
-                updated += 1
-        return Response({"created": created, "updated": updated}, status=status.HTTP_200_OK)
+                    # Create or Update based on unique_together = ['user', 'duty_chart', 'date', 'schedule']
+                    # We use update_or_create to merge with existing duties if same user/date/shift/chart
+                    obj, was_created = Duty.objects.update_or_create(
+                        user_id=user_id,
+                        duty_chart_id=chart_id,
+                        schedule_id=schedule_id,
+                        date=duty_date,
+                        defaults={
+                            "office_id": office_id,
+                            "is_completed": item.get("is_completed", False),
+                            "currently_available": item.get("currently_available", True),
+                        },
+                    )
+
+                    # ✅ Force validation (overlap checks, etc.)
+                    try:
+                        obj.full_clean()
+                        obj.save()
+                    except (ValidationError, IntegrityError) as e:
+                        # If validation fails, we want specific error message
+                        message = getattr(e, 'message_dict', None) or {'detail': str(e)}
+                        raise serializers.ValidationError(message)
+
+                    if was_created:
+                        created += 1
+                    else:
+                        updated += 1
+
+            logger.info(f"Bulk upsert finished: created={created}, updated={updated}")
+            return Response({"created": created, "updated": updated}, status=status.HTTP_200_OK)
+        except serializers.ValidationError as e:
+            logger.warning(f"Bulk upsert validation error: {e}")
+            raise
+        except Exception as e:
+            logger.exception("Unexpected error in bulk_upsert")
+            raise serializers.ValidationError({"detail": f"An unexpected error occurred: {str(e)}"})
 
     @swagger_auto_schema(
         method="post",

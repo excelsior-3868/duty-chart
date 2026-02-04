@@ -19,12 +19,16 @@ class Notification(AuditableMixin, models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'notification_type', 'created_at']),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.title}"
 
     def get_audit_details(self, action, changes):
-        return f"NOTIFICATION: {action.capitalize()}d notification for {self.user.full_name}."
+        fullname = getattr(self.user, 'full_name', self.user.username)
+        return f"NOTIFICATION: {action.capitalize()}d notification for {fullname}."
 
 class SMSLog(AuditableMixin, models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs')

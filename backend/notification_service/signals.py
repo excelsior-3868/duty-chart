@@ -1,28 +1,77 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.db import transaction
 from duties.models import Duty
 from .tasks import async_send_sms
+from .utils import create_dashboard_notification
+import logging
+
+logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=Duty)
 def notify_duty_assignment(sender, instance, created, **kwargs):
+    """
+    Signal to notify user when a duty is assigned.
+    Includes idempotency check and transactional safety.
+    """
     if created and instance.user:
+        # Transactional Safety: Wait for the Duty save to be committed
+        transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
+
+def _handle_duty_assignment_notification(instance):
+    try:
         user = instance.user
-        full_name = user.full_name
-        duty_name = instance.schedule.name if instance.schedule else "Duty"
-        duty_date = instance.date.strftime("%Y-%m-%d")
+        if not user: return
         
+        schedule = getattr(instance, 'schedule', None)
+        duty_name = schedule.name if schedule and hasattr(schedule, 'name') else "Duty"
+        
+        # Ensure date is available and formatted
+        duty_date = "Unknown Date"
+        if instance.date:
+            try:
+                duty_date = instance.date.strftime("%Y-%m-%d")
+            except Exception:
+                duty_date = str(instance.date)
+
         # 1. Dashboard Notification
         title = "New Duty Assigned"
         message = f"You have been assigned to {duty_name} on {duty_date}."
-        create_dashboard_notification(
-            user=user,
-            title=title,
-            message=message,
-            notification_type='ASSIGNMENT',
-            link='/duty-calendar'
-        )
         
-        # 2. SMS Notification
-        if user.phone_number:
-            sms_message = f"Dear {full_name}, You have been assigned a {duty_name} ({duty_date}). For Detail Please Visit dutychart.ntc.net.np"
-            async_send_sms.delay(user.phone_number, sms_message, user_id=user.id)
+        # Idempotency check with safe created_at access
+        from .models import Notification
+        created_at_date = None
+        if hasattr(instance, 'created_at') and instance.created_at:
+            try:
+                created_at_date = instance.created_at.date()
+            except Exception:
+                pass
+        
+        exists = Notification.objects.filter(
+            user=user,
+            notification_type='ASSIGNMENT',
+            created_at__date=created_at_date,
+            message__contains=f"on {duty_date}"
+        ).exists()
+
+        if not exists:
+            create_dashboard_notification(
+                user=user,
+                title=title,
+                message=message,
+                notification_type='ASSIGNMENT',
+                link='/duty-calendar'
+            )
+            
+            # 2. SMS Notification
+            if getattr(user, 'phone_number', None):
+                full_name = getattr(user, 'full_name', user.username)
+                sms_message = f"Dear {full_name}, You have been assigned a {duty_name} ({duty_date}). For Detail Please Visit dutychart.ntc.net.np"
+                try:
+                    async_send_sms.delay(user.phone_number, sms_message, user_id=user.id)
+                except Exception as sms_err:
+                    logger.error(f"Failed to queue SMS for user {user.id}: {sms_err}")
+            else:
+                logger.warning(f"User {user.username} has no phone number for SMS notification.")
+    except Exception as e:
+        logger.exception(f"Error in _handle_duty_assignment_notification for Duty {instance.id}")

@@ -1,0 +1,51 @@
+# Notification Service Implementation Walkthrough
+
+I have implemented a production-grade notification system for the Duty Chart application. This system supports real-time dashboard notifications via WebSockets and background SMS alerts via Celery.
+
+## Core Features Implemented
+
+### 1. Real-Time Dashboard Notifications
+- **Technology**: Django Channels with Redis backing.
+- **Security**: Custom [JWTAuthMiddleware](file:///e:/GitHub/duty-chart/backend/notification_service/middleware.py#23-39) ensuring only authenticated users can connect to their private notification streams.
+- **Automation**: Use of Django signals (`post_save`) with `transaction.on_commit` to trigger notifications only after successful database operations.
+
+### 2. Background SMS Alerts
+- **Technology**: Celery workers for asynchronous processing.
+- **Reliability**: Configured with exponential backoff retries for gateway stability.
+- **Monitoring**: Every SMS attempt is logged in the [SMSLog](file:///e:/GitHub/duty-chart/backend/notification_service/models.py#33-49) model with the provider's raw response.
+
+### 3. Smart Reminders
+- **Logic**: A periodic Celery Beat task runs every 15 minutes to check for duties starting in approximately one hour.
+- **Idempotency**: Built-in checks prevent duplicate notifications for the same duty event.
+
+## How to Test Locally
+
+### 1. Prerequisites
+Ensure you have Redis installed and running:
+```bash
+# Windows (if using WSL or native Redis)
+redis-server
+```
+
+### 2. Start Services
+Open three terminls and run:
+```bash
+# Terminal 1: Django ASGI Server (Daphne)
+daphne -b 127.0.0.1 -p 8000 config.asgi:application
+
+# Terminal 2: Celery Worker
+celery -A config worker -l info
+
+# Terminal 3: Celery Beat (for scheduled reminders)
+celery -A config beat -l info
+```
+
+### 3. Verify
+- **Assignment**: Assign a duty to a user in the UI. A notification should appear in their dashboard (if they are connected via WebSocket).
+- **Reminders**: Create a duty starting in 60 minutes. Wait for the Celery Beat task to trigger (or run `celery -A config worker --beat` and check logs).
+
+## File Changes Summary
+- [NEW] [notification_service/](file:///e:/GitHub/duty-chart/backend/notification_service/) (Complete logic)
+- [MODIFY] [config/asgi.py](file:///e:/GitHub/duty-chart/backend/config/asgi.py) (WebSocket routing)
+- [MODIFY] [config/settings.py](file:///e:/GitHub/duty-chart/backend/config/settings.py) (Integration)
+- [MODIFY] [requirements.txt](file:///e:/GitHub/duty-chart/backend/requirements.txt) (Dependencies)

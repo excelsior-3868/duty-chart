@@ -291,15 +291,23 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       console.error("Error creating duty:", error);
       let msg = "Failed to create duty.";
       const data = error?.response?.data;
+
       if (data) {
-        if (data.non_field_errors) {
-          // DRF ValidationErrors often come here
+        if (typeof data === 'string') {
+          // It's probably an HTML 500 page
+          msg = "Internal Server Error (500). Please check backend logs.";
+        } else if (data.non_field_errors) {
           msg = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
         } else if (data.detail) {
           msg = data.detail;
-        } else if (data.schedule) {
-          // Our specific schedule overlap error might come as field error
-          msg = Array.isArray(data.schedule) ? data.schedule[0] : data.schedule;
+        } else {
+          // If it's a field-specific error (like {date: ["..."]}), show the first one
+          const keys = Object.keys(data);
+          if (keys.length > 0) {
+            const firstKey = keys[0];
+            const firstError = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+            msg = typeof firstError === 'string' ? `${firstKey}: ${firstError}` : JSON.stringify(firstError);
+          }
         }
       }
       toast.error(msg);

@@ -5,12 +5,13 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
         
+        # User is authenticated via JWTAuthMiddleware
         if self.user.is_anonymous:
             await self.close()
         else:
             self.group_name = f"user_{self.user.id}"
             
-            # Join room group
+            # Join user-specific room group
             await self.channel_layer.group_add(
                 self.group_name,
                 self.channel_name

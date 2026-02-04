@@ -9,12 +9,12 @@ django_asgi_app = get_asgi_application()
 
 # Import routing and middleware AFTER get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
-from notification_service.middleware import TokenAuthMiddleware
+from notification_service.middleware import JWTAuthMiddleware
 import notification_service.routing
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": TokenAuthMiddleware(
+    "websocket": JWTAuthMiddleware(
         URLRouter(
             notification_service.routing.websocket_urlpatterns
         )

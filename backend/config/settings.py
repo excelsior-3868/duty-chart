@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'channels',
     'reports',
     # Third party apps
     'rest_framework',
@@ -85,7 +84,9 @@ INSTALLED_APPS = [
     'duties',
     'otp_service',
     'auditlogs',
+    'channels',
     'notification_service',
+    
 
 ]
 
