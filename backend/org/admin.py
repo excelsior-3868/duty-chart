@@ -4,8 +4,8 @@ from .models import Directorate, Department, Office
 
 @admin.register(Directorate)
 class DirectorateAdmin(admin.ModelAdmin):
-    list_display = ("id", "name")
-    search_fields = ("name",)
+    list_display = ("id", "directorate")
+    search_fields = ("directorate",)
 
 
 @admin.register(Department)
@@ -23,6 +23,6 @@ class OfficeAdmin(admin.ModelAdmin):
 
     def get_directorate(self, obj):
         # this shows the parent directorate in Office admin
-        return obj.department.directorate.name if obj.department and obj.department.directorate else "-"
+        return obj.department.directorate.directorate if obj.department and obj.department.directorate else "-"
     get_directorate.short_description = "Directorate"
-    get_directorate.admin_order_field = "department__directorate__name"
+    get_directorate.admin_order_field = "department__directorate__directorate"

@@ -115,7 +115,6 @@ import {
 import { Menu } from "lucide-react";
 import { COMPANY_NAME, APP_NAME, ROUTES } from "@/utils/constants";
 import logo from "../../assets/telecom.png"; // Adjust path if needed
-import { NotificationBell } from "./NotificationBell";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -160,7 +159,6 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
 
         {/* Right side - Actions */}
         <div className="flex items-center gap-2">
-          <NotificationBell />
           {/* Profile button removed (moved to sidebar profile section) */}
         </div>
       </div>

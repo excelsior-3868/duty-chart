@@ -28,3 +28,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     
     filterset_fields = ['action', 'entity_type', 'status', 'actor_userid', 'actor_employee_id']
     search_fields = ['actor_userid', 'actor_employee_id', 'entity_type', 'details']
+
+    def get_queryset(self):
+        print("DEBUG: AuditLogViewSet.get_queryset called")
+        qs = super().get_queryset()
+        print(f"DEBUG: Found {qs.count()} logs")
+        return qs

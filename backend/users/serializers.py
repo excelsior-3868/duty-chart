@@ -27,7 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
             data['position_name'] = instance.position.name if instance.position else None
             data['office_name'] = instance.office.name if instance.office else None
             data['department_name'] = instance.department.name if instance.department else None
-            data['directorate_name'] = instance.directorate.name if instance.directorate else None
+            data['directorate_name'] = instance.directorate.directorate if instance.directorate else None
         except Exception:
             data['position_name'] = None
             data['office_name'] = None
@@ -122,7 +122,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data['office_name'] = instance.office.name
         data['department_name'] = instance.office.department.name
-        data['directorate_name'] = instance.office.department.directorate.name
+        data['directorate_name'] = instance.office.department.directorate.directorate
         data['position_name'] = instance.position.name
         return data
 

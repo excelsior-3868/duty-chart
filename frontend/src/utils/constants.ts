@@ -18,7 +18,12 @@ export const ROUTES = {
   LOGIN: '/login',
   PROFILE: '/profile',
   DUTY_CALENDAR: '/duty-calendar',
-  REGISTER: '/register'
+  REGISTER: '/register',
+  AUDIT_LOGS: '/admin/audit-logs',
+  SMS_LOGS: '/admin/sms-logs',
+  DIRECTORATES: '/admin/directorates',
+  ACCOUNTING_OFFICES: '/admin/accounting-offices',
+  CC_OFFICES: '/admin/cc-offices',
 } as const;
 
 export const USER_ROLES = {

@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.utils import timezone
+from django.db import transaction
 from datetime import timedelta, datetime
 import logging
 
@@ -44,13 +45,12 @@ def send_duty_reminders():
     
     target_date = window_start.date()
     
-    # Find all duties for target_date that are NOT regular (likely shifts)
+    # Find all duties for target_date with a user and schedule assigned of type 'Shift'
     duties = Duty.objects.filter(
         date=target_date,
         user__isnull=False,
-        schedule__isnull=False
-    ).exclude(
-        schedule__shift_type__iexact='Regular'
+        schedule__isnull=False,
+        schedule__shift_type='Shift'
     )
 
     sent_count = 0
@@ -62,34 +62,86 @@ def send_duty_reminders():
         if window_start <= start_datetime <= window_end:
             user = duty.user
             
-            # Idempotency: Check if reminder already sent for this specific duty today
-            # We check for a reminder notification created today for this user and time
-            already_notified = Notification.objects.filter(
+            # Idempotency: Check if reminder already sent for this specific duty today via SMSLog
+            from .models import SMSLog
+            already_notified = SMSLog.objects.filter(
                 user=user,
-                notification_type='REMINDER',
-                message__contains=f"starting at {start_time.strftime('%H:%M')}",
+                phone=user.phone_number,
                 created_at__date=timezone.now().date()
-            ).exists()
+            ).filter(message__contains=f'"{duty_name}"').filter(message__contains="starting in about 1 hour").exists()
 
             if not already_notified:
                 full_name = getattr(user, 'full_name', user.username)
                 duty_name = duty.schedule.name
                 time_str = start_time.strftime('%H:%M')
                 
-                # 1. Dashboard Notification
-                create_dashboard_notification(
-                    user=user,
-                    title="Duty Starting Soon",
-                    message=f"Reminder: Your duty '{duty_name}' is starting at {time_str}.",
-                    notification_type='REMINDER',
-                    link='/duty-calendar'
-                )
+                # 1. Dashboard Notification (Disabled for now)
+                # create_dashboard_notification(
+                #     user=user,
+                #     title="Duty Starting Soon",
+                #     message=f"Reminder: Your duty '{duty_name}' is starting at {time_str}.",
+                #     notification_type='REMINDER',
+                #     link='/duty-calendar'
+                # )
                 
                 # 2. SMS Notification
                 if getattr(user, 'phone_number', None):
-                    sms_message = f"Reminder: Dear {full_name}, your duty '{duty_name}' is starting at {time_str}. Please be prepared."
+                    office_name = duty.office.name if duty.office else "Unknown Office"
+                    sms_message = f'Dear {full_name}, your duty "{duty_name}" at "{office_name}" is starting in about 1 hour. Please visit dutychart.ntc.net.np for details.'
                     async_send_sms.delay(user.phone_number, sms_message, user.id)
                     sent_count += 1
                     
     logger.info(f"Finished sending {sent_count} reminders.")
+    return sent_count
+
+@shared_task
+def send_daily_summary_sms():
+    """
+    Periodic task to send a summary SMS at 10:00 AM for today's duties.
+    """
+    from duties.models import Duty
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    today = timezone.now().date()
+    
+    # Get all duties for today with a user assigned and of type 'Shift'
+    duties = Duty.objects.filter(
+        date=today,
+        user__isnull=False,
+        schedule__shift_type='Shift'
+    ).select_related('user', 'schedule', 'duty_chart', 'office')
+    
+    # Group duties by user
+    user_duties = {}
+    for duty in duties:
+        if duty.user_id not in user_duties:
+            user_duties[duty.user_id] = []
+        user_duties[duty.user_id].append(duty)
+        
+    sent_count = 0
+    for user_id, duties_list in user_duties.items():
+        user = duties_list[0].user
+        if not getattr(user, 'phone_number', None):
+            continue
+            
+        full_name = getattr(user, 'full_name', user.username)
+        
+        # Construct summary message
+        # If multiple duties, list them
+        if len(duties_list) == 1:
+            duty = duties_list[0]
+            chart_name = duty.duty_chart.name if duty.duty_chart else "Duty Chart"
+            schedule_name = duty.schedule.name if duty.schedule else "Duty"
+            office_name = duty.office.name if duty.office else "Unknown Office"
+            sms_message = f'Dear {full_name}, you have been assigned to "{chart_name}" for the "{schedule_name}" at "{office_name}" today. Visit dutychart.ntc.net.np for details.'
+        else:
+            # Multiple duties summary
+            duties_summary = ", ".join([f'"{d.schedule.name}" at "{d.office.name}"' for d in duties_list if d.schedule])
+            sms_message = f'Dear {full_name}, you have {len(duties_list)} duties today: {duties_summary}. Visit dutychart.ntc.net.np for details.'
+            
+        async_send_sms.delay(user.phone_number, sms_message, user.id)
+        sent_count += 1
+        
+    logger.info(f"Finished sending {sent_count} daily summary SMS notifications for {today}.")
     return sent_count

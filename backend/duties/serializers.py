@@ -54,7 +54,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data['office_name'] = instance.office.name
         data['department_name'] = instance.office.department.name
-        data['directorate_name'] = instance.office.department.directorate.name
+        data['directorate_name'] = instance.office.department.directorate.directorate
         data['schedule_names'] = [s.name for s in instance.schedules.all()]
         return data
 
@@ -110,7 +110,7 @@ class DutySerializer(serializers.ModelSerializer):
         data['phone_number'] = user.phone_number if user else None
         data['user_office_name'] = user.office.name if user and user.office else None
         data['user_department_name'] = user.department.name if user and user.department else None
-        data['user_directorate_name'] = user.directorate.name if user and user.directorate else None
+        data['user_directorate_name'] = user.directorate.directorate if user and user.directorate else None
         data['position_name'] = user.position.name if user and user.position else None
         data['email'] = user.email if user else None
         return data

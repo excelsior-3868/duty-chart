@@ -3,18 +3,24 @@ from auditlogs.mixins import AuditableMixin
 
 # Create your models here.
 class Directorate(AuditableMixin, models.Model):
-    name = models.CharField(max_length=255)
+    directorate = models.CharField(max_length=255)
+    parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='sub_directorates')
+    hierarchy_level = models.IntegerField(default=1)
+    remarks = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'directorate'
 
     def __str__(self):
-        return self.name
+        return self.directorate
 
     def get_audit_details(self, action, changes):
         if action == 'CREATE':
-            return f"CONFIGURATION: Created new Directorate '{self.name}'."
+            return f"CONFIGURATION: Created new Directorate '{self.directorate}'."
         elif action == 'UPDATE':
-            return f"CONFIGURATION: Updated Directorate '{self.name}'."
+            return f"CONFIGURATION: Updated Directorate '{self.directorate}'."
         elif action == 'DELETE':
-            return f"CONFIGURATION: Deleted Directorate '{self.name}'."
+            return f"CONFIGURATION: Deleted Directorate '{self.directorate}'."
         return ""
 
 class Department(AuditableMixin, models.Model):
@@ -25,7 +31,7 @@ class Department(AuditableMixin, models.Model):
         return self.name
 
     def get_audit_details(self, action, changes):
-        directorate_name = self.directorate.name if self.directorate else "Unknown"
+        directorate_name = self.directorate.directorate if self.directorate else "Unknown"
         if action == 'CREATE':
             return f"CONFIGURATION: Created new Department '{self.name}' under '{directorate_name}'."
         elif action == 'UPDATE':
@@ -71,3 +77,41 @@ class SystemSetting(AuditableMixin, models.Model):
                 desc += f" 2FA is now {state}."
             return desc
         return "SYSTEM SETTINGS: Modified global configuration."
+
+class AccountingOffice(AuditableMixin, models.Model):
+    name = models.CharField(max_length=255, db_column='account_office_name')
+    directorate = models.ForeignKey(Directorate, on_delete=models.CASCADE, related_name='accounting_offices')
+
+    class Meta:
+        db_table = 'ac_offices'
+
+    def __str__(self):
+        return self.name
+
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"CONFIGURATION: Created new Accounting Office '{self.name}'."
+        elif action == 'UPDATE':
+            return f"CONFIGURATION: Updated Accounting Office '{self.name}'."
+        elif action == 'DELETE':
+            return f"CONFIGURATION: Deleted Accounting Office '{self.name}'."
+        return ""
+
+class CCOffice(AuditableMixin, models.Model):
+    name = models.CharField(max_length=255, db_column='cc_office_name')
+    accounting_office = models.ForeignKey(AccountingOffice, on_delete=models.CASCADE, related_name='cc_offices', db_column='account_office_id')
+
+    class Meta:
+        db_table = 'cc_offices'
+
+    def __str__(self):
+        return self.name
+
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"CONFIGURATION: Created new CC Office '{self.name}'."
+        elif action == 'UPDATE':
+            return f"CONFIGURATION: Updated CC Office '{self.name}'."
+        elif action == 'DELETE':
+            return f"CONFIGURATION: Deleted CC Office '{self.name}'."
+        return ""

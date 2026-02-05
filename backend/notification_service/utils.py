@@ -54,31 +54,33 @@ def broadcast_notification(notification):
     """
     Broadcasts a notification to the user's real-time channel.
     """
-    channel_layer = get_channel_layer()
-    if channel_layer:
-        serializer = NotificationSerializer(notification)
-        async_to_sync(channel_layer.group_send)(
-            f"user_{notification.user.id}",
-            {
-                "type": "notification_message",
-                "message": serializer.data
-            }
-        )
+    # channel_layer = get_channel_layer()
+    # if channel_layer:
+    #     serializer = NotificationSerializer(notification)
+    #     async_to_sync(channel_layer.group_send)(
+    #         f"user_{notification.user.id}",
+    #         {
+    #             "type": "notification_message",
+    #             "message": serializer.data
+    #         }
+    #     )
+    pass
 
 def create_dashboard_notification(user, title, message, notification_type='SYSTEM', link=None):
     """
     Creates a dashboard notification and broadcasts it via WebSockets.
     Uses transaction.on_commit to ensure broadcasting only happens if DB transaction succeeds.
     """
-    notification = Notification.objects.create(
-        user=user,
-        title=title,
-        message=message,
-        notification_type=notification_type,
-        link=link
-    )
+    # notification = Notification.objects.create(
+    #     user=user,
+    #     title=title,
+    #     message=message,
+    #     notification_type=notification_type,
+    #     link=link
+    # )
     
     # Ensure broadcast happens after DB transaction is committed
-    transaction.on_commit(lambda: broadcast_notification(notification))
+    # transaction.on_commit(lambda: broadcast_notification(notification))
     
-    return notification
+    # return notification
+    return None

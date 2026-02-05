@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserCard, UserData } from "@/components/UserCard";
-import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw, Loader2 } from 'lucide-react';
+import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw, Loader2, Plus } from 'lucide-react';
 import { toast } from "sonner";
 import { createUser } from "@/services/users";
 import { getPositions, type Position as PositionType } from "@/services/positions";
@@ -15,6 +15,14 @@ import { getDepartments, type Department } from "@/services/departments";
 import { getOffices, type Office } from "@/services/offices";
 import api from "@/services/api";
 import { Protect } from "@/components/auth/Protect";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -296,15 +304,15 @@ const Employees = () => {
 
   useEffect(() => {
     // Load org hierarchy lists and employees
-    document.title = "Employees - INOC Duty Roster";
+    document.title = "Employees - NT Duty Chart Management";
     async function loadOrg() {
       try {
-        const [d1, d2, d3] = await Promise.all([
-          getDirectorates(),
+        const [d1_resp, d2, d3] = await Promise.all([
+          getDirectorates({ all: true }) as Promise<Directorate[]>, // Get ALL directorates for dropdowns
           getDepartments(),
           getOffices(),
         ]);
-        setDirectorates(d1);
+        setDirectorates(d1_resp);
         setDepartments(d2);
         setOffices(d3);
       } catch (err) {
@@ -459,8 +467,6 @@ const Employees = () => {
         office: selectedOffice,
         position: selectedPosition,
         is_active: true,
-        position: selectedPosition,
-        is_active: true,
         password: autoPassword,
       };
 
@@ -497,20 +503,19 @@ const Employees = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-primary">Employees</h1>
-          <p className="text-muted-foreground">Manage employee records and information</p>
+          <p className="text-muted-foreground">Manage employee records and information across all departments.</p>
         </div>
         <div>
           <Protect permission="users.create_employee">
-            <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
-              <Users className="h-4 w-4" /> Add Employee
+            <Button onClick={() => setCreateModalOpen(true)} className="gap-2 shadow-sm">
+              <Plus className="h-4 w-4" /> Add Employee
             </Button>
           </Protect>
         </div>
       </div>
-
       {/* Create Employee Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -633,121 +638,225 @@ const Employees = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Filters Card */}
-      {/* Filters */}
-      <div className="mb-2">
-        <Input
-          placeholder="Search by Name, ID, Mobile, Dept, or Email..."
-          value={nameQuery}
-          onChange={(e) => setNameQuery(e.target.value)}
-          className="bg-white shadow-sm"
-        />
-      </div>
-
-      {/* Employee List */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between w-full">
-            {/* <Button size="icon" variant="outline" onClick={() => fetchEmployees()} title="Refresh">
-              <RotateCw className="h-4 w-4" />
-            </Button> */}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-primary text-white">
-                  <th className="p-2 text-left font-semibold">Employee ID</th>
-                  <th className="p-2 text-left font-semibold">Full Name</th>
-                  <th className="p-2 text-left font-semibold">Position</th>
-                  <th className="p-2 text-left font-semibold">Department</th>
-                  <th className="p-2 text-left font-semibold">Email</th>
-                  <th className="p-2 text-left font-semibold">Phone</th>
-                  <th className="p-2 text-left font-semibold">Status</th>
-                  <th className="p-2 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingEmployees ? (
-                  <tr>
-                    <td colSpan={8} className="p-12 text-center">
-                      <div className="flex justify-center items-center">
-                        <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                      </div>
-                    </td>
-                  </tr>
-                ) : employeesList.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-4 text-center text-muted-foreground">No employees found.</td>
-                  </tr>
-                ) : (
-                  employeesList.map((emp) => (
-                    <tr key={emp.id} className="border-b hover:bg-muted/50">
-                      <td className="p-2 font-medium text-primary">{emp.employee_id || "-"}</td>
-                      <td className="p-2">{emp.full_name || emp.username || "-"}</td>
-                      <td className="p-2">{getPositionName(emp.position)}</td>
-                      <td className="p-2">{getDepartmentName(emp.department)}</td>
-                      <td className="p-2 text-primary">{emp.email || "-"}</td>
-                      <td className="p-2">{emp.phone_number || "-"}</td>
-                      <td className="p-2">
-                        <Badge className={emp.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
-                          {emp.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </td>
-                      <td className="p-2 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => { setSelectedEmployee(emp); setViewModalOpen(true); }} title="View Details">
-                            <Eye className="h-4 w-4 text-primary" />
-                          </Button>
-                          <Protect permission="users.edit_employee">
-                            <Button size="sm" variant="ghost" onClick={() => openEditModal(emp)}>
-                              <Edit3 className="h-4 w-4" />
-                            </Button>
-                          </Protect>
-                          <Protect permission="users.delete_employee">
-                            <Button size="sm" variant="ghost" onClick={() => openDeleteConfirm(emp)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </Protect>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              Showing {employeesList.length} of {totalCount} entries
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1 || loadingEmployees}
-              >
-                Previous
-              </Button>
-              <div className="text-sm font-medium">
-                Page {currentPage} of {totalPages}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages || loadingEmployees}
-              >
-                Next
-              </Button>
+      {/* Filter Card */}
+      <Card className="border-none shadow-sm bg-white">
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by Name, ID, Mobile, Dept, or Email..."
+                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Employee List */}
+      {/* Employee List */}
+      <div className="space-y-1">
+        {/* Pagination Controls (Top) */}
+        <div className="flex items-center justify-between px-2">
+          <p className="text-xs text-slate-500 font-medium">
+            Showing {employeesList.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0} to {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} entries
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || loadingEmployees}
+            >
+              &laquo; Prev
+            </Button>
+
+            {/* Page Numbers */}
+            {(() => {
+              const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+              const pages = [];
+              const maxVisible = 5;
+              let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+              let end = Math.min(totalPages, start + maxVisible - 1);
+
+              if (end - start + 1 < maxVisible) {
+                start = Math.max(1, end - maxVisible + 1);
+              }
+
+              for (let i = start; i <= end; i++) {
+                pages.push(
+                  <Button
+                    key={i}
+                    variant={currentPage === i ? "default" : "outline"}
+                    size="sm"
+                    className={`h-8 w-8 p-0 text-xs font-medium border-slate-200 ${currentPage === i
+                      ? "bg-primary text-white hover:bg-primary/90 border-primary"
+                      : "text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                      }`}
+                    onClick={() => setCurrentPage(i)}
+                    disabled={loadingEmployees}
+                  >
+                    {i}
+                  </Button>
+                );
+              }
+              return pages;
+            })()}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+              onClick={() => setCurrentPage((p) => Math.min(Math.ceil(totalCount / PAGE_SIZE) || 1, p + 1))}
+              disabled={currentPage === (Math.ceil(totalCount / PAGE_SIZE) || 1) || loadingEmployees}
+            >
+              Next &raquo;
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader className="bg-primary hover:bg-primary">
+              <TableRow className="hover:bg-transparent border-none">
+                <TableHead className="w-[120px] py-3 text-white font-bold text-sm">Employee ID</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Full Name</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Position</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Department</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm text-right pr-6">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingEmployees ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="p-24 text-center">
+                    <div className="flex justify-center items-center">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : employeesList.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="p-12 text-center text-muted-foreground font-medium italic">
+                    No employees found for the search criteria.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                employeesList.map((emp) => (
+                  <TableRow key={emp.id} className="hover:bg-slate-50/80 transition-colors border-slate-100">
+                    <TableCell className="font-mono text-xs font-bold text-primary">
+                      {emp.employee_id || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-bold text-slate-800 text-[13px]">
+                          {emp.full_name || emp.username || "-"}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {emp.email || "-"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-slate-600 font-medium text-[13px]">
+                      {getPositionName(emp.position)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-bold text-slate-700 capitalize">
+                          {getDepartmentName(emp.department)}
+                        </span>
+                        <Badge variant={emp.is_active ? "default" : "secondary"} className="text-[9px] font-bold px-1.5 py-0 h-4 w-fit">
+                          {emp.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => { setSelectedEmployee(emp); setViewModalOpen(true); }} title="View Details">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Protect permission="users.edit_employee">
+                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => openEditModal(emp)} title="Edit Employee">
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </Protect>
+                        <Protect permission="users.delete_employee">
+                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => openDeleteConfirm(emp)} title="Delete Employee">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </Protect>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination Controls (Bottom) */}
+        <div className="flex items-center justify-between px-2">
+          <p className="text-xs text-slate-500 font-medium">
+            Showing {employeesList.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0} to {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} entries
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || loadingEmployees}
+            >
+              &laquo; Prev
+            </Button>
+
+            {/* Page Numbers */}
+            {(() => {
+              const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+              const pages = [];
+              const maxVisible = 5;
+              let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+              let end = Math.min(totalPages, start + maxVisible - 1);
+
+              if (end - start + 1 < maxVisible) {
+                start = Math.max(1, end - maxVisible + 1);
+              }
+
+              for (let i = start; i <= end; i++) {
+                pages.push(
+                  <Button
+                    key={i}
+                    variant={currentPage === i ? "default" : "outline"}
+                    size="sm"
+                    className={`h-8 w-8 p-0 text-xs font-medium border-slate-200 ${currentPage === i
+                      ? "bg-primary text-white hover:bg-primary/90 border-primary"
+                      : "text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                      }`}
+                    onClick={() => setCurrentPage(i)}
+                    disabled={loadingEmployees}
+                  >
+                    {i}
+                  </Button>
+                );
+              }
+              return pages;
+            })()}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+              onClick={() => setCurrentPage((p) => Math.min(Math.ceil(totalCount / PAGE_SIZE) || 1, p + 1))}
+              disabled={currentPage === (Math.ceil(totalCount / PAGE_SIZE) || 1) || loadingEmployees}
+            >
+              Next &raquo;
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* View Details Modal */}
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>

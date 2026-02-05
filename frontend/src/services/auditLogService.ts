@@ -28,6 +28,6 @@ export const getAuditLogs = async (params: {
     action?: string;
     entity_type?: string;
 }): Promise<AuditLogResponse> => {
-    const response = await api.get("/auditlogs/", { params });
+    const response = await api.get("auditlogs/", { params });
     return response.data;
 };

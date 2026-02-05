@@ -19,7 +19,7 @@ from .serializers import (
 class DutyChartAdmin(admin.ModelAdmin):
     list_display = ('office', 'get_department', 'get_directorate', 'effective_date', 'end_date')
     list_filter = ('office__department__directorate', 'office__department', 'office')
-    search_fields = ('office__name', 'office__department__name', 'office__department__directorate__name')
+    search_fields = ('office__name', 'office__department__name', 'office__department__directorate__directorate')
     autocomplete_fields = ['office']
     date_hierarchy = 'effective_date'
     filter_horizontal = ('schedules',)
@@ -30,9 +30,9 @@ class DutyChartAdmin(admin.ModelAdmin):
     get_department.admin_order_field = 'office__department__name'
 
     def get_directorate(self, obj):
-        return obj.office.department.directorate.name
+        return obj.office.department.directorate.directorate
     get_directorate.short_description = 'Directorate'
-    get_directorate.admin_order_field = 'office__department__directorate__name'
+    get_directorate.admin_order_field = 'office__department__directorate__directorate'
 
 
 @admin.register(Duty)
@@ -46,7 +46,7 @@ class DutyAdmin(admin.ModelAdmin):
     search_fields = ('user__full_name', 'user__employee_id',
                     'office__name',
                     'office__department__name',
-                    'office__department__directorate__name',
+                    'office__department__directorate__directorate',
                     'schedule__name')
     autocomplete_fields = ['user', 'office']
     date_hierarchy = 'date'

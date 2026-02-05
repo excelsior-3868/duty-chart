@@ -41,6 +41,11 @@ class Command(BaseCommand):
             {"slug": "duties.assign_any_office_employee", "name": "Assign Employee (Any Office)", "description": "Can assign employees from any office to a duty"}, # 31
             {"slug": "schedules.view_any_office", "name": "View Any Office Schedule", "description": "Can view schedules from any office"}, # 32
             
+            # New Org Permissions
+            {"slug": "org.view_directorate", "name": "View Directorates", "description": "Can view and manage directorates"},
+            {"slug": "org.view_accounting_office", "name": "View Accounting Offices", "description": "Can view and manage accounting offices"},
+            {"slug": "org.view_cc_office", "name": "View CC Offices", "description": "Can view and manage CC offices"},
+            
         ]
 
 

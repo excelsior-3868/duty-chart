@@ -140,47 +140,6 @@ const Settings = () => {
               </CardContent>
             </Card>
 
-            {/* Notification Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  Notifications
-                </CardTitle>
-                <CardDescription>Configure notification preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="email-notifications">Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive updates via email</p>
-                  </div>
-                  <Switch id="email-notifications" defaultChecked />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="duty-reminders">Duty Reminders</Label>
-                    <p className="text-sm text-muted-foreground">30 minutes before shifts</p>
-                  </div>
-                  <Switch id="duty-reminders" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="schedule-changes">Schedule Changes</Label>
-                    <p className="text-sm text-muted-foreground">When duties are modified</p>
-                  </div>
-                  <Switch id="schedule-changes" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="system-alerts">System Alerts</Label>
-                    <p className="text-sm text-muted-foreground">Important system messages</p>
-                  </div>
-                  <Switch id="system-alerts" defaultChecked />
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Security Settings */}
             <Card>

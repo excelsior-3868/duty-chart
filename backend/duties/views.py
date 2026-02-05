@@ -583,8 +583,10 @@ class DutyViewSet(viewsets.ModelViewSet):
                         raise serializers.ValidationError(message)
 
                     if was_created:
+                        logger.info(f"Bulk Upsert: Created new Duty {obj.id} for user {user_id}")
                         created += 1
                     else:
+                        logger.info(f"Bulk Upsert: Updated existing Duty {obj.id} for user {user_id}")
                         updated += 1
 
             logger.info(f"Bulk upsert finished: created={created}, updated={updated}")

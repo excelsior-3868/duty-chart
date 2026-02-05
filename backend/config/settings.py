@@ -287,10 +287,15 @@ CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE
+from celery.schedules import crontab
+
 CELERY_BEAT_SCHEDULE = {
     'send-duty-reminders-every-15-minutes': {
         'task': 'notification_service.tasks.send_duty_reminders',
         'schedule': 900.0,  # 15 minutes
+    },
+    'send-daily-summary-sms-at-10am': {
+        'task': 'notification_service.tasks.send_daily_summary_sms',
+        'schedule': crontab(hour=4, minute=15),  # 10:00 AM Nepal Time (UTC+5:45)
     },
 }

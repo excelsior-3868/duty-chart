@@ -105,6 +105,10 @@ import ChangePassword from "@/pages/ChangePassword";
 import TemplateSchedule from "@/pages/TemplateSchedule";
 import DutyCalendar from "@/pages/DutyCalendar";
 import AuditLogPage from "@/pages/AuditLogPage";
+import SMSLogsPage from "@/pages/SMSLogsPage";
+import DirectoratePage from "@/pages/DirectoratePage";
+import AccountingOfficesPage from "@/pages/AccountingOfficesPage";
+import CCOfficesPage from "@/pages/CCOfficesPage";
 
 
 export const router = createBrowserRouter([
@@ -207,10 +211,42 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: "/admin/audit-logs",
+            path: ROUTES.AUDIT_LOGS,
             element: (
               <ProtectedRoute>
                 <AuditLogPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.SMS_LOGS,
+            element: (
+              <ProtectedRoute>
+                <SMSLogsPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.DIRECTORATES,
+            element: (
+              <ProtectedRoute>
+                <DirectoratePage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.ACCOUNTING_OFFICES,
+            element: (
+              <ProtectedRoute>
+                <AccountingOfficesPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.CC_OFFICES,
+            element: (
+              <ProtectedRoute>
+                <CCOfficesPage />
               </ProtectedRoute>
             ),
           },

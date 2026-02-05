@@ -328,7 +328,7 @@ const Dashboard = () => {
           <CalendarDays className="h-5 w-5 text-primary" />
           <div className="flex flex-col items-end leading-tight">
             <span className="text-sm font-bold text-slate-900">{formattedDates.bs}</span>
-            <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{formattedDates.ad}</span>
+            <span className="text-[11px] text-muted-foreground font-medium">{formattedDates.ad}</span>
           </div>
         </div>
       </div>
@@ -342,7 +342,7 @@ const Dashboard = () => {
           return (
             <Card key={stat.title} className={`hover:border-primary/30 transition-colors shadow-sm ${stat.isDuty && myCurrentDuty ? 'bg-emerald-50/30 border-emerald-100' : ''}`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
-                <CardTitle className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{stat.title}</CardTitle>
+                <CardTitle className="text-[11px] font-semibold text-slate-500">{stat.title}</CardTitle>
                 <div className={`p-1.5 rounded-md ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100' : 'bg-slate-50'}`}>
                   <IconComponent className={`h-3.5 w-3.5 ${stat.isDuty && myCurrentDuty ? 'text-emerald-600' : 'text-primary'}`} />
                 </div>

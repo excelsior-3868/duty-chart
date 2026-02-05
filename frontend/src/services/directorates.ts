@@ -3,11 +3,22 @@ import api from "./api";
 export interface Directorate {
   id: number;
   name: string;
+  parent: number | null;
+  parent_name?: string;
+  hierarchy_level: number;
+  remarks: string | null;
+}
+
+export interface DirectorateResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Directorate[];
 }
 
 // List
-export const getDirectorates = async (): Promise<Directorate[]> => {
-  const res = await api.get<Directorate[]>("/directorates/");
+export const getDirectorates = async (params?: { page?: number; search?: string; all?: boolean }): Promise<DirectorateResponse | Directorate[]> => {
+  const res = await api.get("/directorates/", { params });
   return res.data;
 };
 

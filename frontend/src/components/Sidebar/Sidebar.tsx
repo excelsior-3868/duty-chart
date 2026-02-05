@@ -11,7 +11,10 @@ import {
   Clock,
   FileText,
   ChevronDown,
-  ShieldAlert
+  ShieldAlert,
+  Mail,
+  Building2,
+  Landmark
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ROUTES } from '@/utils/constants';
@@ -68,6 +71,24 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     permission: 'users.view_employee'
   },
   {
+    title: 'Directorates',
+    href: ROUTES.DIRECTORATES,
+    icon: 'Building2',
+    permission: 'org.view_directorate',
+  },
+  {
+    title: 'Accounting Offices',
+    href: ROUTES.ACCOUNTING_OFFICES,
+    icon: 'Landmark',
+    permission: 'org.view_accounting_office',
+  },
+  {
+    title: 'CC Offices',
+    href: ROUTES.CC_OFFICES,
+    icon: 'Landmark',
+    permission: 'org.view_cc_office',
+  },
+  {
     title: 'Reports',
     href: ROUTES.REPORTS,
     icon: 'BarChart3',
@@ -89,7 +110,9 @@ const iconMap = {
   Settings,
   ClipboardList,
   Clock,
-  FileText
+  FileText,
+  Building2,
+  Landmark
 };
 
 export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
@@ -207,25 +230,61 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
 
 
           {user?.role === 'SUPERADMIN' && (
-            <Button
-              variant="ghost"
-              asChild
-              className="w-full justify-start gap-3 text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary mt-2"
-              onClick={onClose}
-            >
-              <NavLink
-                to="/admin/audit-logs"
-                className={({ isActive }) =>
-                  cn(
-                    'flex w-full items-center gap-3 px-2 py-2 rounded-md',
-                    isActive && 'bg-primary/10 text-primary'
-                  )
-                }
-              >
-                <ShieldAlert className="h-5 w-5" />
-                Audit Logs
-              </NavLink>
-            </Button>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="logs" className="border-none">
+                <AccordionTrigger
+                  className={cn(
+                    "w-full text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary px-3 py-2 rounded-md transition-all hover:no-underline",
+                    "flex items-center"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5" />
+                    <span className="text-sm font-medium">Logs</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pb-0 pt-1 pl-6 space-y-1">
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="w-full justify-start gap-3 text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary h-9"
+                    onClick={onClose}
+                  >
+                    <NavLink
+                      to={ROUTES.AUDIT_LOGS}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex w-full items-center gap-3 px-2 py-1.5 rounded-md text-sm',
+                          isActive && 'bg-primary/10 text-primary'
+                        )
+                      }
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                      Audit Logs
+                    </NavLink>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="w-full justify-start gap-3 text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary h-9"
+                    onClick={onClose}
+                  >
+                    <NavLink
+                      to={ROUTES.SMS_LOGS}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex w-full items-center gap-3 px-2 py-1.5 rounded-md text-sm',
+                          isActive && 'bg-primary/10 text-primary'
+                        )
+                      }
+                    >
+                      <Mail className="h-4 w-4" />
+                      SMS Logs
+                    </NavLink>
+                  </Button>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           )}
 
         </nav>

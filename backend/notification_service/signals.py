@@ -14,9 +14,15 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
     Signal to notify user when a duty is assigned.
     Includes idempotency check and transactional safety.
     """
-    if created and instance.user:
+    logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
+    
+    if instance.user and instance.schedule and getattr(instance.schedule, 'shift_type', None) == 'Shift':
+        logger.info(f"Triggering assignment notification for Duty {instance.id} (Created: {created})")
         # Transactional Safety: Wait for the Duty save to be committed
         transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
+    else:
+        reason = "No user" if not instance.user else "Not a 'Shift' type"
+        logger.debug(f"Skipping notification for Duty {instance.id} ({reason})")
 
 def _handle_duty_assignment_notification(instance):
     try:
@@ -34,39 +40,47 @@ def _handle_duty_assignment_notification(instance):
             except Exception:
                 duty_date = str(instance.date)
 
-        # 1. Dashboard Notification
-        title = "New Duty Assigned"
-        message = f"You have been assigned to {duty_name} on {duty_date}."
+        # 1. Dashboard Notification (Disabled for now)
+        # title = "New Duty Assigned"
+        # message = f"You have been assigned to {duty_name} on {duty_date}."
         
         # Idempotency check with safe created_at access
-        from .models import Notification
-        created_at_date = None
-        if hasattr(instance, 'created_at') and instance.created_at:
-            try:
-                created_at_date = instance.created_at.date()
-            except Exception:
-                pass
+        # from .models import Notification
+        # created_at_date = None
+        # if hasattr(instance, 'created_at') and instance.created_at:
+        #     try:
+        #         created_at_date = instance.created_at.date()
+        #     except Exception:
+        #         pass
         
-        exists = Notification.objects.filter(
-            user=user,
-            notification_type='ASSIGNMENT',
-            created_at__date=created_at_date,
-            message__contains=f"on {duty_date}"
-        ).exists()
+        # exists = Notification.objects.filter(
+        #     user=user,
+        #     notification_type='ASSIGNMENT',
+        #     created_at__date=created_at_date,
+        #     message__contains=f"on {duty_date}"
+        # ).exists()
 
-        if not exists:
-            create_dashboard_notification(
-                user=user,
-                title=title,
-                message=message,
-                notification_type='ASSIGNMENT',
-                link='/duty-calendar'
-            )
+        # if not exists:
+        #     create_dashboard_notification(
+        #         user=user,
+        #         title=title,
+        #         message=message,
+        #         notification_type='ASSIGNMENT',
+        #         link='/duty-calendar'
+        #     )
             
             # 2. SMS Notification
             if getattr(user, 'phone_number', None):
                 full_name = getattr(user, 'full_name', user.username)
-                sms_message = f"Dear {full_name}, You have been assigned a {duty_name} ({duty_date}). For Detail Please Visit dutychart.ntc.net.np"
+                
+                chart_name = "Duty Chart"
+                if instance.duty_chart and instance.duty_chart.name:
+                    chart_name = instance.duty_chart.name
+                
+                # Custom Message: Dear {Name} You have been assigned "{Chart}" for the "{Schedule}" at "{Office}". Visit dutychart.ntc.net.np for the detail
+                office_name = instance.office.name if instance.office else "Unknown Office"
+                sms_message = f'Dear {full_name} , You have been assigned to "{chart_name}" for the "{duty_name}". Please visit dutychart.ntc.net.np for the detail.'
+                
                 try:
                     async_send_sms.delay(user.phone_number, sms_message, user_id=user.id)
                 except Exception as sms_err:

@@ -13,7 +13,7 @@ class CustomUserAdmin(UserAdmin):
     )
     search_fields = (
         'employee_id', 'full_name', 'email', 'phone_number',
-        'directorate__name', 'department__name', 'office__name', 'secondary_offices__name'
+        'directorate__directorate', 'department__name', 'office__name', 'secondary_offices__name'
     )
     ordering = ('full_name',)
 

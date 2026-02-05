@@ -120,104 +120,208 @@ export default function AuditLogPage() {
                         Failed to load system logs. Please try again.
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                        <Table>
-                            <TableHeader className="bg-primary hover:bg-primary">
-                                <TableRow className="hover:bg-transparent border-none">
-                                    <TableHead className="w-[180px] py-2 text-white font-semibold">Timestamp</TableHead>
-                                    <TableHead className="w-[220px] py-2 text-white font-semibold">Actor</TableHead>
-                                    <TableHead className="w-[100px] py-2 text-white font-semibold">Action</TableHead>
-                                    <TableHead className="py-2 text-white font-semibold">Operation Details</TableHead>
-                                    <TableHead className="w-[80px] py-2 text-white font-semibold text-right">View</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data?.results?.map((log) => (
-                                    <TableRow key={log.id} className="hover:bg-slate-50/80 transition-colors border-slate-100">
-                                        <TableCell className="whitespace-nowrap font-mono text-[11px] text-slate-500">
-                                            {format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss")}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col gap-1">
-                                                <span className="font-bold text-slate-800 text-[13px]">
-                                                    {log.actor_full_name || log.actor_userid || "System"}
-                                                </span>
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    {log.actor_employee_id && (
-                                                        <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-100">
-                                                            ID: {log.actor_employee_id}
-                                                        </span>
-                                                    )}
-                                                    <span className="text-[10px] text-slate-400 font-medium">
-                                                        @{log.actor_userid || "system"}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant={getActionColor(log.action) as any} className="text-[10px] font-bold px-2 py-0 h-5">
-                                                {log.action}
-                                            </Badge>
-                                        </TableCell>
+                    <>
+                        {/* Pagination Controls (Top) */}
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between px-2">
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Showing {((data?.results?.length || 0) > 0) ? (page - 1) * 15 + 1 : 0} to {Math.min(page * 15, data?.count || 0)} of {data?.count || 0} entries
+                                </p>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        disabled={page === 1 || isLoading}
+                                    >
+                                        &laquo; Prev
+                                    </Button>
 
-                                        <TableCell className="max-w-[400px] py-4">
-                                            <p className="text-[13px] leading-relaxed text-slate-700 font-medium">
-                                                {log.details || "-"}
-                                            </p>
-                                        </TableCell>
+                                    {/* Page Numbers */}
+                                    {(() => {
+                                        const totalPages = Math.ceil((data?.count || 0) / 15) || 1;
+                                        const pages = [];
+                                        const maxVisible = 5;
+                                        let start = Math.max(1, page - Math.floor(maxVisible / 2));
+                                        let end = Math.min(totalPages, start + maxVisible - 1);
 
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => setSelectedLog(log)}>
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {data?.results && data.results.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="text-center h-32 text-slate-400 font-medium italic">
-                                            No system activities found for the selected criteria.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                )}
+                                        if (end - start + 1 < maxVisible) {
+                                            start = Math.max(1, end - maxVisible + 1);
+                                        }
 
-                {/* Pagination */}
-                {data && data.results.length > 0 && (
-                    <div className="flex items-center justify-between px-2 pt-2">
-                        <p className="text-xs text-slate-500 font-medium">
-                            Showing system logs for page {page}
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" className="h-8 text-xs font-semibold border-slate-200" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!data.previous}>
-                                Previous
-                            </Button>
-                            <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary text-white text-xs font-extrabold shadow-sm">
-                                {page}
+                                        for (let i = start; i <= end; i++) {
+                                            pages.push(
+                                                <Button
+                                                    key={i}
+                                                    variant={page === i ? "default" : "outline"}
+                                                    size="sm"
+                                                    className={`h-8 w-8 p-0 text-xs font-medium border-slate-200 ${page === i
+                                                        ? "bg-primary text-white hover:bg-primary/90 border-primary"
+                                                        : "text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                                                        }`}
+                                                    onClick={() => setPage(i)}
+                                                    disabled={isLoading}
+                                                >
+                                                    {i}
+                                                </Button>
+                                            );
+                                        }
+                                        return pages;
+                                    })()}
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                                        onClick={() => setPage((p) => Math.min(Math.ceil((data?.count || 0) / 15) || 1, p + 1))}
+                                        disabled={page === (Math.ceil((data?.count || 0) / 15) || 1) || isLoading}
+                                    >
+                                        Next &raquo;
+                                    </Button>
+                                </div>
                             </div>
-                            <Button variant="outline" size="sm" className="h-8 text-xs font-semibold border-slate-200" onClick={() => setPage((p) => p + 1)} disabled={!data.next}>
-                                Next
-                            </Button>
+
+                            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                                <Table>
+                                    <TableHeader className="bg-primary hover:bg-primary">
+                                        <TableRow className="hover:bg-transparent border-none">
+                                            <TableHead className="w-[180px] py-3 text-white font-bold text-sm">Timestamp</TableHead>
+                                            <TableHead className="w-[220px] py-3 text-white font-bold text-sm">Actor</TableHead>
+                                            <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Action</TableHead>
+                                            <TableHead className="py-3 text-white font-bold text-sm">Operation Details</TableHead>
+                                            <TableHead className="w-[80px] py-3 text-white font-bold text-sm text-right">View</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {data?.results?.map((log) => (
+                                            <TableRow key={log.id} className="hover:bg-slate-50/80 transition-colors border-slate-100">
+                                                <TableCell className="whitespace-nowrap font-mono text-[11px] text-slate-500">
+                                                    {format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss")}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="font-bold text-slate-800 text-[13px]">
+                                                            {log.actor_full_name || log.actor_userid || "System"}
+                                                        </span>
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {log.actor_employee_id && (
+                                                                <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-100">
+                                                                    ID: {log.actor_employee_id}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-[10px] text-slate-400 font-medium">
+                                                                @{log.actor_userid || "system"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={getActionColor(log.action) as any} className="text-[10px] font-bold px-2 py-0 h-5">
+                                                        {log.action}
+                                                    </Badge>
+                                                </TableCell>
+
+                                                <TableCell className="max-w-[400px] py-4">
+                                                    <p className="text-[13px] leading-relaxed text-slate-700 font-medium">
+                                                        {log.details || "-"}
+                                                    </p>
+                                                </TableCell>
+
+                                                <TableCell className="text-right">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => setSelectedLog(log)}>
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {data?.results && data.results.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="text-center h-32 text-slate-400 font-medium italic">
+                                                    No system activities found for the selected criteria.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            {/* Pagination Controls (Bottom) */}
+                            <div className="flex items-center justify-between px-2">
+                                <p className="text-xs text-slate-500 font-medium">
+                                    Showing {((data?.results?.length || 0) > 0) ? (page - 1) * 15 + 1 : 0} to {Math.min(page * 15, data?.count || 0)} of {data?.count || 0} entries
+                                </p>
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        disabled={page === 1 || isLoading}
+                                    >
+                                        &laquo; Prev
+                                    </Button>
+
+                                    {/* Page Numbers */}
+                                    {(() => {
+                                        const totalPages = Math.ceil((data?.count || 0) / 15) || 1;
+                                        const pages = [];
+                                        const maxVisible = 5;
+                                        let start = Math.max(1, page - Math.floor(maxVisible / 2));
+                                        let end = Math.min(totalPages, start + maxVisible - 1);
+
+                                        if (end - start + 1 < maxVisible) {
+                                            start = Math.max(1, end - maxVisible + 1);
+                                        }
+
+                                        for (let i = start; i <= end; i++) {
+                                            pages.push(
+                                                <Button
+                                                    key={i}
+                                                    variant={page === i ? "default" : "outline"}
+                                                    size="sm"
+                                                    className={`h-8 w-8 p-0 text-xs font-medium border-slate-200 ${page === i
+                                                        ? "bg-primary text-white hover:bg-primary/90 border-primary"
+                                                        : "text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                                                        }`}
+                                                    onClick={() => setPage(i)}
+                                                    disabled={isLoading}
+                                                >
+                                                    {i}
+                                                </Button>
+                                            );
+                                        }
+                                        return pages;
+                                    })()}
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-600 hover:text-primary hover:border-primary/50 hover:bg-primary/5"
+                                        onClick={() => setPage((p) => Math.min(Math.ceil((data?.count || 0) / 15) || 1, p + 1))}
+                                        disabled={page === (Math.ceil((data?.count || 0) / 15) || 1) || isLoading}
+                                    >
+                                        Next &raquo;
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
 
             {/* Details Modal */}
             <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
                 <DialogContent className="max-w-md border-none rounded-xl overflow-hidden shadow-2xl p-0">
-                    <div className="bg-primary p-6 text-white">
-                        <DialogTitle className="text-lg font-bold">Activity Log Details</DialogTitle>
-                        <p className="text-primary-foreground/80 text-xs mt-1">Full record of the selected system operation</p>
+                    <div className="p-6 border-b border-slate-100">
+                        <DialogTitle className="text-lg font-bold text-slate-900">Activity Log Details</DialogTitle>
+                        <p className="text-slate-500 text-xs mt-1">Full record of the selected system operation</p>
                     </div>
                     {selectedLog && (
                         <div className="p-6 space-y-6 bg-white">
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-1">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Performed By</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">Performed By</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-sm font-bold text-slate-900">{selectedLog.actor_full_name || "System"}</p>
                                     </div>
@@ -229,7 +333,7 @@ export default function AuditLogPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Action Type</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">Action Type</p>
                                     <div>
                                         <Badge variant={getActionColor(selectedLog.action) as any} className="font-bold border-none shadow-sm capitalize">
                                             {selectedLog.action.toLowerCase()}
@@ -237,18 +341,18 @@ export default function AuditLogPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Date & Time</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">Date & Time</p>
                                     <p className="text-xs font-semibold text-slate-700 uppercase">{format(new Date(selectedLog.timestamp), "MMM dd, yyyy")}</p>
                                     <p className="text-[10px] font-mono text-slate-500">{format(new Date(selectedLog.timestamp), "HH:mm:ss")}</p>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Source IP</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">Source IP</p>
                                     <p className="text-xs font-mono text-slate-700 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 w-fit">{selectedLog.ip_address || "None"}</p>
                                 </div>
                             </div>
 
                             <div className="space-y-2 pt-2 border-t border-slate-100">
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Operation Summary</p>
+                                <p className="text-[10px] text-slate-400 font-bold">Operation Summary</p>
                                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-800 leading-relaxed font-semibold italic shadow-inner">
                                     "{selectedLog.details || "No descriptive details available."}"
                                 </div>
@@ -262,7 +366,7 @@ export default function AuditLogPage() {
                         </div>
                     )}
                 </DialogContent>
-            </Dialog>
-        </div>
+            </Dialog >
+        </div >
     );
 }
