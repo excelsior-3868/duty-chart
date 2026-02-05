@@ -52,7 +52,7 @@ class Document(models.Model):
             self.checksum = file_checksum(self.file)
 
 class DutyChart(AuditableMixin, models.Model):
-    office = models.ForeignKey('org.Office', on_delete=models.CASCADE, related_name='duty_charts')
+    office = models.ForeignKey('org.WorkingOffice', on_delete=models.CASCADE, related_name='duty_charts')
     effective_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -87,7 +87,7 @@ class Schedule(AuditableMixin, models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     name = models.CharField(max_length=100, help_text="Schedule name (e.g., 'Morning Shift', 'Night Duty')")
-    office = models.ForeignKey('org.Office', on_delete=models.CASCADE, related_name='schedules', blank=True, null=True)
+    office = models.ForeignKey('org.WorkingOffice', on_delete=models.CASCADE, related_name='schedules', blank=True, null=True)
     shift_type = models.CharField(max_length=50, blank=True, null=True, help_text="Type of shift (e.g. Regular, On-Call)")
     alias = models.CharField(max_length=20, blank=True, null=True, help_text="Short code or alias for the shift")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -172,7 +172,7 @@ class RosterAssignment(AuditableMixin, models.Model):
 
 class Duty(AuditableMixin, models.Model):
     user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='duties', null=True, blank=True)
-    office = models.ForeignKey('org.Office', on_delete=models.CASCADE, related_name='duties', null=True, blank=True)
+    office = models.ForeignKey('org.WorkingOffice', on_delete=models.CASCADE, related_name='duties', null=True, blank=True)
     schedule = models.ForeignKey(Schedule, on_delete=models.CASCADE, related_name='duties', null=True, blank=True)
     date = models.DateField()
     is_completed = models.BooleanField(default=False)

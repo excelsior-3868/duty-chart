@@ -25,11 +25,11 @@
     --primary-hover: 209 100% 28%;
     /* Darker variant */
 
-    /* Nepal Red Accent */
-    --accent: 0 84% 55%;
-    /* Nepal Red */
+    /* Accent color matching primary theme */
+    --accent: 209 100% 32%;
+    /* Same as primary - Nepal Telecom Blue */
     --accent-foreground: 0 0% 98%;
-    --accent-hover: 0 84% 50%;
+    --accent-hover: 209 100% 28%;
 
     /* Secondary colors */
     --secondary: 210 40% 96.1%;

@@ -3,12 +3,12 @@ from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError
 
 from duties.models import DutyChart, Duty, Document, RosterAssignment, Schedule
-from org.models import Office
+from org.models import WorkingOffice
 from .models import User, Position, Role, Permission, UserDashboardOffice
 class UserSerializer(serializers.ModelSerializer):
     # Explicitly expose secondary_offices for read/write via IDs
     secondary_offices = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=Office.objects.all(), required=False
+        many=True, queryset=WorkingOffice.objects.all(), required=False
     )
     class Meta:
         model = User
@@ -24,15 +24,21 @@ class UserSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         # Add readable position name if available
         try:
-            data['position_name'] = instance.position.name if instance.position else None
+            # Add working office name
             data['office_name'] = instance.office.name if instance.office else None
+            data['position_name'] = instance.position.name if instance.position else None
             data['department_name'] = instance.department.name if instance.department else None
-            data['directorate_name'] = instance.directorate.directorate if instance.directorate else None
+
+            # IDs for internal use if needed
+            data['directorate_id'] = instance.directorate_id
+            data['department_id'] = instance.department_id
         except Exception:
             data['position_name'] = None
             data['office_name'] = None
             data['department_name'] = None
             data['directorate_name'] = None
+            data['directorate_id'] = None
+            data['department_id'] = None
         return data
     
     def validate(self, attrs):
@@ -120,10 +126,12 @@ class DutyChartSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['office_name'] = instance.office.name
-        data['department_name'] = instance.office.department.name
-        data['directorate_name'] = instance.office.department.directorate.directorate
-        data['position_name'] = instance.position.name
+        # Office is now a WorkingOffice
+        if instance.office:
+            data['office_name'] = instance.office.name
+            data['directorate_name'] = instance.office.directorate.directorate if instance.office.directorate else None
+            data['ac_office_name'] = instance.office.ac_office.name if instance.office.ac_office else None
+            data['cc_office_name'] = instance.office.cc_office.name if instance.office.cc_office else None
         return data
 
 

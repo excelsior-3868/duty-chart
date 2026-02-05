@@ -10,6 +10,19 @@ import {
     AlertCircle, Lock, Fingerprint, Globe, MapPin,
     Network, LayoutGrid, Layers, Key, Eye, EyeOff, Loader2
 } from "lucide-react";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -44,6 +57,9 @@ const Profile = () => {
     const [showConfirm, setShowConfirm] = useState(false);
     const [pwUpdating, setPwUpdating] = useState(false);
     const [imgUploading, setImgUploading] = useState(false);
+    const [workingOffices, setWorkingOffices] = useState<any[]>([]);
+    const [officeSearch, setOfficeSearch] = useState("");
+    const [officePopoverOpen, setOfficePopoverOpen] = useState(false);
 
     const BACKEND = import.meta.env.VITE_BACKEND_HOST || "";
 
@@ -80,6 +96,26 @@ const Profile = () => {
 
     useEffect(() => { fetchProfileData(); }, []);
 
+    useEffect(() => {
+        if (isEditing) {
+            fetchWorkingOffices();
+        }
+    }, [isEditing]);
+
+    const fetchWorkingOffices = async () => {
+        try {
+            const { data } = await api.get("/otp/signup/offices/");
+            setWorkingOffices(data);
+        } catch (err) {
+            console.error("Failed to fetch working offices", err);
+            toast.error("Failed to load offices.");
+        }
+    };
+
+    const filteredOffices = workingOffices.filter((office) =>
+        office.name.toLowerCase().includes(officeSearch.toLowerCase())
+    );
+
     const handleImageUpload = async (file: File) => {
         if (!user?.id) return;
 
@@ -112,6 +148,9 @@ const Profile = () => {
             const formData = new FormData();
             formData.append("full_name", editData.full_name);
             formData.append("phone_number", editData.phone_number);
+            if (editData.office) {
+                formData.append("office", editData.office);
+            }
 
             await api.patch(`/users/${user.id}/`, formData);
 
@@ -249,7 +288,7 @@ const Profile = () => {
                             <div className="bg-white border p-3 rounded-xl shadow-sm">
                                 <p className="text-xs font-medium text-primary mb-1.5">Employee Id</p>
                                 <div className="flex items-center gap-2">
-                                    <Fingerprint size={16} className="text-orange-600" />
+                                    <User size={16} className="text-primary" />
                                     <span className="text-xs font-medium text-slate-900">{user.employee_id}</span>
                                 </div>
                             </div>
@@ -287,8 +326,11 @@ const Profile = () => {
                                             <div className="grid md:grid-cols-2 gap-x-6 gap-y-3">
                                                 <div className="space-y-0.5">
                                                     <Label className="text-primary text-xs font-medium ml-1">Username (Employee ID)</Label>
-                                                    <div className="px-2 py-1 bg-slate-50 border rounded-lg h-9 flex items-center">
-                                                        <p className="text-blue-700 font-medium text-sm">{user.employee_id}</p>
+                                                    <div className="relative">
+                                                        <User size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                                                        <div className="px-2 py-1 pl-9 bg-slate-50 border rounded-lg h-9 flex items-center">
+                                                            <p className="text-blue-700 font-medium text-sm">{user.employee_id}</p>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -324,11 +366,6 @@ const Profile = () => {
                                                         />
                                                     </div>
                                                 </div>
-
-                                                <div className="space-y-0.5">
-                                                    <Label className="text-primary text-xs font-medium ml-1">Employee Id</Label>
-                                                    <Input className="h-9 rounded-lg text-sm font-medium border-slate-300 bg-slate-50 text-slate-900" value={user.employee_id} disabled />
-                                                </div>
                                             </div>
                                         </section>
 
@@ -337,13 +374,79 @@ const Profile = () => {
                                         <section className="space-y-3">
                                             <div className="flex items-center gap-2 text-primary font-medium text-sm">
                                                 <Building2 size={16} className="text-primary" />
-                                                Organizational Context
+                                                Working Office
                                             </div>
 
-                                            <div className="grid md:grid-cols-3 gap-x-4 gap-y-3">
-                                                <OrgField label="Directorate" value={user.directorate_name} icon={<Globe size={12} />} />
-                                                <OrgField label="Department" value={user.department_name} icon={<Layers size={12} />} />
-                                                <OrgField label="Office" value={user.office_name} icon={<Building2 size={12} />} />
+                                            <div className="space-y-0.5">
+                                                <Label className="text-primary text-xs font-medium ml-1">Working Office</Label>
+                                                {isEditing ? (
+                                                    <Popover open={officePopoverOpen} onOpenChange={setOfficePopoverOpen}>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                role="combobox"
+                                                                aria-expanded={officePopoverOpen}
+                                                                className="h-9 w-full justify-between font-normal text-sm border-slate-300"
+                                                            >
+                                                                {editData?.office
+                                                                    ? workingOffices.find((office) => String(office.id) === String(editData.office))?.name || user.office_name
+                                                                    : user.office_name || "Select Working Office"}
+                                                                <svg
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                    width="16"
+                                                                    height="16"
+                                                                    viewBox="0 0 24 24"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    strokeWidth="2"
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    className="ml-2 h-4 w-4 shrink-0 opacity-50"
+                                                                >
+                                                                    <path d="m6 9 6 6 6-6" />
+                                                                </svg>
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-full p-0" align="start">
+                                                            <Command shouldFilter={false}>
+                                                                <CommandInput
+                                                                    placeholder="Search office..."
+                                                                    value={officeSearch}
+                                                                    onValueChange={setOfficeSearch}
+                                                                />
+                                                                <CommandList>
+                                                                    <CommandEmpty>No office found.</CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        {filteredOffices.map((office) => (
+                                                                            <CommandItem
+                                                                                key={office.id}
+                                                                                value={office.name}
+                                                                                onSelect={() => {
+                                                                                    setEditData({ ...editData, office: String(office.id) });
+                                                                                    setOfficePopoverOpen(false);
+                                                                                    setOfficeSearch("");
+                                                                                }}
+                                                                            >
+                                                                                {office.name}
+                                                                            </CommandItem>
+                                                                        ))}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                ) : (
+                                                    <div className="relative group">
+                                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-700">
+                                                            <Building2 size={12} />
+                                                        </div>
+                                                        <div className="bg-slate-50 border border-slate-300 h-9 rounded-lg pl-9 flex items-center">
+                                                            <span className="font-medium text-slate-900 text-sm truncate pr-2">
+                                                                {user.office_name || "-"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </section>
 

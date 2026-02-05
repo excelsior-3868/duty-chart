@@ -8,12 +8,16 @@ import { toast } from 'sonner';
 
 export interface AuthUser {
   id: number;
+  username: string;
   full_name: string;
   email: string;
   employee_id: string;
   role: string; // "SUPERADMIN", "OFFICE_ADMIN", "USER"
+  position_name?: string;
+  department_name?: string;
   image: string | null;
   office_id: number | null;
+  office_name?: string;
   secondary_offices: number[];
   permissions: string[];
 }

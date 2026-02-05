@@ -58,10 +58,14 @@ class MeView(APIView):
 
         return Response({
             "id": user.id,
+            "username": user.username,
             "full_name": full_name,
             "email": user.email,
             "employee_id": getattr(user, "employee_id", None),
             "role": role,
+            "position_name": user.position.name if user.position else None,
+            "department_name": user.department.name if user.department else None,
+            "office_name": user.office.name if user.office else None,
             "image": image_url,
             "office_id": getattr(user, "office_id", None),
             "secondary_offices": list(user.secondary_offices.values_list('id', flat=True)) if hasattr(user, 'secondary_offices') else [],

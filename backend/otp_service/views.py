@@ -4,6 +4,8 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .models import OTPRequest
+from org.models import Office, WorkingOffice
+from org.serializers import OfficeSerializer, WorkingOfficeSerializer
 from .serializers import (
     RequestOTPSerializer, ValidateOTPSerializer, ResetPasswordSerializer, 
     UserLookupSerializer, SignupCompleteSerializer
@@ -405,6 +407,21 @@ class SignupLookupView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+
+class SignupOfficeListView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        search = request.query_params.get('search', '').strip()
+        offices = WorkingOffice.objects.all().order_by('name')
+        
+        if search:
+            offices = offices.filter(name__icontains=search)
+            
+        serializer = WorkingOfficeSerializer(offices, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class SignupCompleteView(APIView):
     permission_classes = []
 
@@ -415,6 +432,12 @@ class SignupCompleteView(APIView):
         
         request_id = serializer.validated_data['request_id']
         password = serializer.validated_data['password']
+        office_id = serializer.validated_data['office_id']
+        
+        try:
+            office = WorkingOffice.objects.get(id=office_id)
+        except WorkingOffice.DoesNotExist:
+            return Response({"message": "Invalid Working Office ID selected."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # We want an OTP Request that was validated and for signup purpose
@@ -433,6 +456,10 @@ class SignupCompleteView(APIView):
         user.set_password(password)
         user.is_active = True
         user.is_activated = True
+        user.office = office
+        # WorkingOffice does not have department/directorate relations necessarily?
+        # If user model expects direct assignment, we just did user.office = office (which is now WorkingOffice instance)
+        # We removed the department/directorate sync logic as WorkingOffice is flat list?
         user.save()
         
         # Mark request as completed

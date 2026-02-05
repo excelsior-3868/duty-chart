@@ -126,7 +126,7 @@ const Schedule = () => {
   }, [selectedOffice]);
 
   useEffect(() => {
-    document.title = "Duty Schedule | INOC Duty Roster";
+    document.title = "Duty Schedule - NT Duty Chart Management System";
     const meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       const m = document.createElement("meta");

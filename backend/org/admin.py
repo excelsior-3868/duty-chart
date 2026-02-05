@@ -26,3 +26,10 @@ class OfficeAdmin(admin.ModelAdmin):
         return obj.department.directorate.directorate if obj.department and obj.department.directorate else "-"
     get_directorate.short_description = "Directorate"
     get_directorate.admin_order_field = "department__directorate__directorate"
+
+from .models import WorkingOffice
+
+@admin.register(WorkingOffice)
+class WorkingOfficeAdmin(admin.ModelAdmin):
+    list_display = ("id", "name")
+    search_fields = ("name",)

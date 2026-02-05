@@ -58,3 +58,16 @@ class SystemSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemSetting
         fields = '__all__'
+
+class WorkingOfficeSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import WorkingOffice
+        model = WorkingOffice
+        fields = ['id', 'name', 'directorate', 'ac_office', 'cc_office']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['directorate_name'] = instance.directorate.directorate if instance.directorate else None
+        data['ac_office_name'] = instance.ac_office.name if instance.ac_office else None
+        data['cc_office_name'] = instance.cc_office.name if instance.cc_office else None
+        return data

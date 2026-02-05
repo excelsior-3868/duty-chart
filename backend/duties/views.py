@@ -44,7 +44,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 
-from org.models import Office
+from org.models import WorkingOffice as Office
 from users.permissions import (
     AdminOrReadOnly,
     SuperAdminOrReadOnly,
@@ -252,8 +252,12 @@ class ScheduleView(viewsets.ModelViewSet):
             office_obj = None
             if isinstance(ra.office, str) and ra.office:
                 office_obj = Office.objects.filter(name__iexact=ra.office.strip()).first()
-            elif hasattr(ra, "office") and ra.office and hasattr(ra.office, "pk"):
-                office_obj = ra.office
+            elif hasattr(ra, "office") and ra.office and (hasattr(ra.office, "pk") or isinstance(ra.office, int)):
+                # If it's a model instance or ID
+                if isinstance(ra.office, int):
+                    office_obj = Office.objects.filter(id=ra.office).first()
+                else:
+                    office_obj = ra.office
 
             if not office_obj:
                 # Skip if office cannot be resolved
@@ -723,10 +727,10 @@ class RosterBulkUploadView(APIView):
 
                 # Resolve office FK if needed
                 if isinstance(row_dict.get("office"), str):
-                    office_obj = Office.objects.filter(name__iexact=row_dict["office"]).first()
+                    office_obj = Office.objects.filter(name__iexact=row_dict["office"].strip()).first()
                     if not office_obj:
                         failed_count += 1
-                        errors.append(f"Row {idx+2}: Office '{row_dict['office']}' not found")
+                        errors.append(f"Row {idx+2}: Working Office '{row_dict['office']}' not found")
                         continue
                     row_dict["office"] = office_obj
 

@@ -2,7 +2,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
-from org.models import Directorate, Department, Office
+from org.models import Directorate, Department, Office, WorkingOffice
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
@@ -26,14 +26,14 @@ class User(AuditableMixin, AbstractUser):
     is_activated = models.BooleanField(default=False)
 
     office = models.ForeignKey(
-        Office,
+        WorkingOffice,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='users'
     )
     secondary_offices = models.ManyToManyField(
-        Office,
+        WorkingOffice,
         related_name='secondary_members',
         blank=True,
         help_text='Other offices this user belongs to (secondary memberships).'
@@ -79,8 +79,9 @@ class User(AuditableMixin, AbstractUser):
             if self.department.directorate != self.directorate:
                 raise ValidationError({"department": "Selected department does not belong to the chosen directorate."})
         if self.office and self.department:
-            if self.office.department != self.department:
-                raise ValidationError({"office": "Selected office does not belong to the chosen department."})
+            pass # Working Office is now independent of Department
+            # if self.office.department != self.department:
+            #     raise ValidationError({"office": "Selected office does not belong to the chosen department."})
 
     def __str__(self):
         return self.full_name
@@ -173,7 +174,7 @@ class UserPermission(AuditableMixin, models.Model):
 
 class UserDashboardOffice(AuditableMixin, models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dashboard_offices')
-    office = models.ForeignKey(Office, on_delete=models.CASCADE, related_name='dashboard_users')
+    office = models.ForeignKey(WorkingOffice, on_delete=models.CASCADE, related_name='dashboard_users')
 
     class Meta:
         unique_together = ('user', 'office')

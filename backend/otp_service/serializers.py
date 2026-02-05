@@ -35,6 +35,7 @@ class SignupCompleteSerializer(serializers.Serializer):
     request_id = serializers.UUIDField(required=True)
     password = serializers.CharField(required=True, min_length=8)
     confirm_password = serializers.CharField(required=True, min_length=8)
+    office_id = serializers.IntegerField(required=True)
 
     def validate(self, data):
         if data['password'] != data['confirm_password']:

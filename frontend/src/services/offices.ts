@@ -8,6 +8,8 @@ export interface Office {
   department?: number;
   department_name?: string;
   directorate_name?: string;
+  ac_office_name?: string;
+  cc_office_name?: string;
 }
 
 // GET all offices

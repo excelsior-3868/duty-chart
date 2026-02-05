@@ -5,6 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Loader2, KeyRound, UserCheck, ShieldCheck, Clock } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import publicApi from "@/services/publicApi";
 import { toast } from "sonner";
 import { ROUTES, APP_NAME, COMPANY_NAME } from "@/utils/constants";
@@ -24,6 +44,10 @@ const Register = () => {
   const [requestId, setRequestId] = useState("");
   const [passwordData, setPasswordData] = useState({ password: "", confirmPassword: "" });
   const [showPasswords, setShowPasswords] = useState({ p1: false, p2: false });
+  const [offices, setOffices] = useState<any[]>([]);
+  const [selectedOffice, setSelectedOffice] = useState<string>("");
+  const [officeSearch, setOfficeSearch] = useState("");
+  const [officePopoverOpen, setOfficePopoverOpen] = useState(false);
   const [timer, setTimer] = useState(300); // 5 minutes
   const [canResend, setCanResend] = useState(false);
 
@@ -46,9 +70,26 @@ const Register = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+
   useEffect(() => {
-    document.title = "Signup - Duty Chart";
-  }, []);
+    if (step === "PASSWORD") {
+      fetchOffices();
+    }
+  }, [step]);
+
+  const fetchOffices = async () => {
+    try {
+      const { data } = await publicApi.get("/v1/otp/signup/offices/");
+      setOffices(data);
+    } catch (err) {
+      console.error("Failed to fetch offices", err);
+      toast.error("Failed to load offices.");
+    }
+  };
+
+  const filteredOffices = offices.filter((office) =>
+    office.name.toLowerCase().includes(officeSearch.toLowerCase())
+  );
 
   // Step 1: Lookup Employee
   const handleLookup = async (e: React.FormEvent) => {
@@ -112,12 +153,17 @@ const Register = () => {
       toast.error("Passwords do not match.");
       return;
     }
+    if (!selectedOffice) {
+      toast.error("Please select a working office.");
+      return;
+    }
     setIsLoading(true);
     try {
       await publicApi.post("/v1/otp/signup/complete/", {
         request_id: requestId,
         password: passwordData.password,
-        confirm_password: passwordData.confirmPassword
+        confirm_password: passwordData.confirmPassword,
+        office_id: selectedOffice
       });
       toast.success("Account activated successfully!");
       navigate(ROUTES.LOGIN);
@@ -263,6 +309,66 @@ const Register = () => {
                     {showPasswords.p2 ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-gray-700">Working Office</Label>
+                  <Popover open={officePopoverOpen} onOpenChange={setOfficePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={officePopoverOpen}
+                        className="h-11 w-full justify-between font-normal"
+                      >
+                        {selectedOffice
+                          ? offices.find((office) => String(office.id) === selectedOffice)?.name
+                          : "Select Working Office"}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="ml-2 h-4 w-4 shrink-0 opacity-50"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search office..."
+                          value={officeSearch}
+                          onValueChange={setOfficeSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No office found.</CommandEmpty>
+                          <CommandGroup>
+                            {filteredOffices.map((office) => (
+                              <CommandItem
+                                key={office.id}
+                                value={office.name}
+                                onSelect={() => {
+                                  setSelectedOffice(String(office.id));
+                                  setOfficePopoverOpen(false);
+                                  setOfficeSearch("");
+                                }}
+                              >
+                                {office.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
                 <div className="text-[10px] text-gray-500 bg-slate-50 p-2 rounded">
                   * Password must be at least 8 characters long and include numbers and special characters.
                 </div>

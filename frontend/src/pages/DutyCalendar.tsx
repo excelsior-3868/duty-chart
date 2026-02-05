@@ -145,7 +145,7 @@ const DutyCalendar = () => {
 
     // --- 1. Load Offices ---
     useEffect(() => {
-        document.title = "Duty Calendar - INOC Duty Roster";
+        document.title = "Duty Calendar - NT Duty Chart Management System";
         const load = async () => {
             try {
                 const res = await getOffices();

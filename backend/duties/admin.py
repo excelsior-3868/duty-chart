@@ -17,22 +17,17 @@ from .serializers import (
 
 @admin.register(DutyChart)
 class DutyChartAdmin(admin.ModelAdmin):
-    list_display = ('office', 'get_department', 'get_directorate', 'effective_date', 'end_date')
-    list_filter = ('office__department__directorate', 'office__department', 'office')
-    search_fields = ('office__name', 'office__department__name', 'office__department__directorate__directorate')
+    list_display = ('office', 'get_directorate', 'effective_date', 'end_date')
+    list_filter = ('office__directorate', 'office')
+    search_fields = ('office__name', 'office__directorate__directorate')
     autocomplete_fields = ['office']
     date_hierarchy = 'effective_date'
     filter_horizontal = ('schedules',)
 
-    def get_department(self, obj):
-        return obj.office.department.name
-    get_department.short_description = 'Department'
-    get_department.admin_order_field = 'office__department__name'
-
     def get_directorate(self, obj):
-        return obj.office.department.directorate.directorate
+        return obj.office.directorate.directorate if obj.office.directorate else "-"
     get_directorate.short_description = 'Directorate'
-    get_directorate.admin_order_field = 'office__department__directorate__directorate'
+    get_directorate.admin_order_field = 'office__directorate__directorate'
 
 
 @admin.register(Duty)
@@ -40,13 +35,11 @@ class DutyAdmin(admin.ModelAdmin):
     list_display = ('user', 'office', 'schedule', 'date', 'get_schedule_name', 'get_start_time', 'get_end_time',
                    'is_completed', 'currently_available')
     list_filter = ('is_completed', 'currently_available',
-                  'office__department__directorate',
-                  'office__department',
+                  'office__directorate',
                   'office')
     search_fields = ('user__full_name', 'user__employee_id',
                     'office__name',
-                    'office__department__name',
-                    'office__department__directorate__directorate',
+                    'office__directorate__directorate',
                     'schedule__name')
     autocomplete_fields = ['user', 'office']
     date_hierarchy = 'date'

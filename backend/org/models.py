@@ -115,3 +115,36 @@ class CCOffice(AuditableMixin, models.Model):
         elif action == 'DELETE':
             return f"CONFIGURATION: Deleted CC Office '{self.name}'."
         return ""
+
+class WorkingOffice(AuditableMixin, models.Model):
+    name = models.CharField(max_length=255, db_column='name_of_office')
+    directorate = models.ForeignKey(
+        Directorate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='directorate_id'
+    )
+    ac_office = models.ForeignKey(
+        'AccountingOffice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='ac_office_id'
+    )
+    cc_office = models.ForeignKey(
+        'CCOffice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='cc_office_id'
+    )
+    
+    class Meta:
+        db_table = 'working_office'
+        
+    def __str__(self):
+        return self.name
+        
+    def get_audit_details(self, action, changes):
+        return f"CONFIGURATION: {action.title()}d Working Office '{self.name}'."

@@ -1,10 +1,10 @@
 from rest_framework import serializers
 from .models import DutyChart, Duty, Document, RosterAssignment, Schedule
-from org.models import Office
+from org.models import WorkingOffice
 from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError
 
-from org.models import Office
+from org.models import WorkingOffice as Office
  # adjust import if needed
 
 
@@ -52,9 +52,11 @@ class DutyChartSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['office_name'] = instance.office.name
-        data['department_name'] = instance.office.department.name
-        data['directorate_name'] = instance.office.department.directorate.directorate
+        data['office_name'] = instance.office.name if instance.office else "-"
+        # New structure
+        data['directorate_name'] = instance.office.directorate.directorate if instance.office and instance.office.directorate else "-"
+        data['ac_office_name'] = instance.office.ac_office.name if instance.office and instance.office.ac_office else "-"
+        data['cc_office_name'] = instance.office.cc_office.name if instance.office and instance.office.cc_office else "-"
         data['schedule_names'] = [s.name for s in instance.schedules.all()]
         return data
 
@@ -108,9 +110,19 @@ class DutySerializer(serializers.ModelSerializer):
         data['end_time'] = instance.schedule.end_time if instance.schedule else None
         data['duty_chart_name'] = getattr(instance.duty_chart, 'name', None)
         data['phone_number'] = user.phone_number if user else None
-        data['user_office_name'] = user.office.name if user and user.office else None
-        data['user_department_name'] = user.department.name if user and user.department else None
-        data['user_directorate_name'] = user.directorate.directorate if user and user.directorate else None
+        
+        # Working Office structure
+        if user and user.office:
+            data['user_office_name'] = user.office.name
+            data['user_office_directorate_name'] = user.office.directorate.directorate if user.office.directorate else None
+            data['user_office_ac_office_name'] = user.office.ac_office.name if user.office.ac_office else None
+            data['user_office_cc_office_name'] = user.office.cc_office.name if user.office.cc_office else None
+        else:
+            data['user_office_name'] = None
+            data['user_office_directorate_name'] = None
+            data['user_office_ac_office_name'] = None
+            data['user_office_cc_office_name'] = None
+
         data['position_name'] = user.position.name if user and user.position else None
         data['email'] = user.email if user else None
         return data
@@ -244,10 +256,10 @@ class RosterAssignmentSerializer(serializers.ModelSerializer):
         Allow office to be provided as either an ID or a case-insensitive name.
         """
         if isinstance(value, str):
-            office_obj = Office.objects.filter(name__iexact=value).first()
+            office_obj = WorkingOffice.objects.filter(name__iexact=value).first()
             if not office_obj:
                 raise serializers.ValidationError(
-                    f"Office '{value}' not found."
+                    f"Working Office '{value}' not found."
                 )
             return office_obj
         return value

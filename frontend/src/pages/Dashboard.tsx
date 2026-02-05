@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2, Search } from 'lucide-react';
+import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2, Search, Shield, Briefcase, Building2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from "react";
 import { getDutiesFiltered, Duty } from "@/services/dutiesService";
 import { getUsers, User as AppUser } from "@/services/users";
@@ -66,7 +66,7 @@ const Dashboard = () => {
   const selectedOfficeIds = useMemo(() => selectedOffices.map(so => so.office), [selectedOffices]);
 
   useEffect(() => {
-    document.title = "Dashboard - Duty Roster";
+    document.title = "Dashboard - NT Duty Chart Managment System";
     let mounted = true;
     setLoading(true);
     setError(null);
@@ -266,14 +266,6 @@ const Dashboard = () => {
       description: "Total staff across offices",
       icon: Calendar,
     },
-    {
-      title: "Expiring Charts",
-      value: expiringChartsCount.toString(),
-      description: "Charts ending within 7 days",
-      icon: Clock,
-      trend: expiringChartsCount > 0 ? `${expiringChartsCount} ending soon` : "All charts healthy",
-      variant: expiringChartsCount > 0 ? "destructive" : "secondary"
-    }
   ];
 
   const handleAddOffice = async (id: number) => {
@@ -335,12 +327,70 @@ const Dashboard = () => {
 
 
 
-      {/* Stats Grid - 5 cards in a row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {/* Hero Section: Single Row with 6 Columns */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        {/* Profile/Welcome Card - Takes 2 columns for better readability */}
+        <div className="xl:col-span-2">
+          <Card className="h-full bg-white border border-slate-200 shadow-sm group">
+            <CardContent className="p-4 h-full flex flex-col justify-center">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-slate-900 truncate">
+                    Welcome, <span className="text-primary">{user?.full_name || user?.username}!</span>
+                  </h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                <div className="flex flex-col items-center text-center px-1">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
+                    <Users className="h-5 w-5 text-indigo-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">ID</span>
+                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.employee_id}>
+                    {user?.employee_id || "N/A"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center text-center px-1">
+                  <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
+                    <Shield className="h-5 w-5 text-red-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Role</span>
+                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.role}>
+                    {user?.role === 'SUPERADMIN' ? 'Super Admin' : user?.role === 'OFFICE_ADMIN' ? 'Office Admin' : 'Staff'}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center text-center px-1">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
+                    <Building2 className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Office</span>
+                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.office_name || "Headquarters"}>
+                    {user?.office_name || "HQ"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center text-center px-1">
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
+                    <Briefcase className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Position</span>
+                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.position_name || "Staff"}>
+                    {user?.position_name || "Staff"}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Stats Grid - Mapping stats to individual columns */}
         {stats.map((stat) => {
           const IconComponent = stat.icon;
           return (
-            <Card key={stat.title} className={`hover:border-primary/30 transition-colors shadow-sm ${stat.isDuty && myCurrentDuty ? 'bg-emerald-50/30 border-emerald-100' : ''}`}>
+            <Card key={stat.title} className={`hover:border-primary/30 transition-colors border border-slate-200 shadow-sm ${stat.isDuty && myCurrentDuty ? 'bg-emerald-50/30 border-emerald-100' : ''}`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
                 <CardTitle className="text-[11px] font-semibold text-slate-500">{stat.title}</CardTitle>
                 <div className={`p-1.5 rounded-md ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100' : 'bg-slate-50'}`}>
@@ -406,7 +456,7 @@ const Dashboard = () => {
                     .filter(o => !selectedOfficeIds.includes(o.id))
                     .filter(o =>
                       o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (o.department_name && o.department_name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      (o.directorate_name && o.directorate_name.toLowerCase().includes(searchTerm.toLowerCase()))
                     )
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(office => (
@@ -437,7 +487,7 @@ const Dashboard = () => {
                           </div>
                           <div>
                             <p className="font-medium text-sm text-slate-900">{office.name}</p>
-                            <p className="text-[10px] text-slate-500">{office.department_name}</p>
+                            <p className="text-[10px] text-slate-500">{office.directorate_name}</p>
                           </div>
                         </div>
                       </div>

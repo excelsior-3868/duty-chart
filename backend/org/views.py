@@ -2,11 +2,11 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from users.permissions import SuperAdminOrReadOnly
-from .models import Directorate, Department, Office, SystemSetting, AccountingOffice, CCOffice
+from .models import Directorate, Department, Office, SystemSetting, AccountingOffice, CCOffice, WorkingOffice
 from .serializers import (
     DirectorateSerializer, DepartmentSerializer, 
     OfficeSerializer, SystemSettingSerializer,
-    AccountingOfficeSerializer, CCOfficeSerializer
+    AccountingOfficeSerializer, CCOfficeSerializer, WorkingOfficeSerializer
 )
 
 # Create your views here.
@@ -49,15 +49,14 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return queryset
 
 class OfficeViewSet(viewsets.ModelViewSet):
-    queryset = Office.objects.all()
-    serializer_class = OfficeSerializer
+    queryset = WorkingOffice.objects.all()
+    serializer_class = WorkingOfficeSerializer
     permission_classes = [SuperAdminOrReadOnly]
 
     def get_queryset(self):
-        queryset = Office.objects.all()
-        department_id = self.request.query_params.get('department', None)
-        if department_id:
-            queryset = queryset.filter(department_id=department_id)
+        queryset = WorkingOffice.objects.all()
+        # Keep filter logic but maybe adapt to directorate if needed
+        # For now, searching by name is usually enough if filtered in frontend
         return queryset
 
 class AccountingOfficeViewSet(viewsets.ModelViewSet):
