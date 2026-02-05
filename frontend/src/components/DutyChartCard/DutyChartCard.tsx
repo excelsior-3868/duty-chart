@@ -1,6 +1,6 @@
 import { createDutyChart, type DutyChart as DutyChartDTO, downloadImportTemplate, importDutyChartExcel } from "@/services/dutichart";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle, ChevronsUpDown } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import {
   Select,
@@ -9,6 +9,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import { useAuth } from "@/context/AuthContext";
@@ -60,10 +74,11 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   hideHeader,
   hideFooter
 }) => {
-  const { canManageOffice, hasPermission } = useAuth();
+  const { user, canManageOffice, hasPermission } = useAuth();
   const [internalDateMode, setInternalDateMode] = useState<"AD" | "BS">("BS");
   const dateMode = externalDateMode || internalDateMode;
   const setDateMode = setExternalDateMode || setInternalDateMode;
+  const [openOffice, setOpenOffice] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     effective_date: "",
@@ -348,21 +363,54 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Office *</label>
-            <Select
-              value={formData.office}
-              onValueChange={(val) => handleInputChange("office", val)}
-            >
-              <SelectTrigger className={inputClass}>
-                <SelectValue placeholder="Select Office" />
-              </SelectTrigger>
-              <SelectContent>
-                {offices
-                  .filter(office => canManageOffice(office.id))
-                  .map((office) => (
-                    <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+            <Popover open={openOffice} onOpenChange={setOpenOffice}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="default"
+                  role="combobox"
+                  aria-expanded={openOffice}
+                  className={cn(
+                    "w-full justify-between font-normal bg-primary text-primary-foreground hover:bg-primary/90",
+                    !formData.office && "text-primary-foreground",
+                  )}
+                >
+                  {formData.office
+                    ? offices.find((office) => String(office.id) === formData.office)?.name
+                    : "Select Office"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput placeholder="Search office..." />
+                  <CommandList>
+                    <CommandEmpty>No office found.</CommandEmpty>
+                    <CommandGroup>
+                      {offices
+                        .filter(office => user?.office_id ? office.id === user.office_id : canManageOffice(office.id))
+                        .map((office) => (
+                          <CommandItem
+                            key={office.id}
+                            value={office.name}
+                            onSelect={() => {
+                              handleInputChange("office", String(office.id));
+                              setOpenOffice(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.office === String(office.id) ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {office.name}
+                          </CommandItem>
+                        ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div>

@@ -187,7 +187,8 @@ export default function AuditLogPage() {
                                     <TableHeader className="bg-primary hover:bg-primary">
                                         <TableRow className="hover:bg-transparent border-none">
                                             <TableHead className="w-[180px] py-3 text-white font-bold text-sm">Timestamp</TableHead>
-                                            <TableHead className="w-[220px] py-3 text-white font-bold text-sm">Actor</TableHead>
+                                            <TableHead className="w-[200px] py-3 text-white font-bold text-sm">Actor Name</TableHead>
+                                            <TableHead className="w-[120px] py-3 text-white font-bold text-sm">Employee ID</TableHead>
                                             <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Action</TableHead>
                                             <TableHead className="py-3 text-white font-bold text-sm">Operation Details</TableHead>
                                             <TableHead className="w-[80px] py-3 text-white font-bold text-sm text-right">View</TableHead>
@@ -196,25 +197,27 @@ export default function AuditLogPage() {
                                     <TableBody>
                                         {data?.results?.map((log) => (
                                             <TableRow key={log.id} className="hover:bg-slate-50/80 transition-colors border-slate-100">
-                                                <TableCell className="whitespace-nowrap font-mono text-[11px] text-slate-500">
+                                                <TableCell className="whitespace-nowrap font-mono text-xs font-bold text-primary">
                                                     {format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss")}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="font-bold text-slate-800 text-[13px]">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-slate-800 text-sm">
                                                             {log.actor_full_name || log.actor_userid || "System"}
                                                         </span>
-                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                            {log.actor_employee_id && (
-                                                                <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-100">
-                                                                    ID: {log.actor_employee_id}
-                                                                </span>
-                                                            )}
-                                                            <span className="text-[10px] text-slate-400 font-medium">
-                                                                @{log.actor_userid || "system"}
-                                                            </span>
-                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-medium">
+                                                            @{log.actor_userid || "system"}
+                                                        </span>
                                                     </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {log.actor_employee_id ? (
+                                                        <span className="text-xs font-bold text-primary font-mono">
+                                                            {log.actor_employee_id}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400 font-medium italic">-</span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant={getActionColor(log.action) as any} className="text-[10px] font-bold px-2 py-0 h-5">
@@ -223,7 +226,7 @@ export default function AuditLogPage() {
                                                 </TableCell>
 
                                                 <TableCell className="max-w-[400px] py-4">
-                                                    <p className="text-[13px] leading-relaxed text-slate-700 font-medium">
+                                                    <p className="text-sm leading-relaxed text-slate-600">
                                                         {log.details || "-"}
                                                     </p>
                                                 </TableCell>
@@ -237,7 +240,7 @@ export default function AuditLogPage() {
                                         ))}
                                         {data?.results && data.results.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="text-center h-32 text-slate-400 font-medium italic">
+                                                <TableCell colSpan={6} className="text-center h-32 text-slate-400 font-medium italic">
                                                     No system activities found for the selected criteria.
                                                 </TableCell>
                                             </TableRow>

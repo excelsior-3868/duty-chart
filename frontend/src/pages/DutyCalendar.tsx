@@ -128,7 +128,7 @@ const DutyCalendar = () => {
     const [showDayDetailModal, setShowDayDetailModal] = useState(false);
     const [selectedDateForDetail, setSelectedDateForDetail] = useState<Date | null>(null);
 
-    const { hasPermission, canManageOffice } = useAuth();
+    const { user, hasPermission, canManageOffice } = useAuth();
     const location = useLocation();
     const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
@@ -470,6 +470,23 @@ const DutyCalendar = () => {
         setShowProfileModal(true);
     };
 
+    const sortedOffices = useMemo(() => {
+        if (!offices.length) return [];
+        // Create a copy to sort
+        const sorted = [...offices].sort((a, b) => a.name.localeCompare(b.name));
+
+        if (user?.office_id) {
+            sorted.sort((a, b) => {
+                const isA = a.id === user.office_id;
+                const isB = b.id === user.office_id;
+                if (isA && !isB) return -1;
+                if (!isA && isB) return 1;
+                return 0;
+            });
+        }
+        return sorted;
+    }, [offices, user]);
+
     return (
         <div className="p-4 space-y-4 bg-background min-h-screen">
             {/* Header: Title + Controls */}
@@ -506,11 +523,9 @@ const DutyCalendar = () => {
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
-                        {canManageSelectedChart && (
-                            <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
-                                <Pencil className="w-3.5 h-3.5" /> Edit Chart
-                            </Button>
-                        )}
+                        <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
+                            <Pencil className="w-3.5 h-3.5" /> Edit Chart
+                        </Button>
                     </div>
                 </div>
 
@@ -525,7 +540,7 @@ const DutyCalendar = () => {
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[220px] p-0" align="start">
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                 <Command>
                                     <CommandInput placeholder="Search office..." className="h-9" />
                                     <CommandList>
@@ -547,7 +562,7 @@ const DutyCalendar = () => {
                                                 <Check className={cn("mr-2 h-4 w-4", !selectedOfficeId ? "opacity-100" : "opacity-0")} />
                                                 Select Office
                                             </CommandItem>
-                                            {offices.map((office) => (
+                                            {sortedOffices.map((office) => (
                                                 <CommandItem
                                                     key={office.id}
                                                     value={office.name}

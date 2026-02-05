@@ -25,6 +25,7 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
 from django.shortcuts import render, get_object_or_404
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from rest_framework import viewsets, permissions, status, renderers, serializers
 from rest_framework.decorators import action
@@ -343,22 +344,26 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
-        allowed = get_allowed_office_ids(user)
-        office_id = self.request.data.get("office")
-        if not office_id or int(office_id) not in allowed:
-            raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
-        serializer.save()
+
+        with transaction.atomic():
+            allowed = get_allowed_office_ids(user)
+            office_id = self.request.data.get("office")
+            if not office_id or int(office_id) not in allowed:
+                raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
+            serializer.save()
 
     def perform_update(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
-        allowed = get_allowed_office_ids(user)
-        office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
-        if not office_id or int(office_id) not in allowed:
-            raise serializers.ValidationError({"detail": "Not allowed to update duty chart for this office."})
-        serializer.save()
+        
+        with transaction.atomic():
+            allowed = get_allowed_office_ids(user)
+            office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
+            if not office_id or int(office_id) not in allowed:
+                raise serializers.ValidationError({"detail": "Not allowed to update duty chart for this office."})
+            serializer.save()
 
 
 class DutyViewSet(viewsets.ModelViewSet):
@@ -421,36 +426,38 @@ class DutyViewSet(viewsets.ModelViewSet):
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
-        if not user_has_permission_slug(user, 'duties.assign_employee'):
-            raise serializers.ValidationError("You do not have permission to assign employees.")
 
-        allowed = get_allowed_office_ids(user)
-        office_id = self.request.data.get("office")
-        if office_id is None:
-            chart_id = self.request.data.get("duty_chart")
-            if chart_id:
-                chart = DutyChart.objects.filter(id=chart_id).first()
-                office_id = getattr(chart, "office_id", None)
-        if not office_id or int(office_id) not in allowed:
-            raise serializers.ValidationError("Not allowed to create duty for this office.")
+        with transaction.atomic():
+            if not user_has_permission_slug(user, 'duties.assign_employee'):
+                raise serializers.ValidationError("You do not have permission to assign employees.")
 
-        # Check if the assigned user belongs to the same office (unless permission allows otherwise)
-        target_user_id = self.request.data.get("user")
-        if target_user_id:
-             # We need to check the target user's office
-             # Assuming 'User' model has an 'office_id' or similar relationship.
-             # If using 'users.views', we might need to import User model.
-             from users.models import User
-             target_user = User.objects.filter(id=target_user_id).first()
-             
-             if target_user and target_user.office_id:
-                 # If target user belongs to a different office than the Duty Chart's office
-                 # we check for 'assign_any_office_employee' permission
-                 if int(target_user.office_id) != int(office_id):
-                     if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
-                         raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
-        
-        serializer.save()
+            allowed = get_allowed_office_ids(user)
+            office_id = self.request.data.get("office")
+            if office_id is None:
+                chart_id = self.request.data.get("duty_chart")
+                if chart_id:
+                    chart = DutyChart.objects.filter(id=chart_id).first()
+                    office_id = getattr(chart, "office_id", None)
+            if not office_id or int(office_id) not in allowed:
+                raise serializers.ValidationError("Not allowed to create duty for this office.")
+
+            # Check if the assigned user belongs to the same office (unless permission allows otherwise)
+            target_user_id = self.request.data.get("user")
+            if target_user_id:
+                 # We need to check the target user's office
+                 # Assuming 'User' model has an 'office_id' or similar relationship.
+                 # If using 'users.views', we might need to import User model.
+                 from users.models import User
+                 target_user = User.objects.filter(id=target_user_id).first()
+                 
+                 if target_user and target_user.office_id:
+                     # If target user belongs to a different office than the Duty Chart's office
+                     # we check for 'assign_any_office_employee' permission
+                     if int(target_user.office_id) != int(office_id):
+                         if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
+                             raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
+            
+            serializer.save()
 
 
     def perform_update(self, serializer):
@@ -458,14 +465,16 @@ class DutyViewSet(viewsets.ModelViewSet):
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
-        allowed = get_allowed_office_ids(user)
-        office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
-        if office_id is None:
-            chart = getattr(serializer.instance, "duty_chart", None)
-            office_id = getattr(chart, "office_id", None)
-        if not office_id or int(office_id) not in allowed:
-            raise serializers.ValidationError("Not allowed to update duty for this office.")
-        serializer.save()
+
+        with transaction.atomic():
+            allowed = get_allowed_office_ids(user)
+            office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
+            if office_id is None:
+                chart = getattr(serializer.instance, "duty_chart", None)
+                office_id = getattr(chart, "office_id", None)
+            if not office_id or int(office_id) not in allowed:
+                raise serializers.ValidationError("Not allowed to update duty for this office.")
+            serializer.save()
 
     @swagger_auto_schema(
         method="post",
@@ -1154,7 +1163,7 @@ class DutyChartImportTemplateView(APIView):
         ws = wb.active
         ws.title = "Duty Import Template"
 
-        headers = ["Date (BS)", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position"]
+        headers = ["Date (BS)", "Employee ID", "Employee Name", "Phone", "Office", "Schedule", "Start Time", "End Time", "Position"]
         ws.append(headers)
 
         days = (end_date - start_date).days + 1
@@ -1174,8 +1183,6 @@ class DutyChartImportTemplateView(APIView):
 
                     f_name = get_f(1) # Full Name
                     f_phone = get_f(3)
-                    f_dir = get_f(4)
-                    f_dept = get_f(5)
                     f_pos = get_f(6)
 
                     if nepali_datetime:
@@ -1188,8 +1195,6 @@ class DutyChartImportTemplateView(APIView):
                         "",       # Employee ID (Dropdown: ID - Name)
                         f_name,   # Employee Name (Auto-populated)
                         f_phone,
-                        f_dir,
-                        f_dept,
                         office.name,
                         sch.name,
                         sch.start_time.strftime("%H:%M"),

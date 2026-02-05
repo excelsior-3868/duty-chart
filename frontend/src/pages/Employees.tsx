@@ -6,7 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserCard, UserData } from "@/components/UserCard";
-import { Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw, Loader2, Plus } from 'lucide-react';
+import { ChevronsUpDown, Check, Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw, Loader2, Plus } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { createUser } from "@/services/users";
 import { getPositions, type Position as PositionType } from "@/services/positions";
@@ -101,6 +115,7 @@ const Employees = () => {
   const [selectedOffice, setSelectedOffice] = useState<number | null>(null);
   const [selectedSecondaryOffice, setSelectedSecondaryOffice] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [openOfficeCombobox, setOpenOfficeCombobox] = useState(false);
 
   // Password generator / reveal-once state
   const [generatedPassword, setGeneratedPassword] = useState<string>("");
@@ -114,6 +129,7 @@ const Employees = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editOfficeOpen, setEditOfficeOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
   const [roles, setRoles] = useState<Array<{ id: number; slug: string; name: string }>>([]);
   const [rolePermsPreview, setRolePermsPreview] = useState<string[]>([]);
@@ -259,8 +275,7 @@ const Employees = () => {
         employee_id: selectedEmployee.employee_id,
         email: selectedEmployee.email,
         phone_number: selectedEmployee.phone_number || undefined,
-        directorate: selectedEmployee.directorate || undefined,
-        department: selectedEmployee.department || undefined,
+        // directorate and department removed as per new requirements
         office: selectedEmployee.office || undefined,
         position: selectedEmployee.position || undefined,
         role: selectedEmployee.role || undefined,
@@ -437,8 +452,8 @@ const Employees = () => {
       toast.error("Full name, Employee ID and Email are required.");
       return;
     }
-    if (!selectedDirectorate || !selectedDepartment || !selectedOffice) {
-      toast.error("Select directorate, department and office.");
+    if (!selectedOffice) {
+      toast.error("Select office.");
       return;
     }
     if (!selectedPosition) {
@@ -462,17 +477,14 @@ const Employees = () => {
         email,
         username: employeeId, // keep username populated; login is via email
         phone_number: phoneNumber || undefined,
-        directorate: selectedDirectorate,
-        department: selectedDepartment,
+        // directorate and department removed
         office: selectedOffice,
         position: selectedPosition,
         is_active: true,
         password: autoPassword,
       };
 
-      if (selectedSecondaryOffice) {
-        payload.secondary_offices = [selectedSecondaryOffice];
-      }
+
 
       await createUser(payload);
       toast.success("Employee created successfully.");
@@ -567,66 +579,56 @@ const Employees = () => {
             </div>
 
             {/* Step 2: Organization placement */}
+            {/* Step 2: Organization placement */}
             <div className="space-y-3">
               <div className="text-sm font-medium">Step 2: Organization</div>
               <div className="space-y-2">
-                <Label>Directorate</Label>
-                <Select value={selectedDirectorate ? String(selectedDirectorate) : undefined} onValueChange={(v) => setSelectedDirectorate(Number(v))}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select directorate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {directorates.map((d) => (
-                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Department</Label>
-                <Select value={selectedDepartment ? String(selectedDepartment) : undefined} onValueChange={(v) => setSelectedDepartment(Number(v))} disabled={!selectedDirectorate}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredDepartments.map((d) => (
-                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label>Office</Label>
-                <Select value={selectedOffice ? String(selectedOffice) : undefined} onValueChange={(v) => setSelectedOffice(Number(v))} disabled={!selectedDepartment}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select office" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredOffices.map((o) => (
-                      <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={openOfficeCombobox} onOpenChange={setOpenOfficeCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openOfficeCombobox}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedOffice
+                        ? offices.find((o) => o.id === selectedOffice)?.name
+                        : "Select office"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search office..." />
+                      <CommandList>
+                        <CommandEmpty>No office found.</CommandEmpty>
+                        <CommandGroup>
+                          {offices.map((o) => (
+                            <CommandItem
+                              key={o.id}
+                              value={o.name}
+                              onSelect={() => {
+                                setSelectedOffice(o.id);
+                                setOpenOfficeCombobox(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedOffice === o.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {o.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div className="space-y-2">
-                <Label>Secondary Office (optional)</Label>
-                <Select
-                  value={selectedSecondaryOffice ? String(selectedSecondaryOffice) : undefined}
-                  onValueChange={(v) => setSelectedSecondaryOffice(Number(v))}
-                  disabled={!selectedDepartment || filteredOffices.filter((o) => o.id !== selectedOffice).length === 0}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select secondary office" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredOffices
-                      .filter((o) => o.id !== selectedOffice)
-                      .map((o) => (
-                        <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
             </div>
           </div>
           {/* Bottom-right action */}
@@ -722,17 +724,19 @@ const Employees = () => {
           <Table>
             <TableHeader className="bg-primary hover:bg-primary">
               <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="w-[120px] py-3 text-white font-bold text-sm">Employee ID</TableHead>
+                <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Employee ID</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Full Name</TableHead>
-                <TableHead className="py-3 text-white font-bold text-sm">Position</TableHead>
-                <TableHead className="py-3 text-white font-bold text-sm">Department</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Mobile</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Email</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Office</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Status</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadingEmployees ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="p-24 text-center">
+                  <TableCell colSpan={7} className="p-24 text-center">
                     <div className="flex justify-center items-center">
                       <Loader2 className="h-8 w-8 text-primary animate-spin" />
                     </div>
@@ -740,7 +744,7 @@ const Employees = () => {
                 </TableRow>
               ) : employeesList.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="p-12 text-center text-muted-foreground font-medium italic">
+                  <TableCell colSpan={7} className="p-12 text-center text-muted-foreground font-medium italic">
                     No employees found for the search criteria.
                   </TableCell>
                 </TableRow>
@@ -750,28 +754,22 @@ const Employees = () => {
                     <TableCell className="font-mono text-xs font-bold text-primary">
                       {emp.employee_id || "-"}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-bold text-slate-800 text-[13px]">
-                          {emp.full_name || emp.username || "-"}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {emp.email || "-"}
-                        </span>
-                      </div>
+                    <TableCell className="font-medium text-slate-800 text-sm">
+                      {emp.full_name || emp.username || "-"}
                     </TableCell>
-                    <TableCell className="text-slate-600 font-medium text-[13px]">
-                      {getPositionName(emp.position)}
+                    <TableCell className="text-slate-600 text-sm">
+                      {emp.phone_number || "-"}
+                    </TableCell>
+                    <TableCell className="text-slate-600 text-sm">
+                      {emp.email || "-"}
+                    </TableCell>
+                    <TableCell className="text-slate-700 font-medium text-sm">
+                      {offices.find(o => o.id === getIdFromField(emp.office))?.name || "-"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[11px] font-bold text-slate-700 capitalize">
-                          {getDepartmentName(emp.department)}
-                        </span>
-                        <Badge variant={emp.is_active ? "default" : "secondary"} className="text-[9px] font-bold px-1.5 py-0 h-4 w-fit">
-                          {emp.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
+                      <Badge variant={emp.is_active ? "default" : "secondary"} className="text-[10px] font-bold px-2 py-0.5 h-5 w-fit">
+                        {emp.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -892,15 +890,7 @@ const Employees = () => {
                   {offices.find(o => o.id === getIdFromField(selectedEmployee.office))?.name || "-"}
                 </div>
               </div>
-              <div>
-                <Label className="text-muted-foreground">Secondary Offices</Label>
-                <div className="font-medium">
-                  {selectedEmployee.secondary_offices && selectedEmployee.secondary_offices.length > 0
-                    ? selectedEmployee.secondary_offices.map((so: any) => so.name).join(", ")
-                    : "-"
-                  }
-                </div>
-              </div>
+
               <div>
                 <Label className="text-muted-foreground">Role</Label>
                 <div className="font-medium">{selectedEmployee.role}</div>
@@ -947,54 +937,50 @@ const Employees = () => {
                 </div>
 
                 <div>
-                  <Label>Directorate</Label>
-                  <Select value={selectedEmployee.directorate ? String(selectedEmployee.directorate) : ""} onValueChange={(v) => {
-                    const dirId = Number(v);
-                    setSelectedEmployee({ ...selectedEmployee, directorate: dirId, department: null, office: null });
-                  }}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select directorate" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {directorates.map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Department</Label>
-                  <Select
-                    value={selectedEmployee.department ? String(selectedEmployee.department) : ""}
-                    onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, department: Number(v), office: null })}
-                    disabled={!selectedEmployee.directorate}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={selectedEmployee.directorate ? "Select department" : "Select directorate first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments
-                        .filter((d) => (d as any).directorate === selectedEmployee.directorate)
-                        .map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
                   <Label>Office</Label>
-                  <Select
-                    value={selectedEmployee.office ? String(selectedEmployee.office) : ""}
-                    onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, office: Number(v) })}
-                    disabled={!selectedEmployee.department}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={selectedEmployee.department ? "Select office" : "Select department first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {offices
-                        .filter((o) => (o as any).department === selectedEmployee.department)
-                        .map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={editOfficeOpen} onOpenChange={setEditOfficeOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={editOfficeOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {selectedEmployee.office
+                          ? offices.find((o) => o.id === getIdFromField(selectedEmployee.office))?.name
+                          : "Select office"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search office..." />
+                        <CommandList>
+                          <CommandEmpty>No office found.</CommandEmpty>
+                          <CommandGroup>
+                            {offices.map((o) => (
+                              <CommandItem
+                                key={o.id}
+                                value={o.name}
+                                onSelect={() => {
+                                  setSelectedEmployee({ ...selectedEmployee, office: o.id });
+                                  setEditOfficeOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedEmployee.office === o.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {o.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div>

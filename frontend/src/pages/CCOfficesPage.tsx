@@ -287,7 +287,7 @@ export default function CCOfficesPage() {
                                     <TableBody>
                                         {offices?.map((office) => (
                                             <TableRow key={office.id} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
-                                                <TableCell className="font-mono text-xs font-bold text-slate-400 pl-6">
+                                                <TableCell className="font-mono text-xs font-bold text-primary pl-6">
                                                     #{office.id}
                                                 </TableCell>
                                                 <TableCell>
@@ -295,13 +295,13 @@ export default function CCOfficesPage() {
                                                         <div className="p-2 rounded-lg bg-primary/5 group-hover:bg-primary/10 transition-colors">
                                                             <Building2 className="h-4 w-4 text-primary" />
                                                         </div>
-                                                        <span className="font-bold text-slate-800 text-sm tracking-tight">
+                                                        <span className="font-medium text-slate-800 text-sm tracking-tight">
                                                             {office.name}
                                                         </span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <span className="text-xs font-semibold text-slate-600">
+                                                    <span className="text-sm text-slate-600">
                                                         {office.accounting_office_name || "None"}
                                                     </span>
                                                 </TableCell>

@@ -198,7 +198,7 @@ const Dashboard = () => {
       }
     });
 
-    return Array.from(groups.values()).sort((a, b) => a.officeName.localeCompare(b.officeName));
+    return Array.from(groups.values());
   }, [duties, userById, selectedOfficeIds, offices]);
 
   const chartData = useMemo(() => {
@@ -238,6 +238,43 @@ const Dashboard = () => {
     });
   }, [myDuties, todayLocalISODate]);
 
+  const myNextDuty = useMemo(() => {
+    if (!myDuties || myDuties.length === 0) return null;
+
+    const now = new Date();
+    const todayStr = format(now, "yyyy-MM-dd");
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // specific helper to parse "HH:MM:SS" -> minutes
+    const parseTime = (t: string) => {
+      if (!t) return 0;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    // Filter duties that are either:
+    // 1. Future date
+    // 2. Today, but start time is in the future
+    const futureDuties = myDuties.filter(d => {
+      if (d.date > todayStr) return true;
+      if (d.date === todayStr && d.start_time) {
+        const start = parseTime(d.start_time);
+        return start > currentMinutes;
+      }
+      return false;
+    });
+
+    // Sort by date then start_time
+    futureDuties.sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      const startA = parseTime(a.start_time || "00:00");
+      const startB = parseTime(b.start_time || "00:00");
+      return startA - startB;
+    });
+
+    return futureDuties.length > 0 ? futureDuties[0] : null;
+  }, [myDuties]);
+
   const stats = [
     {
       title: "My Current Duty",
@@ -249,16 +286,19 @@ const Dashboard = () => {
       isDuty: true
     },
     {
+      title: "Upcoming Duty",
+      value: myNextDuty ? (myNextDuty.schedule_name || "Duty") : "No Upcoming Duty",
+      description: myNextDuty ? `${myNextDuty.office_name || 'Office'}` : "Relax",
+      icon: Clock,
+      trend: myNextDuty ? `${new NepaliDate(new Date(myNextDuty.date)).format("MMMM DD")} (${format(new Date(myNextDuty.date), "MMM d")}) | ${myNextDuty.start_time?.substring(0, 5)} - ${myNextDuty.end_time?.substring(0, 5)}` : "",
+      variant: "secondary",
+      isDuty: false
+    },
+    {
       title: "Active Duty Charts",
       value: activeDutyCharts.length.toString(),
       description: "Charts currently in operation",
       icon: FileText,
-    },
-    {
-      title: "Total Employees",
-      value: users.length.toString(),
-      description: "Active staff members",
-      icon: Users,
     },
     {
       title: "On Duty Today",
@@ -574,7 +614,7 @@ const Dashboard = () => {
                 </button>
 
                 <CardHeader className="p-4 pb-2 pr-10">
-                  <CardTitle className="text-base truncate">{group.officeName}</CardTitle>
+                  <CardTitle className="text-base whitespace-normal leading-tight">{group.officeName}</CardTitle>
                   <CardDescription className="text-[11px] mt-0.5">
                     {onDutyRows.length > 0 ? (
                       <span className="text-emerald-600 font-semibold">{onDutyRows.length} active</span>
@@ -591,8 +631,8 @@ const Dashboard = () => {
                         className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/50 border border-emerald-100/50 px-2.5 py-1.5"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-bold truncate text-emerald-900 leading-tight">{row.full_name}</p>
-                          <p className="text-[10px] text-emerald-700/70 truncate">{row.phone_number || "No contact"}</p>
+                          <p className="text-[13px] font-bold text-emerald-900 leading-tight">{row.full_name}</p>
+                          <p className="text-[10px] text-emerald-700/70">{row.phone_number || "No contact"}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="flex flex-col items-end leading-none">
@@ -657,7 +697,7 @@ const Dashboard = () => {
                   <button
                     key={chart.id}
                     type="button"
-                    className="w-full flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors text-left"
+                    className="w-full flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-primary hover:text-white hover:border-primary transition-all text-left group"
                     onClick={() =>
                       navigate(ROUTES.DUTY_CALENDAR, {
                         state: {
@@ -671,9 +711,9 @@ const Dashboard = () => {
                   >
                     <div>
                       <p className="font-medium text-sm">{chart.name}</p>
-                      <p className="text-xs text-muted-foreground">{chart.office_name || `Office ${chart.office}`}</p>
+                      <p className="text-xs text-muted-foreground group-hover:text-blue-100 transition-colors">{chart.office_name || `Office ${chart.office}`}</p>
                     </div>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-[10px] group-hover:border-white/30 group-hover:text-white transition-colors">
                       {chart.end_date ? `Ends ${new NepaliDate(new Date(chart.end_date)).format("YYYY-MM-DD")}` : 'Ongoing'}
                     </Badge>
                   </button>

@@ -5,7 +5,7 @@ import { getDutyCharts, getDutyChartById, patchDutyChart, downloadImportTemplate
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import { useAuth } from "@/context/AuthContext";
-import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save } from "lucide-react";
+import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
@@ -20,6 +20,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface EditDutyChartModalProps {
   open: boolean;
@@ -36,11 +50,13 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   initialChartId,
   onUpdateSuccess
 }) => {
-  const { canManageOffice, hasPermission } = useAuth();
+  const { user, canManageOffice, hasPermission } = useAuth();
   const [charts, setCharts] = useState<DutyChartDTO[]>([]);
   const [selectedChartId, setSelectedChartId] = useState<string>("");
   const [offices, setOffices] = useState<Office[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [openOffice, setOpenOffice] = useState(false);
+
 
   const [formData, setFormData] = useState({
     name: "",
@@ -73,39 +89,61 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   }, [importFile]);
 
   useEffect(() => {
-    if (!open) return;
-    const load = async () => {
-      try {
-        const officesRes = await getOffices();
-        setOffices(officesRes);
-        setCharts([]);
-        setSelectedChartId("");
-        setFormData({
-          name: "",
-          effective_date: "",
-          end_date: "",
-          office: "",
-          scheduleIds: [],
-        });
-      } catch (e) {
-        console.error("Failed to load offices:", e);
+    if (open) {
+      const load = async () => {
+        try {
+          const officesRes = await getOffices();
+          setOffices(officesRes);
+          // Only reset these if not provided by props (though usually they are handled by logic below)
+          // Actually, we should allow the prop-setting logic to govern these. 
+          // But to be safe and match previous behavior (which cleared them AFTER fetch), 
+          // we can leave them or trust the initial prop overrides. 
+          // Given the structure, let's keep it clean.
+        } catch (e) {
+          console.error("Failed to load offices:", e);
+        }
+      };
+      load();
+
+      // Set initial state based on props or default empty
+      if (initialOfficeId) {
+        setFormData((prev) => ({ ...prev, office: initialOfficeId }));
+      } else {
+        // Reset if no initial prop (though cleanup handles this, safety check)
       }
-    };
-    load();
 
-    if (initialOfficeId) {
-      setFormData(prev => ({ ...prev, office: initialOfficeId }));
-    }
-    if (initialChartId) {
-      setSelectedChartId(initialChartId);
-    }
+      if (initialChartId) {
+        setSelectedChartId(initialChartId);
+      } else {
+        setSelectedChartId("");
+      }
 
-    // Clear state on close
-    if (!open) {
-      setImportFile(null);
-      setShowPreview(false);
-      setShowManualConfirm(false);
+      // We also need to clear charts list initially until fetched by office selection
+      setCharts([]);
+
+    } else {
+      // Cleanup / Reset State on Close
+      setCharts([]);
+      setSelectedChartId("");
+      setOffices([]);
+      setSchedules([]);
+      setOpenOffice(false);
+      setFormData({
+        name: "",
+        effective_date: "",
+        end_date: "",
+        office: "",
+        scheduleIds: [],
+      });
+      setInitialChart(null);
+      setIsSubmitting(false);
       setErrors({});
+      setImportFile(null);
+      setIsDownloadingTemplate(false);
+      setShowPreview(false);
+      setPreviewData([]);
+      setPreviewStats({ total: 0 });
+      setShowManualConfirm(false);
     }
   }, [open, initialOfficeId, initialChartId]);
 
@@ -304,6 +342,15 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       return;
     }
 
+    // Check if new shifts are selected
+    const initialSchedules = (initialChart?.schedules || []).map(String);
+    const newScheduleIds = formData.scheduleIds.filter(id => !initialSchedules.includes(id));
+
+    if (newScheduleIds.length === 0) {
+      toast.error("No new schedules have been selected.");
+      return;
+    }
+
     setShowManualConfirm(true);
   };
 
@@ -410,21 +457,54 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>Office *</label>
-                    <Select
-                      value={formData.office}
-                      onValueChange={(val) => handleInputChange("office", val)}
-                    >
-                      <SelectTrigger className={inputClass}>
-                        <SelectValue placeholder="Select Office" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {offices
-                          .filter(office => canManageOffice(office.id))
-                          .map((office) => (
-                            <SelectItem key={office.id} value={String(office.id)}>{office.name}</SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={openOffice} onOpenChange={setOpenOffice}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="default"
+                          role="combobox"
+                          aria-expanded={openOffice}
+                          className={cn(
+                            "w-full justify-between font-normal bg-primary text-primary-foreground hover:bg-primary/90",
+                            !formData.office && "text-primary-foreground",
+                          )}
+                        >
+                          {formData.office
+                            ? offices.find((office) => String(office.id) === formData.office)?.name
+                            : "Select Office"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search office..." />
+                          <CommandList>
+                            <CommandEmpty>No office found.</CommandEmpty>
+                            <CommandGroup>
+                              {offices
+                                .filter(office => user?.office_id ? office.id === user.office_id : canManageOffice(office.id))
+                                .map((office) => (
+                                  <CommandItem
+                                    key={office.id}
+                                    value={office.name}
+                                    onSelect={() => {
+                                      handleInputChange("office", String(office.id));
+                                      setOpenOffice(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.office === String(office.id) ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {office.name}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div>

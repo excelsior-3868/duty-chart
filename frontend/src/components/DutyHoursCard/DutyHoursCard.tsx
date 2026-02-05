@@ -14,6 +14,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -47,6 +62,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isCustomSchedule, setIsCustomSchedule] = useState(false);
+  const [openOffice, setOpenOffice] = useState(false);
 
   // Load offices and schedule templates on component mount
   useEffect(() => {
@@ -319,23 +335,71 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               {/* Office Selection */}
               <div className="space-y-2">
                 <label className={labelClass}>Office *</label>
-                <Select
-                  value={formData.office}
-                  onValueChange={(v) => handleInputChange("office", v)}
-                >
-                  <SelectTrigger className={errors.office ? "border-destructive" : ""}>
-                    <SelectValue placeholder="Select Office" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {offices
-                      .filter(office => canManageOffice(office.id))
-                      .map((office) => (
-                        <SelectItem key={office.id} value={String(office.id)}>
-                          {office.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={openOffice} onOpenChange={setOpenOffice}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="default"
+                      role="combobox"
+                      aria-expanded={openOffice}
+                      className={cn(
+                        "w-full justify-between font-normal bg-primary text-primary-foreground hover:bg-primary/90",
+                        !formData.office && "text-primary-foreground",
+                        errors.office && "border-destructive ring-destructive"
+                      )}
+                    >
+                      {formData.office
+                        ? offices.find((office) => String(office.id) === formData.office)?.name
+                        : "Select Office"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search office..." />
+                      <CommandList>
+                        <CommandEmpty>No office found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="Select Office"
+                            onSelect={() => {
+                              handleInputChange("office", "");
+                              setOpenOffice(false);
+                            }}
+                            className="font-medium"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                !formData.office ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Select Office
+                          </CommandItem>
+                          {offices
+                            .filter(office => canManageOffice(office.id))
+                            .map((office) => (
+                              <CommandItem
+                                key={office.id}
+                                value={office.name}
+                                onSelect={() => {
+                                  handleInputChange("office", String(office.id));
+                                  setOpenOffice(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formData.office === String(office.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {office.name}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {errors.office && <div className={errorClass}>{errors.office}</div>}
               </div>
             </div>

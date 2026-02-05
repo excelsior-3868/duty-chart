@@ -127,10 +127,22 @@ function UserWiseReport() {
         },
       });
 
-      setDuties(res.data || []);
+      console.log("Report Preview Response:", res.data); // Debugging
+
+      // Handle grouped response structure
+      if (res.data && res.data.groups) {
+        const rows = res.data.groups.flatMap((g: any) => g.rows || []);
+        setDuties(rows);
+      } else if (Array.isArray(res.data)) {
+        setDuties(res.data);
+      } else {
+        setDuties([]);
+        console.warn("Unexpected response format:", res.data);
+      }
     } catch (err) {
       alert("Failed to load report.");
       console.error(err);
+      setDuties([]); // Ensure it's an array on error
     } finally {
       setLoading(false);
     }

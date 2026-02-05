@@ -162,7 +162,8 @@ export default function SMSLogsPage() {
                                 <TableHeader className="bg-primary hover:bg-primary">
                                     <TableRow className="hover:bg-transparent border-none">
                                         <TableHead className="w-[160px] py-3 text-white font-bold text-sm">Timestamp</TableHead>
-                                        <TableHead className="py-3 text-white font-bold text-sm">Recipient</TableHead>
+                                        <TableHead className="w-[180px] py-3 text-white font-bold text-sm">Recipient Name</TableHead>
+                                        <TableHead className="w-[140px] py-3 text-white font-bold text-sm">Mobile Number</TableHead>
                                         <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Status</TableHead>
                                         <TableHead className="py-3 text-white font-bold text-sm">Message Content</TableHead>
                                         <TableHead className="w-[80px] py-3 text-white font-bold text-sm text-right">View</TableHead>
@@ -171,18 +172,14 @@ export default function SMSLogsPage() {
                                 <TableBody>
                                     {data?.results?.map((log) => (
                                         <TableRow key={log.id} className="hover:bg-slate-50/80 transition-colors border-slate-100">
-                                            <TableCell className="whitespace-nowrap font-mono text-[11px] text-slate-500">
+                                            <TableCell className="whitespace-nowrap font-mono text-xs font-bold text-primary">
                                                 {format(new Date(log.created_at), "yyyy-MM-dd HH:mm:ss")}
                                             </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="font-bold text-slate-800 text-[13px]">
-                                                        {log.user_full_name || "Unknown User"}
-                                                    </span>
-                                                    <span className="text-[11px] text-primary font-bold">
-                                                        {log.phone}
-                                                    </span>
-                                                </div>
+                                            <TableCell className="font-medium text-slate-800 text-sm">
+                                                {log.user_full_name || "Unknown User"}
+                                            </TableCell>
+                                            <TableCell className="text-sm font-bold text-primary font-mono whitespace-nowrap">
+                                                {log.phone}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant={getStatusVariant(log.status) as any} className="text-[10px] font-bold px-2 py-0 h-5 uppercase">
@@ -191,7 +188,7 @@ export default function SMSLogsPage() {
                                             </TableCell>
 
                                             <TableCell className="max-w-[400px] py-4">
-                                                <p className="text-[13px] leading-relaxed text-slate-700 font-medium truncate">
+                                                <p className="text-sm leading-relaxed text-slate-700 font-medium">
                                                     {log.message}
                                                 </p>
                                             </TableCell>
@@ -205,7 +202,7 @@ export default function SMSLogsPage() {
                                     ))}
                                     {data?.results && data.results.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center h-32 text-slate-400 font-medium italic">
+                                            <TableCell colSpan={6} className="text-center h-32 text-slate-400 font-medium italic">
                                                 No SMS logs found for the selected criteria.
                                             </TableCell>
                                         </TableRow>

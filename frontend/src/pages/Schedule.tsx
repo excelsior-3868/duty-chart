@@ -27,6 +27,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 import { toast } from "sonner";
 
@@ -58,6 +73,7 @@ const Schedule = () => {
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     // Ensure we have the latest auth/user state when entering this page
@@ -74,9 +90,9 @@ const Schedule = () => {
   const canDeleteSchedules =
     (hasPermission("duties.manage_schedule") || hasPermission("schedules.delete")) && canManageSelectedOffice;
 
-  const visibleSchedules = schedules.filter(
-    (s) => selectedOffice ? s.office === selectedOffice : true
-  );
+  const visibleSchedules = selectedOffice
+    ? schedules.filter((s) => s.office === selectedOffice)
+    : [];
 
   // Load initial data
   useEffect(() => {
@@ -91,10 +107,8 @@ const Schedule = () => {
         setSchedules(schedulesData);
         setOffices(officesData);
 
-        // Set default office to first one if available
-        if (officesData.length > 0) {
-          setSelectedOffice(officesData[0].id);
-        }
+        // Default selection removed per user request: "Select Office" is default
+
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -186,23 +200,67 @@ const Schedule = () => {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <Select
-                    value={selectedOffice ? String(selectedOffice) : ""}
-                    onValueChange={(v) => setSelectedOffice(parseInt(v))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Office" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {offices
-                        .filter(office => canManageOffice(office.id) || hasPermission("duties.assign_any_office_employee"))
-                        .map((office) => (
-                          <SelectItem key={office.id} value={String(office.id)}>
-                            {office.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="default"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        {selectedOffice
+                          ? offices.find((office) => office.id === selectedOffice)?.name
+                          : "Select Office"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search office..." />
+                        <CommandList>
+                          <CommandEmpty>No office found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="Select Office"
+                              onSelect={() => {
+                                setSelectedOffice(null);
+                                setOpen(false);
+                              }}
+                              className="font-medium"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  !selectedOffice ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              Select Office
+                            </CommandItem>
+                            {offices
+                              .filter(office => canManageOffice(office.id) || hasPermission("duties.assign_any_office_employee"))
+                              .map((office) => (
+                                <CommandItem
+                                  key={office.id}
+                                  value={office.name}
+                                  onSelect={() => {
+                                    setSelectedOffice(office.id);
+                                    setOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selectedOffice === office.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {office.name}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </CardHeader>
               <CardContent>

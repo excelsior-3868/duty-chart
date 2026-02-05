@@ -5,6 +5,7 @@ from duties.models import Duty
 from .tasks import async_send_sms
 from .utils import create_dashboard_notification
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -14,15 +15,18 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
     Signal to notify user when a duty is assigned.
     Includes idempotency check and transactional safety.
     """
-    logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
-    
-    if instance.user and instance.schedule and getattr(instance.schedule, 'shift_type', None) == 'Shift':
-        logger.info(f"Triggering assignment notification for Duty {instance.id} (Created: {created})")
-        # Transactional Safety: Wait for the Duty save to be committed
-        transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
-    else:
-        reason = "No user" if not instance.user else "Not a 'Shift' type"
-        logger.debug(f"Skipping notification for Duty {instance.id} ({reason})")
+    try:
+        logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
+        
+        if instance.user and instance.schedule and getattr(instance.schedule, 'shift_type', None) == 'Shift':
+            logger.info(f"Triggering assignment notification for Duty {instance.id} (Created: {created})")
+            # Transactional Safety: Wait for the Duty save to be committed
+            transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
+        else:
+            reason = "No user" if not instance.user else "Not a 'Shift' type"
+            logger.debug(f"Skipping notification for Duty {instance.id} ({reason})")
+    except Exception as e:
+        logger.error(f"Error in notify_duty_assignment signal: {e}")
 
 def _handle_duty_assignment_notification(instance):
     try:
@@ -81,10 +85,14 @@ def _handle_duty_assignment_notification(instance):
                 office_name = instance.office.name if instance.office else "Unknown Office"
                 sms_message = f'Dear {full_name} , You have been assigned to "{chart_name}" for the "{duty_name}". Please visit dutychart.ntc.net.np for the detail.'
                 
-                try:
-                    async_send_sms.delay(user.phone_number, sms_message, user_id=user.id)
-                except Exception as sms_err:
-                    logger.error(f"Failed to queue SMS for user {user.id}: {sms_err}")
+                # Run Celery task dispatch in a separate thread to avoid blocking response if Redis is down
+                def trigger_sms_task():
+                    try:
+                        async_send_sms.delay(user.phone_number, sms_message, user_id=user.id)
+                    except Exception as sms_err:
+                        logger.error(f"Failed to queue SMS (threaded) for user {user.id}: {sms_err}")
+
+                threading.Thread(target=trigger_sms_task, daemon=True).start()
             else:
                 logger.warning(f"User {user.username} has no phone number for SMS notification.")
     except Exception as e:
