@@ -14,6 +14,7 @@ export interface ExportPreviewParams {
   end_date?: string;
   page?: number;
   page_size?: number;
+  schedule_id?: number | string;
 }
 
 export interface ExportPreviewResponse {
@@ -45,6 +46,7 @@ export interface ExportFileParams {
   scope?: "full" | "range";
   start_date?: string;
   end_date?: string;
+  schedule_id?: number | string;
 }
 
 export const downloadDutyChartExportFile = async (

@@ -96,6 +96,7 @@ import Attendance from "@/pages/Attendance";
 import Schedule from "@/pages/Schedule";
 import Reports from "@/pages/Reports";
 import UserWiseReport from "@/pages/reports/UserWiseReport";
+import UserWiseReportNew from "@/pages/reports/UserWiseReportNew";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -199,6 +200,15 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute>
                 <UserWiseReport />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            // 👇 ANNEX 2 REPORT ROUTE
+            path: "/reports/userwise-new",
+            element: (
+              <ProtectedRoute>
+                <UserWiseReportNew />
               </ProtectedRoute>
             ),
           },

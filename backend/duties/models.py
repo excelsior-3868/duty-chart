@@ -185,6 +185,10 @@ class Duty(AuditableMixin, models.Model):
     def clean(self):
         super().clean()
         errors = {}
+
+        if self.user and not self.user.is_activated:
+            errors['user'] = "Deactivated employees cannot be assigned duties."
+
         if self.duty_chart:
             if self.date and self.duty_chart.effective_date and self.date < self.duty_chart.effective_date:
                 errors['date'] = "Duty date must be on or after the duty chart effective date."

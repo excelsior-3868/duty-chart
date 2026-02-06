@@ -27,6 +27,7 @@ class UserSerializer(serializers.ModelSerializer):
             # Add working office name
             data['office_name'] = instance.office.name if instance.office else None
             data['position_name'] = instance.position.name if instance.position else None
+            data['position_alias'] = instance.position.alias if instance.position else None
             data['department_name'] = instance.department.name if instance.department else None
 
             # IDs for internal use if needed
@@ -81,6 +82,7 @@ class PositionSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'alias',
             'level'
         ]
 

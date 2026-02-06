@@ -23,7 +23,7 @@ export interface DutyShift {
 
 export interface NavItem {
   title: string;
-  href: string;
+  href?: string;
   icon?: string;
   children?: NavItem[];
 }

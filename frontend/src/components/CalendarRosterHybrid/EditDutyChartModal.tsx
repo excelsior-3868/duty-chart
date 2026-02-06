@@ -477,7 +477,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <Command>
                           <CommandInput placeholder="Search office..." />
-                          <CommandList>
+                          <CommandList className="max-h-[300px] overflow-y-auto">
                             <CommandEmpty>No office found.</CommandEmpty>
                             <CommandGroup>
                               {offices

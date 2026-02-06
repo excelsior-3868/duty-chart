@@ -13,6 +13,8 @@ export const ROUTES = {
   TEMPLATE_SCHEDULE: '/schedule-management/templates',
   DUTY_SCHEDULE: '/duty-schedule',
   REPORTS: '/reports',
+  ANNEX_I_REPORT: '/reports/userwise',
+  ANNEX_II_REPORT: '/reports/userwise-new',
   SETTINGS: '/settings',
   CHANGE_PASSWORD: "/change-password",
   LOGIN: '/login',

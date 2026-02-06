@@ -90,9 +90,20 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   },
   {
     title: 'Reports',
-    href: ROUTES.REPORTS,
     icon: 'BarChart3',
-    permission: 'duties.view_chart'
+    permission: 'duties.view_chart',
+    children: [
+      {
+        title: 'Annex I Report',
+        href: ROUTES.ANNEX_I_REPORT,
+        icon: 'FileText'
+      },
+      {
+        title: 'Annex II Report',
+        href: ROUTES.ANNEX_II_REPORT,
+        icon: 'FileText'
+      }
+    ]
   },
   {
     title: 'Settings',

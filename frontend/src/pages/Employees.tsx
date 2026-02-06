@@ -724,7 +724,7 @@ const Employees = () => {
           <Table>
             <TableHeader className="bg-primary hover:bg-primary">
               <TableRow className="hover:bg-transparent border-none">
-                <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Employee ID</TableHead>
+                <TableHead className="w-[100px] py-3 text-white font-bold text-sm">ID</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Full Name</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Mobile</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Email</TableHead>

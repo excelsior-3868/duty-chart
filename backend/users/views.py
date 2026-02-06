@@ -35,6 +35,14 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         office_id = self.request.query_params.get('office', None)
+        is_activated = self.request.query_params.get('is_activated', None)
+        duty_chart_id = self.request.query_params.get('duty_chart_id', None)
+
+        if is_activated is not None:
+            queryset = queryset.filter(is_activated=is_activated.lower() == 'true')
+
+        if duty_chart_id:
+            queryset = queryset.filter(duties__duty_chart_id=duty_chart_id).distinct()
 
         if office_id:
             # Include users whose primary office matches OR who have the office as a secondary membership

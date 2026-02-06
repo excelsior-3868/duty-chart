@@ -156,6 +156,9 @@ const Dashboard = () => {
 
       const officeName = d.office_name || "Unknown Office";
       const userObj = userById.get(d.user);
+      // Skip if user is deactivated
+      if (userObj && userObj.is_activated === false) return;
+
       const fullName = userObj?.full_name || d.user_name || "Unknown";
       const phone = userObj?.phone_number || d.phone_number || null;
 

@@ -165,7 +165,7 @@ export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
       try {
         setLoading(true);
         const [usersData, officesData, schedulesData] = await Promise.all([
-          getUsers(),
+          getUsers(undefined, true),
           getOffices(),
           getSchedules(),
         ]);

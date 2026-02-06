@@ -12,6 +12,7 @@
 
 from datetime import timedelta
 import datetime
+import requests
 try:
     import nepali_datetime
 except ImportError:
@@ -20,8 +21,9 @@ import os
 import platform
 import pandas as pd
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Cm, Inches
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.enum.table import WD_ALIGN_VERTICAL
 
 from django.shortcuts import render, get_object_or_404
 from django.core.exceptions import ValidationError
@@ -647,6 +649,12 @@ class DutyViewSet(viewsets.ModelViewSet):
             if not office_id or int(office_id) not in allowed:
                 raise ValidationError("Not allowed to generate rotation for this office.")
 
+        # Check if user is activated
+        from users.models import User
+        target_user = User.objects.filter(id=user_id).first()
+        if not target_user or not target_user.is_activated:
+            return Response({"detail": "Cannot generate rotation for a deactivated or non-existent employee."}, status=status.HTTP_400_BAD_REQUEST)
+
         start = datetime.date.fromisoformat(start_date)
         end = datetime.date.fromisoformat(end_date)
         if end < start:
@@ -765,6 +773,102 @@ class RosterBulkUploadView(APIView):
         return Response(resp, status=status.HTTP_201_CREATED)
 
 
+def to_nepali_digits(text):
+    if text is None:
+        return ""
+    text = str(text)
+    mapping = {
+        '0': '०', '1': '१', '2': '२', '3': '३', '4': '४',
+        '5': '५', '6': '६', '7': '७', '8': '८', '9': '९'
+    }
+    return "".join(mapping.get(c, c) for c in text)
+
+
+_TRANS_CACHE = {}
+
+def translate_to_nepali(text):
+    """
+    Translates English text to Nepali using Google Translate free API.
+    Uses a simple in-memory cache to minimize redundant network calls.
+    """
+    if not text or not isinstance(text, str):
+        return text
+    
+    # Check cache first
+    if text in _TRANS_CACHE:
+        return _TRANS_CACHE[text]
+    
+    try:
+        # Google Translate free API endpoint
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "en",
+            "tl": "ne",
+            "dt": "t",
+            "q": text
+        }
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            result = response.json()
+            # The result is a nested list: [[["translated_text", "original_text", ...]]]
+            if result and result[0] and result[0][0]:
+                translated = result[0][0][0]
+                _TRANS_CACHE[text] = translated
+                return translated
+    except Exception as e:
+        print(f"Translation error: {e}")
+    
+    # Return original if translation fails
+    return text
+
+
+def translate_to_nepali_batch(text_list):
+    """
+    Translates a list of strings in batches to minimize API calls.
+    Uses \n as a delimiter for the gtx free API.
+    """
+    if not text_list:
+        return {}
+    
+    # Filter out empty or already cached
+    to_translate = [t for t in text_list if t and isinstance(t, str) and t not in _TRANS_CACHE]
+    if not to_translate:
+        return {t: _TRANS_CACHE.get(t, t) for t in text_list}
+    
+    # Process in chunks of 30 to stay safe with URL length (around 2KB)
+    chunk_size = 30
+    for i in range(0, len(to_translate), chunk_size):
+        chunk = to_translate[i:i + chunk_size]
+        combined = "\n".join(chunk)
+        
+        try:
+            url = "https://translate.googleapis.com/translate_a/single"
+            params = {
+                "client": "gtx",
+                "sl": "en",
+                "tl": "ne",
+                "dt": "t",
+                "q": combined
+            }
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                if result and result[0]:
+                    # result[0] is typically a list of [[translated_chunk, original_chunk, ...], ...]
+                    # We join the translated parts and split by \n
+                    translated_combined = "".join([part[0] for part in result[0] if part[0]])
+                    translated_list = translated_combined.split("\n")
+                    
+                    # Map back to original strings
+                    for orig, trans in zip(chunk, translated_list):
+                        _TRANS_CACHE[orig] = trans.strip()
+        except Exception as e:
+            print(f"Batch translation error: {e}")
+            
+    return {t: _TRANS_CACHE.get(t, t) for t in text_list}
+
+
 # ------------------------------------------------------------------------------
 # Duty Chart Export: Preview (JSON) and File (Excel/PDF)
 # ------------------------------------------------------------------------------
@@ -781,6 +885,7 @@ class DutyChartExportPreview(APIView):
             openapi.Parameter("end_date", openapi.IN_QUERY, description="End date (YYYY-MM-DD) when scope=range", type=openapi.TYPE_STRING),
             openapi.Parameter("page", openapi.IN_QUERY, description="Page number (default 1)", type=openapi.TYPE_INTEGER),
             openapi.Parameter("page_size", openapi.IN_QUERY, description="Items per page (default 50)", type=openapi.TYPE_INTEGER),
+            openapi.Parameter("schedule_id", openapi.IN_QUERY, description="Filter by Schedule ID", type=openapi.TYPE_INTEGER),
         ],
     )
     def get(self, request):
@@ -789,13 +894,22 @@ class DutyChartExportPreview(APIView):
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
         page = int(request.query_params.get("page") or 1)
-        page_size = int(request.query_params.get("page_size") or 50)
+        page_size = int(request.query_params.get("page_size") or 10)
+        schedule_id = request.query_params.get("schedule_id")
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         chart = get_object_or_404(DutyChart, pk=int(chart_id))
-        qs = Duty.objects.filter(duty_chart_id=chart.id).select_related("user", "office", "schedule")
+        
+        # Optimize: select_related only what is shown in the preview table
+        # We don't need directorate, department, or position for the preview grid.
+        qs = Duty.objects.filter(duty_chart_id=chart.id).select_related(
+            "user", "office", "schedule"
+        )
+
+        if schedule_id and schedule_id != "all":
+            qs = qs.filter(schedule_id=schedule_id)
 
         if scope == "range":
             if not start_date_str or not end_date_str:
@@ -806,7 +920,8 @@ class DutyChartExportPreview(APIView):
                 return Response({"detail": "Invalid start_date or end_date"}, status=status.HTTP_400_BAD_REQUEST)
             qs = qs.filter(date__gte=start_date, date__lte=end_date)
 
-        total = qs.count()
+        # Remove qs.count() to save a database trip as it's not used in the UI
+        # Pagination
         offset = (page - 1) * page_size
         items = list(qs.order_by("date")[offset : offset + page_size])
 
@@ -818,9 +933,8 @@ class DutyChartExportPreview(APIView):
                 "date": d.date.isoformat(),
                 "employee_id": getattr(user, "employee_id", None),
                 "full_name": getattr(user, "full_name", None) or getattr(user, "username", None),
+                "position": getattr(user.position, "name", "-") if user and user.position else "-",
                 "phone_number": getattr(user, "phone_number", None),
-                "directorate": getattr(getattr(user, "directorate", None), "name", None) if user else None,
-                "department": getattr(getattr(user, "department", None), "name", None) if user else None,
                 "office": getattr(office, "name", None) or (getattr(getattr(user, "office", None), "name", None) if user else None),
                 "schedule": getattr(schedule, "name", None),
                 "start_time": getattr(schedule, "start_time", None).strftime("%H:%M") if getattr(schedule, "start_time", None) else None,
@@ -841,15 +955,13 @@ class DutyChartExportPreview(APIView):
                 {"key": "date", "label": "Date"},
                 {"key": "employee_id", "label": "Employee ID"},
                 {"key": "full_name", "label": "Employee Name"},
+                {"key": "position", "label": "Position"},
                 {"key": "phone_number", "label": "Phone"},
-                {"key": "directorate", "label": "Directorate"},
-                {"key": "department", "label": "Department"},
                 {"key": "office", "label": "Office"},
                 {"key": "schedule", "label": "Schedule"},
                 {"key": "start_time", "label": "Start Time"},
                 {"key": "end_time", "label": "End Time"},
             ],
-            "pagination": {"page": page, "page_size": page_size, "total": total},
             "rows": rows,
         }
 
@@ -876,17 +988,33 @@ class DutyChartExportFile(APIView):
     content_negotiation_class = IgnoreFormatContentNegotiation
 
     def get(self, request):
+        try:
+            return self._get(request)
+        except Exception as e:
+            import traceback
+            error_msg = f"EXPORT ERROR: {str(e)}\n{traceback.format_exc()}"
+            with open("/home/subin/duty-chart/backend/export_error.log", "a") as f:
+                f.write(error_msg + "\n" + "="*40 + "\n")
+            return Response({"detail": f"Export failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _get(self, request):
         chart_id = request.query_params.get("chart_id")
         out_format = (request.query_params.get("export_format") or request.query_params.get("format") or "").lower()
         scope = (request.query_params.get("scope") or "range").lower()
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
+        schedule_id = request.query_params.get("schedule_id")
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         chart = get_object_or_404(DutyChart, pk=int(chart_id))
-        qs = Duty.objects.filter(duty_chart_id=chart.id).select_related("user", "office", "schedule")
+        qs = Duty.objects.filter(duty_chart_id=chart.id).select_related(
+            "user", "office", "schedule", "user__directorate", "user__department", "user__position"
+        )
+
+        if schedule_id and schedule_id != "all":
+            qs = qs.filter(schedule_id=schedule_id)
 
         if scope == "range":
             if not start_date_str or not end_date_str:
@@ -897,6 +1025,40 @@ class DutyChartExportFile(APIView):
                 return Response({"detail": "Invalid start_date or end_date"}, status=status.HTTP_400_BAD_REQUEST)
             qs = qs.filter(date__gte=start_date, date__lte=end_date)
 
+        # Prepare data for headers
+        if scope == "range":
+            final_start = start_date
+            final_end = end_date
+        else:
+            final_start = chart.effective_date
+            final_end = chart.end_date or chart.effective_date
+
+        nepali_period = f"{to_nepali_digits(str(final_start).replace('-', '/'))} देखि {to_nepali_digits(str(final_end).replace('-', '/'))}"
+        if nepali_datetime:
+            try:
+                nep_start = nepali_datetime.date.from_datetime_date(final_start)
+                nep_end = nepali_datetime.date.from_datetime_date(final_end)
+                nepali_period = f"{to_nepali_digits(str(nep_start).replace('-', '/'))} देखि {to_nepali_digits(str(nep_end).replace('-', '/'))} सम्म"
+            except:
+                pass
+
+        unique_schedules = []
+        seen_sch = set()
+        for d in qs:
+            if d.schedule and d.schedule.id not in seen_sch:
+                unique_schedules.append(d.schedule)
+                seen_sch.add(d.schedule.id)
+        
+        if unique_schedules:
+            class_parts = []
+            for s in unique_schedules:
+                st = s.start_time.strftime("%H:%M")
+                et = s.end_time.strftime("%H:%M")
+                class_parts.append(f"{s.name} ({st} - {et})")
+            classification = ", ".join(class_parts)
+        else:
+            classification = getattr(chart, "name", "-") or "-"
+
         rows = []
         for d in qs.order_by("date"):
             user = d.user
@@ -904,9 +1066,16 @@ class DutyChartExportFile(APIView):
             schedule = d.schedule
             pos = getattr(user, "position", None) if user else None
 
+            # Timing for individual row
+            timing = ""
+            if schedule:
+                st = schedule.start_time.strftime("%H:%M")
+                et = schedule.end_time.strftime("%H:%M")
+                timing = f"\n({st} - {et})"
+
             rows.append(
                 [
-                    d.date.isoformat(),
+                    f"{d.date.isoformat()}{timing}",
                     getattr(user, "employee_id", "") or "",
                     (getattr(user, "full_name", "") or getattr(user, "username", "")) if user else "",
                     getattr(user, "phone_number", "") if user else "",
@@ -916,9 +1085,13 @@ class DutyChartExportFile(APIView):
                     getattr(schedule, "name", "") or "",
                     getattr(schedule, "start_time", None).strftime("%H:%M") if getattr(schedule, "start_time", None) else "",
                     getattr(schedule, "end_time", None).strftime("%H:%M") if getattr(schedule, "end_time", None) else "",
-                    getattr(pos, "name", "-") if pos else "-",
+                    getattr(pos, "alias", None) or getattr(pos, "name", "-") if pos else "-",
                 ]
             )
+
+        # Pre-translate unique names to avoid sequential API call bottleneck
+        unique_names = list(set(r[2] for r in rows if r[2]))
+        translate_to_nepali_batch(unique_names)
 
         # ---------------- Excel ----------------
         if out_format == "excel":
@@ -927,6 +1100,12 @@ class DutyChartExportFile(APIView):
             ws.title = "Duty Export"
             headers = ["Date", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position"]
             ws.append(headers)
+            
+            # Bold headers
+            from openpyxl.styles import Font
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+
             for r in rows:
                 ws.append(r)
             bio = BytesIO()
@@ -959,7 +1138,25 @@ class DutyChartExportFile(APIView):
 
             table_rows_html = ""
             for idx, r in enumerate(rows, start=1):
-                row_data = [str(idx), r[10], r[2], r[3], "", "", r[0], ""]
+                # Columns: SN, Position, Name(ID), Phone, WorkDesc, Target, Timeline, Remarks
+                sn_np = to_nepali_digits(idx)
+                pos = r[10] # পদ stays in English
+                translated_name = translate_to_nepali(r[2])
+                name_np = f"{translated_name} ({to_nepali_digits(r[1])})" # Name (ID in Nepali)
+                phone_np = to_nepali_digits(r[3])
+                
+                # Column 6: Date handling (Convert to Nepali digits)
+                just_date = r[0].split('\n')[0]
+                if nepali_datetime:
+                   try:
+                       d_obj = datetime.date.fromisoformat(just_date)
+                       n_date = nepali_datetime.date.from_datetime_date(d_obj)
+                       just_date = str(n_date)
+                   except:
+                       pass
+                timeline_np = to_nepali_digits(just_date.replace('-', '/'))
+
+                row_data = [sn_np, pos, name_np, phone_np, "", "", timeline_np, ""]
                 table_rows_html += "<tr>" + "".join([f"<td>{cell}</td>" for cell in row_data]) + "</tr>"
 
             html_str = f"""
@@ -972,18 +1169,17 @@ class DutyChartExportFile(APIView):
                     <div class="bold">अनुसूची-१</div>
                     <div>(परिच्छेद - ३ को दफा ८ र १० सँग सम्बन्धित)</div>
                     <div class="bold title">नेपाल दूरसंचार कम्पनी लिमिटेड (नेपाल टेलिकम)</div>
-                    <div class="bold">सिफ्ट ड्यूटीमा खटाउनु अघि भर्नु पर्ने बिवरण</div>
+                    <div class="bold">सिफ्ट ड्युटीमा खटाउनु अघि भर्नु पर्ने बिवरण</div>
                 </div>
 
                 <div class="meta">
                     <div><strong>कार्यालयको नाम:-</strong> {getattr(chart.office, 'name', '-')}</div>
-                    <div><strong>बिभाग/शाखाको नाम:-</strong> Integrated Network Operation Center (iNOC)</div>
-                    <div><strong>मिति:-</strong> {start_date_str or chart.effective_date} देखि {end_date_str or chart.end_date}</div>
-                    <div><strong>ड्यूटीको बर्गिकरण:-</strong> {chart.name or "-"}</div>
+                    <div><strong>बिभाग/शाखाको नाम:-</strong> </div>
+                    <div><strong>मिति:-</strong> {nepali_period}</div>
+                    <div><strong>ड्युटीको बर्गिकरण:-</strong> {classification}</div>
                 </div>
 
-                <table>
-                    <thead>
+                <table>                    <thead>
                         <tr>{"".join([f"<th>{h}</th>" for h in headers_np])}</tr>
                     </thead>
                     <tbody>
@@ -992,7 +1188,7 @@ class DutyChartExportFile(APIView):
                 </table>
 
                 <div class="note">
-                    कम्पनीको सिफ्ट ड्यूटी निर्देशिका बमोजिम तपाईंहरुलाई माथि उल्लेखित समयसीमा भित्र कार्य सम्पन्न गर्ने गरी ड्यूटीमा खटाईएको छ |
+                    कम्पनीको सिफ्ट ड्युटी निर्देशिका बमोजिम तपाईंहरुलाई माथि उल्लेखित समयसीमा भित्र कार्य सम्पन्न गर्ने गरी ड्युटीमा खटाईएको छ |
                     उक्त कार्य सम्पन्न गरे पश्चात् अनुसूची २ बमोजिम कार्य सम्पन्न गरेको प्रमाणित गराई पेश गर्नुहुन अनुरोध छ |
                 </div>
 
@@ -1008,7 +1204,13 @@ class DutyChartExportFile(APIView):
             """
 
             css_str = """
-            @page { size: A4; margin: 1.5cm; }
+            @page { 
+                size: A4; 
+                margin-top: 1in; 
+                margin-bottom: 1in; 
+                margin-left: 0.75in; 
+                margin-right: 0.75in; 
+            }
             body {
                 font-family: "Noto Sans Devanagari", "Nirmala UI", "Mangal", "DejaVu Sans", sans-serif;
                 font-size: 10pt;
@@ -1021,6 +1223,14 @@ class DutyChartExportFile(APIView):
             .meta { margin-bottom: 20px; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             th, td { border: 1px solid #000; padding: 5px; text-align: left; vertical-align: top; }
+            th:nth-child(1), td:nth-child(1) { width: 5%; text-align: center; } /* S.N. */
+            th:nth-child(2), td:nth-child(2) { width: 14%; } /* Position */
+            th:nth-child(3), td:nth-child(3) { width: 22%; } /* Name */
+            th:nth-child(4), td:nth-child(4) { width: 10%; } /* Phone */
+            th:nth-child(5), td:nth-child(5) { width: 12%; } /* Work */
+            th:nth-child(6), td:nth-child(6) { width: 10%; } /* Target */
+            th:nth-child(7), td:nth-child(7) { width: 19%; white-space: nowrap; } /* Timeline */
+            th:nth-child(8), td:nth-child(8) { width: 8%; }  /* Remarks */
             th { background: #f2f2f2; font-weight: bold; }
             .note { margin-top: 25px; }
             .sign { margin-top: 30px; }
@@ -1043,6 +1253,13 @@ class DutyChartExportFile(APIView):
         # ---------------- DOCX ----------------
         if out_format == "docx":
             doc = Document()
+            
+            # Moderate margins: Top/Bottom 1", Left/Right 0.75"
+            for section in doc.sections:
+                section.top_margin = Inches(1)
+                section.bottom_margin = Inches(1)
+                section.left_margin = Inches(0.75)
+                section.right_margin = Inches(0.75)
 
             style = doc.styles["Normal"]
             style.font.size = Pt(11)
@@ -1054,7 +1271,7 @@ class DutyChartExportFile(APIView):
             p = doc.add_paragraph("नेपाल दूरसंचार कम्पनी लिमिटेड (नेपाल टेलिकम)")
             p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-            p = doc.add_paragraph("सिफ्ट ड्यूटीमा खटाउनु अघि भर्नु पर्ने बिवरण")
+            p = doc.add_paragraph("सिफ्ट ड्युटीमा खटाउनु अघि भर्नु पर्ने बिवरण")
             p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
             doc.add_paragraph("")
@@ -1065,41 +1282,119 @@ class DutyChartExportFile(APIView):
             meta.add_run("\n")
 
             meta.add_run("बिभाग/शाखाको नाम:- ").bold = True
-            meta.add_run("Integrated Network Operation Center (iNOC)")
             meta.add_run("\n")
 
             meta.add_run("मिति:- ").bold = True
-            meta.add_run(f"{start_date_str or chart.effective_date} देखि {end_date_str or chart.end_date}")
+            meta.add_run(nepali_period)
             meta.add_run("\n")
 
             meta.add_run("ड्यूटीको बर्गिकरण:- ").bold = True
-            meta.add_run(chart.name or "-")
+            meta.add_run(classification)
+            meta.add_run("\n")
             meta.add_run("\n")
 
             meta.add_run("काममा खटाईएको बिवरण:- ").bold = True
-            doc.add_paragraph("")
-
-            headers = ["सि.नं.", "पद", "नाम", "सम्पर्क नं.", "कामको बिवरण", "लक्ष्य", "समय सिमा", "कैफियत"]
-
-            table = doc.add_table(rows=1, cols=len(headers))
+            # Table Header as per image
+            table = doc.add_table(rows=2, cols=8)
             table.style = "Table Grid"
-            for i, h in enumerate(headers):
-                table.rows[0].cells[i].text = h
 
+            # Merge सि.नं.
+            c0 = table.cell(0, 0)
+            c0.merge(table.cell(1, 0))
+            c0.text = "सि.नं."
+
+            # Merge काममा खटाउनु पर्ने कर्मचारीहरुको बिवरण
+            c1_3 = table.cell(0, 1)
+            c1_3.merge(table.cell(0, 3))
+            c1_3.text = "काममा खटाउनु पर्ने कर्मचारीहरुको बिवरण"
+
+            table.cell(1, 1).text = "पद"
+            table.cell(1, 2).text = "नाम"
+            table.cell(1, 3).text = "सम्पर्क नं."
+
+            # Merge कामको बिवरण
+            c4 = table.cell(0, 4)
+            c4.merge(table.cell(1, 4))
+            c4.text = "कामको बिवरण"
+
+            # Merge लक्ष्य
+            c5 = table.cell(0, 5)
+            c5.merge(table.cell(1, 5))
+            c5.text = "लक्ष्य"
+
+            # Merge समय सिमा
+            c6 = table.cell(0, 6)
+            c6.merge(table.cell(1, 6))
+            time_header = "समय सिमा"
+            if unique_schedules and len(unique_schedules) == 1:
+                s = unique_schedules[0]
+                st = s.start_time.strftime("%H:%M")
+                et = s.end_time.strftime("%H:%M")
+                time_range = f"\n({st} - "
+                if s.end_time < s.start_time:
+                    time_range += f"भोलिपल्ट {et})"
+                else:
+                    time_range += f"{et})"
+                time_header += time_range
+            c6.text = to_nepali_digits(time_header)
+
+            # Merge कैफियत
+            c7 = table.cell(0, 7)
+            c7.merge(table.cell(1, 7))
+            c7.text = "कैफियत"
+
+            # Adjust Column Widths (A4 width is approx 7 in)
+            table.columns[0].width = Inches(0.4)  # S.N.
+            table.columns[1].width = Inches(1.1)  # Position (Left in English)
+            table.columns[2].width = Inches(1.6)  # Name
+            table.columns[3].width = Inches(0.8)  # Phone
+            table.columns[4].width = Inches(0.8)  # Work
+            table.columns[5].width = Inches(0.6)  # Target
+            table.columns[6].width = Inches(1.3)  # Timeline (Increased to avoid wrap)
+            table.columns[7].width = Inches(0.6)  # Remarks
+
+            # Styling headers
+            for r_idx in range(2):
+                for c_idx in range(8):
+                    cell = table.cell(r_idx, c_idx)
+                    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    for p in cell.paragraphs:
+                        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                        for run in p.runs:
+                            run.bold = True
+
+            # Data Rows
             for idx, r in enumerate(rows, start=1):
-                cells = table.add_row().cells
-                cells[0].text = str(idx)
-                cells[1].text = r[10]  # Position
-                cells[2].text = r[2]   # Name
-                cells[3].text = r[3]   # Phone
-                cells[4].text = ""
-                cells[5].text = ""
-                cells[6].text = r[0]   # Date
-                cells[7].text = ""
+                row_cells = table.add_row().cells
+                row_cells[0].text = to_nepali_digits(idx)
+                row_cells[1].text = r[10]  # Position (Left in English as requested)
+                translated_name = translate_to_nepali(r[2])
+                row_cells[2].text = f"{translated_name} ({to_nepali_digits(r[1])})"  # Name (ID in Nepali)
+                row_cells[3].text = to_nepali_digits(r[3])   # Phone in Nepali
+                row_cells[4].text = ""     # Work desc
+                row_cells[5].text = ""     # Target
+
+                # Column 6: Date
+                just_date = r[0].split('\n')[0]
+                if nepali_datetime:
+                   try:
+                       d_obj = datetime.date.fromisoformat(just_date)
+                       n_date = nepali_datetime.date.from_datetime_date(d_obj)
+                       just_date = str(n_date)
+                   except:
+                       pass
+                row_cells[6].text = to_nepali_digits(just_date.replace('-', '/'))
+                row_cells[7].text = ""
+
+                # Align data rows
+                for cell in row_cells:
+                    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    for p in cell.paragraphs:
+                        p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
             doc.add_paragraph("")
             doc.add_paragraph(
-                "कम्पनीको सिफ्ट ड्यूटी निर्देशिका बमोजिम तपाईंहरुलाई माथि उल्लेखित समयसीमा भित्र कार्य सम्पन्न गर्ने गरी ड्यूटीमा खटाईएको छ | "
+                "कम्पनीको सिफ्ट ड्युटी निर्देशिका बमोजिम तपाईंहरुलाई माथि उल्लेखित समयसीमा भित्र कार्य सम्पन्न गर्ने गरी ड्युटीमा खटाईएको छ | "
                 "उक्त कार्य सम्पन्न गरे पश्चात् अनुसूची २ बमोजिम कार्य सम्पन्न गरेको प्रमाणित गराई पेश गर्नुहुन अनुरोध छ |"
             )
 
@@ -1217,7 +1512,7 @@ class DutyChartImportTemplateView(APIView):
         # Column Order: Full Name, Employee ID, Phone, Directorate, Department, Position, ID - Name
         ws_users.append(["Full Name", "Employee ID", "Phone", "Directorate", "Department", "Position", "ID - Name"])
         from users.models import User
-        users = User.objects.filter(office=office)
+        users = User.objects.filter(office=office, is_activated=True)
         for u in users:
             ws_users.append([
                 u.full_name,
@@ -1429,6 +1724,11 @@ class DutyChartImportView(APIView):
 
                         if not user:
                             errors.append(f"Row {row_num}: Employee '{emp_id or emp_name}' not found.")
+                            continue
+
+                        # --- Activation check ---
+                        if not user.is_activated:
+                            # Skip deactivated employees as requested
                             continue
 
                         # --- Office check for User (unless assign_any_office_employee permission) ---

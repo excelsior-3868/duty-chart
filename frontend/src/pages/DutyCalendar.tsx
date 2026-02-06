@@ -609,7 +609,7 @@ const DutyCalendar = () => {
                                     <SelectItem value="all">All Shifts</SelectItem>
                                     {schedules.map((s) => (
                                         <SelectItem key={s.id} value={String(s.id)}>
-                                            {s.alias ? `[${s.alias}] ` : ""}{s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
+                                            {s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -618,8 +618,8 @@ const DutyCalendar = () => {
 
                         {/* Display Chart Dates */}
                         {selectedDutyChartInfo && (
-                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200 shadow-sm transition-all animate-in fade-in zoom-in duration-300 shrink-0">
-                                <CalendarIcon className="w-3.5 h-3.5 text-primary" />
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-white bg-primary px-3 py-1.5 rounded-lg border border-primary shadow-sm transition-all animate-in fade-in zoom-in duration-300 shrink-0">
+                                <CalendarIcon className="w-3.5 h-3.5 text-white" />
                                 <span className="flex items-center gap-1.5">
                                     {dateMode === "BS"
                                         ? `${new NepaliDate(new Date(selectedDutyChartInfo.effective_date)).format("YYYY/MM/DD")} - ${selectedDutyChartInfo.end_date ? new NepaliDate(new Date(selectedDutyChartInfo.end_date)).format("YYYY/MM/DD") : "Open"}`
@@ -991,6 +991,7 @@ const DutyCalendar = () => {
                         dutyChartId={parseInt(selectedDutyChartId)}
                         startDateISO={format(calendarDays[0], "yyyy-MM-dd")}
                         endDateISO={format(calendarDays[calendarDays.length - 1], "yyyy-MM-dd")}
+                        scheduleId={selectedScheduleId}
                     />
                 )}
 

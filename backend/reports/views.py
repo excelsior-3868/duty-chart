@@ -1,6 +1,7 @@
 # reports/views.py
 import io
-from datetime import datetime
+import datetime
+import nepali_datetime
 
 from django.http import FileResponse
 from rest_framework.views import APIView
@@ -8,15 +9,34 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Inches
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.enum.table import WD_ALIGN_VERTICAL
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side
 
 from duties.models import Duty, DutyChart
 from .permissions import IsAdminOrSelf
+import requests
 
 User = get_user_model()
+
+
+def translate_to_nepali(text):
+    """Google Translate free API for simple names/titles."""
+    if not text or text == "-":
+        return text
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {"client": "gtx", "sl": "en", "tl": "ne", "dt": "t", "q": text}
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            result = response.json()
+            if result and result[0] and result[0][0]:
+                return result[0][0][0]
+    except:
+        pass
+    return text
 
 
 # ---------------------------
@@ -55,7 +75,12 @@ class DutyOptionsView(APIView):
     def get(self, request):
         qs = DutyChart.objects.all().order_by("effective_date")
         return Response([
-            {"id": c.id, "name": c.name or f"{c.office.name} - {c.effective_date}"}
+            {
+                "id": c.id,
+                "name": c.name or f"{c.office.name} - {c.effective_date}",
+                "effective_date": str(c.effective_date),
+                "end_date": str(c.end_date) if c.end_date else str(c.effective_date),
+            }
             for c in qs
         ])
 
@@ -242,19 +267,54 @@ class DutyReportFileView(APIView):
         center("नेपाल दूरसंचार कम्पनी लिमिटेड (नेपाल टेलिकम)")
         center("सिफ्ट ड्यूटीमा खटाउनु अघि भर्नु पर्ने बिवरण")
 
+        # Convert dates to Nepali
+        try:
+            # Handle string or date objects
+            d_from = datetime.datetime.strptime(str(date_from), "%Y-%m-%d") if isinstance(date_from, str) else date_from
+            d_to = datetime.datetime.strptime(str(date_to), "%Y-%m-%d") if isinstance(date_to, str) else date_to
+            
+            nepali_from = nepali_datetime.date.from_datetime_date(d_from)
+            nepali_to = nepali_datetime.date.from_datetime_date(d_to)
+            nepali_period = f"{nepali_from} देखि {nepali_to} सम्म"
+        except Exception as e:
+            print(f"Failed to convert to Nepali date: {e}")
+            nepali_period = f"{date_from} देखि {date_to} सम्म"
+
+        # Unique schedules in this report for classification
+        unique_schedules = []
+        seen_schedules = set()
+        for d in qs:
+            if d.schedule and d.schedule.id not in seen_schedules:
+                unique_schedules.append(d.schedule)
+                seen_schedules.add(d.schedule.id)
+        
+        def format_time_nepali(t, crosses=False):
+            t_str = t.strftime("%H:%M")
+            return f"भोलिपल्ट {t_str}" if crosses else t_str
+
+        classification_str = ""
+        if unique_schedules:
+            parts = []
+            for s in unique_schedules:
+                crosses = s.end_time < s.start_time
+                start_t = s.start_time.strftime("%H:%M")
+                end_t = format_time_nepali(s.end_time, crosses)
+                parts.append(f"{s.name} ({start_t} — {end_t})")
+            classification_str = ", ".join(parts)
+        else:
+            classification_str = "-"
+
         # Meta
         meta = doc.add_paragraph()
         meta.add_run("कार्यालयको नाम:- ").bold = True
         meta.add_run(qs.first().office.name if qs.exists() and qs.first().office else "-")
 
         meta.add_run("\nबिभाग/शाखाको नाम:- ").bold = True
-        meta.add_run("Integrated Network Operation Center (iNOC)")
-
         meta.add_run("\nमिति:- ").bold = True
-        meta.add_run(f"{date_from} देखि {date_to} सम्म")
+        meta.add_run(nepali_period)
 
         meta.add_run("\nड्यूटीको बर्गिकरण:- ").bold = True
-        meta.add_run("वर्क फ्रम होम ड्युटी (23:00 – भोलिपल्ट 07:00)")
+        meta.add_run(classification_str)
 
         doc.add_paragraph("\nकाममा खटाईएको बिवरण:-")
 
@@ -262,37 +322,114 @@ class DutyReportFileView(APIView):
         table = doc.add_table(rows=2, cols=8)
         table.style = "Table Grid"
 
-        headers = [ 
-           "सि.नं.", 
-           "काममा खटाउनु पर्ने कर्मचारीहरुको बिवरण", 
-           "", 
-           "", 
-           "कामको बिवरण", 
-           "लक्ष्य", 
-           "समय सिमा (२३:०० - भोलिपल्ट ०७:००)",
-           "कैफियत", 
-        ]
+        # Headers Setup with Merging
+        # Vertical merges
+        table.cell(0, 0).merge(table.cell(1, 0)) # सि.नं.
+        table.cell(0, 4).merge(table.cell(1, 4)) # कामको बिवरण
+        table.cell(0, 5).merge(table.cell(1, 5)) # लक्ष्य
+        table.cell(0, 6).merge(table.cell(1, 6)) # समय सिमा
+        table.cell(0, 7).merge(table.cell(1, 7)) # कैफियत
 
-        for i, h in enumerate(headers): 
-            table.rows[0].cells[i].text = h 
-            
-        table.rows[0].cells[1].merge(table.rows[0].cells[3])
+        # Horizontal merge
+        table.cell(0, 1).merge(table.cell(0, 3)) # काममा खटाउनु पर्ने कर्मचारीहरुको बिवरण
+
+        # Set Text and Alignment
+        def set_cell_text(cell, text, bold=True):
+            cell.text = text
+            p = cell.paragraphs[0]
+            p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            if bold:
+                for run in p.runs:
+                    run.bold = True
+
+        set_cell_text(table.cell(0, 0), "सि.नं.")
+        set_cell_text(table.cell(0, 1), "काममा खटाउनु पर्ने कर्मचारीहरुको विवरण")
+        set_cell_text(table.cell(0, 4), "कामको विवरण")
+        set_cell_text(table.cell(0, 5), "लक्ष्य")
+        set_cell_text(table.cell(0, 6), "समय सिमा")
         
-        sub_headers = ["", "पद", "नाम", "सम्पर्क नं.", "", "", ""] 
-        for i, h in enumerate(sub_headers): 
-            table.rows[1].cells[i].text = h
+        # Timeline header with timings if single schedule
+        timeline_header = "समय सिमा"
+        is_single_schedule = unique_schedules and len(unique_schedules) == 1
+        if is_single_schedule:
+            s = unique_schedules[0]
+            crosses = s.end_time < s.start_time
+            start_t = s.start_time.strftime("%H:%M")
+            end_t = format_time_nepali(s.end_time, crosses)
+            timeline_header += f"\n({start_t} - {end_t})"
+        set_cell_text(table.cell(0, 6), timeline_header)
+        
+        set_cell_text(table.cell(0, 7), "कैफियत")
+
+        # Row 1 sub-headers
+        set_cell_text(table.cell(1, 1), "पद")
+        set_cell_text(table.cell(1, 2), "नाम")
+        set_cell_text(table.cell(1, 3), "सम्पर्क नं.")
+
+        # Helper for Nepali digits
+        NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
+        def nep(txt):
+            return str(txt).translate(NEP_DIGITS)
 
         sn = 1
         for d in qs:
-            row = table.add_row().cells
-            row[0].text = str(sn)
-            row[1].text = getattr(d.user.position, "name", "-") if d.user.position else "-"
-            row[2].text = getattr(d.user, "full_name", "-")
-            row[3].text = getattr(d.user, "phone_number", "-")
-            row[4].text = ""
-            row[5].text = ""
-            row[6].text = str(d.date)
-            row[7].text = ""
+            cells = table.add_row().cells
+            
+            # SN
+            cells[0].text = nep(f"{sn}.")
+            
+            # Position
+            cells[1].text = (d.user.position.name if d.user.position else "-")
+            
+            # Name + Employee ID (in brackets)
+            name_str = getattr(d.user, "full_name", "-")
+            emp_id = getattr(d.user, "employee_id", "")
+            if emp_id:
+                name_str += f" ({nep(emp_id)})"
+            cells[2].text = name_str
+            
+            # Phone
+            cells[3].text = nep(getattr(d.user, "phone_number", "-"))
+            
+            # Work Description & Target
+            cells[4].text = ""
+            cells[5].text = ""
+
+            # Date / Timeline in Nepali
+            d_obj = d.date
+            try:
+                # Ensure d_obj is a date object
+                if isinstance(d_obj, str):
+                    d_obj = datetime.datetime.strptime(d_obj, "%Y-%m-%d").date()
+                nepali_d = nepali_datetime.date.from_datetime_date(d_obj)
+                date_str = nepali_d.strftime("%Y/%m/%d")
+            except Exception:
+                date_str = str(d_obj)
+            
+            date_str = nep(date_str)
+
+            if d.schedule:
+                if is_single_schedule:
+                    cells[6].text = date_str
+                else:
+                    crosses = d.schedule.end_time < d.schedule.start_time
+                    st = d.schedule.start_time.strftime("%H:%M")
+                    et = format_time_nepali(d.schedule.end_time, crosses)
+                    cells[6].text = f"{date_str}\n({nep(st)} - {nep(et)})"
+            else:
+                cells[6].text = date_str
+
+            cells[7].text = ""
+
+            # Align cells
+            for i in range(8):
+                p = cells[i].paragraphs[0]
+                # Center most, left align name & work desc
+                if i in [2, 4]:
+                    p.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+                else:
+                    p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            
             sn += 1
 
         # Footer
@@ -320,3 +457,175 @@ class DutyReportFileView(APIView):
             filename=f"Duty_Chart_{date_from}_{date_to}.docx",
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
+
+
+class DutyReportNewFileView(APIView):
+    permission_classes = [IsAdminOrSelf]
+
+    def get(self, request):
+        duty_id = request.GET.get("duty_id")
+        all_users = request.GET.get("all_users") == "1"
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+
+        if all_users and duty_id:
+            try:
+                chart = DutyChart.objects.get(id=duty_id)
+                date_from = chart.effective_date
+                date_to = chart.end_date or chart.effective_date
+            except DutyChart.DoesNotExist:
+                return Response({"error": "Invalid duty chart"}, status=400)
+
+        if not (date_from and date_to):
+            return Response({"error": "Missing dates"}, status=400)
+
+        qs = Duty.objects.select_related("user", "schedule", "office").filter(date__range=[date_from, date_to])
+        if duty_id:
+            qs = qs.filter(duty_chart_id=duty_id)
+        if not request.user.is_staff:
+            qs = qs.filter(user=request.user)
+        qs = qs.order_by("date", "schedule__start_time")
+
+        doc = Document()
+        
+        # Moderate margins: Top/Bottom 1", Left/Right 0.75"
+        for section in doc.sections:
+            section.top_margin = Inches(1)
+            section.bottom_margin = Inches(1)
+            section.left_margin = Inches(0.75)
+            section.right_margin = Inches(0.75)
+
+        doc.styles["Normal"].font.size = Pt(11)
+
+        def center(text, bold=False):
+            p = doc.add_paragraph()
+            r = p.add_run(text)
+            r.bold = bold
+            p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+        center("अनुसूची-२", True)
+        center("(परिच्छेद - ३ को दफा ८,९र १० सँग सम्बन्धित)")
+        center("नेपाल दूरसंचार कम्पनी लिमिटेड (नेपाल टेलिकम)")
+        center("सिफ्ट ड्यूटी सम्पन्न भए पश्चात भर्नु पर्ने बिवरण")
+
+        try:
+            d_from = datetime.datetime.strptime(str(date_from), "%Y-%m-%d") if isinstance(date_from, str) else date_from
+            d_to = datetime.datetime.strptime(str(date_to), "%Y-%m-%d") if isinstance(date_to, str) else date_to
+            nepali_from = nepali_datetime.date.from_datetime_date(d_from)
+            nepali_to = nepali_datetime.date.from_datetime_date(d_to)
+            # Apply slash and nepali digits as previously requested
+            nepali_period = f"{str(nepali_from).replace('-', '/')} देखि {str(nepali_to).replace('-', '/')} सम्म"
+            NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
+            nepali_period = nepali_period.translate(NEP_DIGITS)
+        except:
+            nepali_period = f"{date_from} देखि {date_to} सम्म"
+
+        unique_schedules = []
+        seen_schedules = set()
+        for d in qs:
+            if d.schedule and d.schedule.id not in seen_schedules:
+                unique_schedules.append(d.schedule)
+                seen_schedules.add(d.schedule.id)
+
+        meta = doc.add_paragraph()
+        meta.add_run("कार्यालयको नाम:- ").bold = True
+        meta.add_run(qs.first().office.name if qs.exists() and qs.first().office else "-")
+        meta.add_run("\nबिभाग/शाखाको नाम:- ").bold = True
+        meta.add_run("\nमिति:- ").bold = True
+        meta.add_run(nepali_period)
+
+        doc.add_paragraph("\nसम्पन्न भएको कामको बिवरण:-").bold = True
+
+        table = doc.add_table(rows=2, cols=8)
+        table.style = "Table Grid"
+
+        # Adjust Column Widths
+        table.columns[0].width = Inches(0.4)  # S.N.
+        table.columns[1].width = Inches(1.1)  # Position
+        table.columns[2].width = Inches(1.6)  # Name
+        table.columns[3].width = Inches(0.8)  # Contact
+        table.columns[4].width = Inches(0.8)  # Work
+        table.columns[5].width = Inches(0.6)  # Target
+        table.columns[6].width = Inches(1.3)  # Achievement/Time
+        table.columns[7].width = Inches(0.6)  # Remarks
+
+        table.cell(0, 0).merge(table.cell(1, 0))
+        table.cell(0, 4).merge(table.cell(1, 4))
+        table.cell(0, 5).merge(table.cell(1, 5))
+        table.cell(0, 6).merge(table.cell(1, 6))
+        table.cell(0, 7).merge(table.cell(1, 7))
+        table.cell(0, 1).merge(table.cell(0, 3))
+
+        def set_cell_text(cell, text, bold=True):
+            cell.text = text
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            p = cell.paragraphs[0]
+            p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            if bold:
+                for run in p.runs: run.bold = True
+
+        set_cell_text(table.cell(0, 0), "सि.नं.")
+        set_cell_text(table.cell(0, 1), "कर्मचारीहरुले सम्पादन गरेको कामको बिवरण")
+        set_cell_text(table.cell(0, 4), "कामको विवरण")
+        set_cell_text(table.cell(0, 5), "लक्ष्य")
+        set_cell_text(table.cell(0, 6), "उपलब्धि")
+        set_cell_text(table.cell(0, 7), "काम सम्पादन नभएमा सो को कारण")
+
+        timeline_header = "काम सम्पादन गर्न लागेको समय"
+        is_single_schedule = unique_schedules and len(unique_schedules) == 1
+        if is_single_schedule:
+            s = unique_schedules[0]
+            st = s.start_time.strftime("%H:%M")
+            et = s.end_time.strftime("%H:%M")
+            timeline_header += f"\n({st} - {et})"
+        set_cell_text(table.cell(1, 6), timeline_header) # achievement subheader essentially
+
+        set_cell_text(table.cell(1, 1), "पद")
+        set_cell_text(table.cell(1, 2), "नाम")
+        set_cell_text(table.cell(1, 3), "सम्पर्क नं.")
+
+        NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
+        def nep(txt): return str(txt).translate(NEP_DIGITS)
+
+        sn = 1
+        for d in qs:
+            cells = table.add_row().cells
+            cells[0].text = nep(f"{sn}.")
+            cells[1].text = (d.user.position.name if d.user.position else "-")
+            
+            # Translated Name
+            name_str = translate_to_nepali(getattr(d.user, "full_name", "-"))
+            emp_id = getattr(d.user, "employee_id", "")
+            if emp_id: name_str += f" ({nep(emp_id)})"
+            
+            cells[2].text = name_str
+            cells[3].text = nep(getattr(d.user, "phone_number", "-"))
+            cells[4].text = ""
+            cells[5].text = ""
+            
+            d_obj = d.date
+            try:
+                if isinstance(d_obj, str): d_obj = datetime.datetime.strptime(d_obj, "%Y-%m-%d").date()
+                nepali_d = nepali_datetime.date.from_datetime_date(d_obj)
+                date_str = nep(str(nepali_d).replace("-", "/"))
+            except:
+                date_str = nep(str(d_obj).replace("-", "/"))
+            cells[6].text = date_str
+            cells[7].text = ""
+
+            for i in range(8):
+                cells[i].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                cells[i].paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.LEFT if i in [2, 4] else WD_PARAGRAPH_ALIGNMENT.CENTER
+            sn += 1
+
+        doc.add_paragraph("\nकम्पनीको सिफ्ट ड्यूटी निर्देशिका बमोजिम तपाईंहरुले माथि उल्लेखित समयसीमा भित्र कार्य सम्पन्न गरेको प्रमाणित गराई पेश गर्नुहुन अनुरोध छ |")
+        doc.add_paragraph("\nकाममा खटाउने अधिकार प्राप्त पदाधिकारीको बिवरण:-")
+        doc.add_paragraph("नाम:-")
+        doc.add_paragraph("पद:-")
+        doc.add_paragraph("दस्तखत:-")
+        doc.add_paragraph("मिति:-")
+
+        bio = io.BytesIO()
+        doc.save(bio)
+        bio.seek(0)
+        return FileResponse(bio, as_attachment=True, filename=f"Duty_Report_New_{date_from}_{date_to}.docx", content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")

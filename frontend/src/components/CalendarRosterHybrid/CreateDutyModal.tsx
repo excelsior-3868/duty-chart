@@ -89,7 +89,8 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
         setLoading(true);
         const canAssignAny = hasPermission("duties.assign_any_office_employee");
         // If can assign any, fetch all users. Otherwise, fetch for this office.
-        const res = await getUsers(canAssignAny ? undefined : officeId);
+        // Also only fetch users whose status is_activated=true
+        const res = await getUsers(canAssignAny ? undefined : officeId, true);
         setUsers(res);
       } catch (e) {
         console.error("Failed to load users:", e);
@@ -372,7 +373,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                   <Command>
                     <CommandInput placeholder="Search employee by name, ID or email..." />
-                    <CommandList>
+                    <CommandList className="max-h-[300px] overflow-y-auto">
                       <CommandEmpty>No employee found.</CommandEmpty>
                       <CommandGroup>
                         {users.map((u) => (

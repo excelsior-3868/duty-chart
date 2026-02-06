@@ -16,11 +16,15 @@ export interface User {
   image?: string | null;
   position?: number | null;
   position_name?: string | null;
+  is_activated?: boolean;
 }
 
-// GET all users (optionally filtered by office)
-export const getUsers = async (officeId?: number): Promise<User[]> => {
-  const params = typeof officeId === "number" ? { office: officeId } : {};
+// GET all users (optionally filtered by office and activation status)
+export const getUsers = async (officeId?: number, isActivated?: boolean): Promise<User[]> => {
+  const params: any = {};
+  if (typeof officeId === "number") params.office = officeId;
+  if (typeof isActivated === "boolean") params.is_activated = isActivated;
+
   // Request a large page size for the dashboard/dropdowns if not specified otherwise
   // or handle pagination if the API enforces it.
   const res = await api.get<any>("/users/?page_size=100", { params });

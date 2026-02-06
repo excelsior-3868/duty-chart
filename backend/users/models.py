@@ -98,6 +98,7 @@ class User(AuditableMixin, AbstractUser):
 
 class Position(AuditableMixin, models.Model):
     name = models.CharField(max_length=255)
+    alias = models.CharField(max_length=255, null=True, blank=True)
     level = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
     
     def __str__(self):
