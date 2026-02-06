@@ -80,6 +80,8 @@ class DutyOptionsView(APIView):
                 "name": c.name or f"{c.office.name} - {c.effective_date}",
                 "effective_date": str(c.effective_date),
                 "end_date": str(c.end_date) if c.end_date else str(c.effective_date),
+                "office_id": c.office_id,
+                "office_name": c.office.name if c.office else "Unknown",
             }
             for c in qs
         ])
@@ -100,6 +102,8 @@ class DutyReportPreviewView(APIView):
         all_users = request.GET.get("all_users") == "1"
         user_ids = [] if all_users else _parse_user_ids(request)
         duty_id = request.GET.get("duty_id")
+        schedule_id = request.GET.get("schedule_id")
+        office_id = request.GET.get("office_id")
 
         if not request.user.is_staff:
             user_ids = [request.user.id]
@@ -112,6 +116,12 @@ class DutyReportPreviewView(APIView):
             qs = qs.filter(user_id__in=user_ids)
         elif duty_id:
             qs = qs.filter(duty_chart_id=duty_id)
+
+        if schedule_id and schedule_id != "all":
+            qs = qs.filter(schedule_id=schedule_id)
+        
+        if office_id and office_id != "all":
+            qs = qs.filter(office_id=office_id)
 
         qs = qs.order_by("user_id", "date", "schedule__start_time")
 
@@ -214,7 +224,7 @@ class DutyReportFileView(APIView):
             for d in qs:
                 row = [
                     sn,
-                    getattr(d.user.position, "name", "-") if d.user.position else "-",
+                    (d.user.position.alias or d.user.position.name) if d.user.position else "-",
                     getattr(d.user, "full_name", "-"),
                     getattr(d.user, "phone_number", "-"),
                     "", # Work Description
@@ -379,7 +389,8 @@ class DutyReportFileView(APIView):
             cells[0].text = nep(f"{sn}.")
             
             # Position
-            cells[1].text = (d.user.position.name if d.user.position else "-")
+            pos = d.user.position
+            cells[1].text = (pos.alias or pos.name) if pos else "-"
             
             # Name + Employee ID (in brackets)
             name_str = getattr(d.user, "full_name", "-")
@@ -465,14 +476,20 @@ class DutyReportNewFileView(APIView):
     def get(self, request):
         duty_id = request.GET.get("duty_id")
         all_users = request.GET.get("all_users") == "1"
+        user_ids = _parse_user_ids(request)
         date_from = request.GET.get("date_from")
         date_to = request.GET.get("date_to")
+        schedule_id = request.GET.get("schedule_id")
+        office_id = request.GET.get("office_id")
 
-        if all_users and duty_id:
+        chart = None
+        if duty_id:
             try:
                 chart = DutyChart.objects.get(id=duty_id)
-                date_from = chart.effective_date
-                date_to = chart.end_date or chart.effective_date
+                # If all_users or if dates weren't provided, use chart dates for filtering
+                if all_users or not (date_from and date_to):
+                    date_from = chart.effective_date
+                    date_to = chart.end_date or chart.effective_date
             except DutyChart.DoesNotExist:
                 return Response({"error": "Invalid duty chart"}, status=400)
 
@@ -480,8 +497,16 @@ class DutyReportNewFileView(APIView):
             return Response({"error": "Missing dates"}, status=400)
 
         qs = Duty.objects.select_related("user", "schedule", "office").filter(date__range=[date_from, date_to])
-        if duty_id:
+        if not all_users and user_ids:
+            qs = qs.filter(user_id__in=user_ids)
+        elif duty_id:
             qs = qs.filter(duty_chart_id=duty_id)
+        
+        if schedule_id and schedule_id != "all":
+            qs = qs.filter(schedule_id=schedule_id)
+            
+        if office_id and office_id != "all":
+            qs = qs.filter(office_id=office_id)
         if not request.user.is_staff:
             qs = qs.filter(user=request.user)
         qs = qs.order_by("date", "schedule__start_time")
@@ -507,17 +532,33 @@ class DutyReportNewFileView(APIView):
         center("(परिच्छेद - ३ को दफा ८,९र १० सँग सम्बन्धित)")
         center("नेपाल दूरसंचार कम्पनी लिमिटेड (नेपाल टेलिकम)")
         center("सिफ्ट ड्यूटी सम्पन्न भए पश्चात भर्नु पर्ने बिवरण")
-
+        meta = doc.add_paragraph()
         try:
-            d_from = datetime.datetime.strptime(str(date_from), "%Y-%m-%d") if isinstance(date_from, str) else date_from
-            d_to = datetime.datetime.strptime(str(date_to), "%Y-%m-%d") if isinstance(date_to, str) else date_to
-            nepali_from = nepali_datetime.date.from_datetime_date(d_from)
-            nepali_to = nepali_datetime.date.from_datetime_date(d_to)
-            # Apply slash and nepali digits as previously requested
+            # If we have a chart, use its official period for the header as requested
+            if chart:
+                df = chart.effective_date
+                dt = chart.end_date or chart.effective_date
+            else:
+                # Parse dates if they are strings
+                if isinstance(date_from, str):
+                    df = datetime.datetime.strptime(date_from, "%Y-%m-%d").date()
+                else:
+                    df = date_from
+                    
+                if isinstance(date_to, str):
+                    dt = datetime.datetime.strptime(date_to, "%Y-%m-%d").date()
+                else:
+                    dt = date_to
+                
+            nepali_from = nepali_datetime.date.from_datetime_date(df)
+            nepali_to = nepali_datetime.date.from_datetime_date(dt)
+            
+            # Format: YYYY/MM/DD in Nepali numerals
             nepali_period = f"{str(nepali_from).replace('-', '/')} देखि {str(nepali_to).replace('-', '/')} सम्म"
             NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
             nepali_period = nepali_period.translate(NEP_DIGITS)
-        except:
+        except Exception as e:
+            print(f"Date conversion error: {e}")
             nepali_period = f"{date_from} देखि {date_to} सम्म"
 
         unique_schedules = []
@@ -534,15 +575,38 @@ class DutyReportNewFileView(APIView):
         meta.add_run("\nमिति:- ").bold = True
         meta.add_run(nepali_period)
 
-        doc.add_paragraph("\nसम्पन्न भएको कामको बिवरण:-").bold = True
+        # Duty Classification (बर्गिकरण)
+        NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
+        def nep(txt): return str(txt).translate(NEP_DIGITS)
+
+        def format_time_nepali(t, crosses=False):
+            t_str = t.strftime("%H:%M")
+            return f"भोलिपल्ट {t_str}" if crosses else t_str
+
+        parts = []
+        for s in unique_schedules:
+            crosses = s.end_time < s.start_time
+            st = s.start_time.strftime("%H:%M")
+            et = format_time_nepali(s.end_time, crosses)
+            # Use Nepali digits for times as well
+            parts.append(f"{s.name} ({nep(st)} - {nep(et)})")
+        
+        classification_str = ", ".join(parts) if parts else "-"
+        meta.add_run("\nड्यूटीको बर्गिकरण:- ").bold = True
+        meta.add_run(classification_str)
+
+        doc.add_paragraph() # Spacer
+        p_desc = doc.add_paragraph()
+        run_desc = p_desc.add_run("सम्पन्न भएको कामको बिवरण:-")
+        run_desc.bold = True
 
         table = doc.add_table(rows=2, cols=8)
         table.style = "Table Grid"
 
         # Adjust Column Widths
-        table.columns[0].width = Inches(0.4)  # S.N.
-        table.columns[1].width = Inches(1.1)  # Position
-        table.columns[2].width = Inches(1.6)  # Name
+        table.columns[0].width = Inches(0.25) # S.N.
+        table.columns[1].width = Inches(0.5)  # Position
+        table.columns[2].width = Inches(2.45) # Name
         table.columns[3].width = Inches(0.8)  # Contact
         table.columns[4].width = Inches(0.8)  # Work
         table.columns[5].width = Inches(0.6)  # Target
@@ -577,7 +641,7 @@ class DutyReportNewFileView(APIView):
             s = unique_schedules[0]
             st = s.start_time.strftime("%H:%M")
             et = s.end_time.strftime("%H:%M")
-            timeline_header += f"\n({st} - {et})"
+            timeline_header += f"\n({nep(st)} - {nep(et)})"
         set_cell_text(table.cell(1, 6), timeline_header) # achievement subheader essentially
 
         set_cell_text(table.cell(1, 1), "पद")
@@ -591,7 +655,11 @@ class DutyReportNewFileView(APIView):
         for d in qs:
             cells = table.add_row().cells
             cells[0].text = nep(f"{sn}.")
-            cells[1].text = (d.user.position.name if d.user.position else "-")
+            
+            # Position (पद) Translated - Using alias if available
+            pos = d.user.position
+            pos_name = (pos.alias or pos.name) if pos else "-"
+            cells[1].text = translate_to_nepali(pos_name)
             
             # Translated Name
             name_str = translate_to_nepali(getattr(d.user, "full_name", "-"))

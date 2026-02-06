@@ -176,6 +176,7 @@ class UserPermission(AuditableMixin, models.Model):
 class UserDashboardOffice(AuditableMixin, models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dashboard_offices')
     office = models.ForeignKey(WorkingOffice, on_delete=models.CASCADE, related_name='dashboard_users')
+    order = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ('user', 'office')

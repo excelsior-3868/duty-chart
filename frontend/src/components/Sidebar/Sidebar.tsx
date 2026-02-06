@@ -71,35 +71,37 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     permission: 'users.view_employee'
   },
   {
-    title: 'Directorates',
-    href: ROUTES.DIRECTORATES,
+    title: 'Organization',
     icon: 'Building2',
-    permission: 'org.view_directorate',
-  },
-  {
-    title: 'Accounting Offices',
-    href: ROUTES.ACCOUNTING_OFFICES,
-    icon: 'Landmark',
-    permission: 'org.view_accounting_office',
-  },
-  {
-    title: 'CC Offices',
-    href: ROUTES.CC_OFFICES,
-    icon: 'Landmark',
-    permission: 'org.view_cc_office',
+    children: [
+      {
+        title: 'Directorates',
+        href: ROUTES.DIRECTORATES,
+        icon: 'Building2',
+        permission: 'org.view_directorate',
+      },
+      {
+        title: 'Accounting Offices',
+        href: ROUTES.ACCOUNTING_OFFICES,
+        icon: 'Landmark',
+        permission: 'org.view_accounting_office',
+      },
+      {
+        title: 'CC Offices',
+        href: ROUTES.CC_OFFICES,
+        icon: 'Landmark',
+        permission: 'org.view_cc_office',
+      },
+    ]
   },
   {
     title: 'Reports',
     icon: 'BarChart3',
     permission: 'duties.view_chart',
     children: [
+
       {
-        title: 'Annex I Report',
-        href: ROUTES.ANNEX_I_REPORT,
-        icon: 'FileText'
-      },
-      {
-        title: 'Annex II Report',
+        title: 'Duty Report (अनुसूची-२)',
         href: ROUTES.ANNEX_II_REPORT,
         icon: 'FileText'
       }
@@ -185,6 +187,9 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                     </AccordionTrigger>
                     <AccordionContent className="pb-0 pt-1 pl-6 space-y-1">
                       {item.children.map((child) => {
+                        // Check child permission if present
+                        if (child.permission && !hasPermission(child.permission)) return null;
+
                         const ChildIcon = iconMap[child.icon as keyof typeof iconMap];
                         return (
                           <Button

@@ -12,8 +12,35 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
-import { Loader2, Download, FileText, Calendar, Users, Info } from "lucide-react";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import { Loader2, Download, FileText, Calendar, Users, Info, Search, Check, ChevronDown, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { toast } from "sonner";
+import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
+import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
+import NepaliDate from "nepali-date-converter";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 /* ===================== TYPES ===================== */
 
@@ -26,6 +53,8 @@ interface DutyRow {
     end_time: string;
     is_completed: boolean;
     currently_available: boolean;
+    employee_name: string;
+    employee_id: string;
 }
 
 interface User {
@@ -38,6 +67,15 @@ interface DutyOption {
     name: string;
     effective_date: string;
     end_date: string;
+    office_id: number;
+    office_name: string;
+}
+
+interface Schedule {
+    id: number;
+    name: string;
+    start_time: string;
+    end_time: string;
 }
 
 /* ===================== COMPONENT ===================== */
@@ -45,16 +83,18 @@ interface DutyOption {
 function UserWiseReportNew() {
     const [users, setUsers] = useState<User[]>([]);
     const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-    const [selectAllUsers, setSelectAllUsers] = useState(false);
+    const [selectAllUsers, setSelectAllUsers] = useState(true);
+
 
     const [duties, setDuties] = useState<DutyRow[]>([]);
     const [loading, setLoading] = useState(false);
+    const [downloading, setDownloading] = useState(false);
     const [firstLoad, setFirstLoad] = useState(true);
 
     const [me, setMe] = useState<any>(null);
 
-    const [dateFrom, setDateFrom] = useState("2026-01-01");
-    const [dateTo, setDateTo] = useState("2026-01-31");
+    const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+    const [dateTo, setDateTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
 
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -62,6 +102,15 @@ function UserWiseReportNew() {
     const [dutyOptions, setDutyOptions] = useState<DutyOption[]>([]);
     const [selectedDuty, setSelectedDuty] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState("");
+
+    const [schedules, setSchedules] = useState<Schedule[]>([]);
+    const [selectedSchedule, setSelectedSchedule] = useState<string>("all");
+    const [dateMode, setDateMode] = useState<"BS" | "AD">("BS");
+
+    // Set document title
+    useEffect(() => {
+        document.title = "Duty Report (Annex 2) - NT Duty Chart Management System";
+    }, []);
 
     /* ================= Outside click ================= */
 
@@ -95,7 +144,7 @@ function UserWiseReportNew() {
     /* ================= Fetch users ================= */
 
     async function fetchUsers(dutyId?: string) {
-        if (!me || !me.is_staff) return;
+        if (!me) return;
         try {
             const params: any = {};
             if (dutyId && dutyId !== "none") {
@@ -109,9 +158,16 @@ function UserWiseReportNew() {
     }
 
     useEffect(() => {
-        if (me) fetchUsers(selectedDuty);
+        if (me) {
+            if (selectedDuty && selectedDuty !== "none") {
+                fetchUsers(selectedDuty);
+            } else {
+                setUsers([]);
+                setSelectedUsers([]);
+                setSelectAllUsers(true);
+            }
+        }
     }, [me, selectedDuty]);
-
     /* ================= Fetch duty options ================= */
 
     useEffect(() => {
@@ -126,24 +182,59 @@ function UserWiseReportNew() {
         fetchDuties();
     }, []);
 
+
+    /* ================= Fetch schedules when duty changes ================= */
+
+    useEffect(() => {
+        if (selectedDuty && selectedDuty !== "none") {
+            async function fetchSchedules() {
+                try {
+                    const res = await api.get("/schedule/", {
+                        params: { duty_chart: selectedDuty }
+                    });
+                    setSchedules(res.data || []);
+                    setSelectedSchedule("all");
+                } catch (err) {
+                    console.error("Failed to fetch schedules", err);
+                }
+            }
+            fetchSchedules();
+        } else {
+            setSchedules([]);
+            setSelectedSchedule("all");
+        }
+    }, [selectedDuty]);
+
     /* ================= Handle Duty Change ================= */
 
     const handleDutyChange = (val: string) => {
         setSelectedDuty(val);
-        if (val) {
+        if (val && val !== "none") {
             const selected = dutyOptions.find(d => d.id.toString() === val);
             if (selected) {
                 setDateFrom(selected.effective_date);
                 setDateTo(selected.end_date);
             }
+        } else {
+            // Reset to current month if "none" is selected
+            setDateFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+            setDateTo(format(endOfMonth(new Date()), "yyyy-MM-dd"));
         }
     };
 
     /* ================= Load preview ================= */
 
     async function loadReport() {
+        if (!selectedDuty || selectedDuty === "none") {
+            toast.error("Please select a Duty Chart first.");
+            return;
+        }
+        if (!selectedSchedule) {
+            toast.error("Please select a Shift.");
+            return;
+        }
         if (!selectAllUsers && selectedUsers.length === 0) {
-            alert("Please select a user or enable Complete Duty Chart");
+            toast.warning("Please select an employee or enable 'All'.");
             return;
         }
         setLoading(true);
@@ -153,16 +244,38 @@ function UserWiseReportNew() {
                 params: {
                     date_from: dateFrom,
                     date_to: dateTo,
-                    user_id: selectedUsers,
+                    user_id: selectAllUsers ? undefined : selectedUsers.join(","),
+                    all_users: selectAllUsers ? "1" : "0",
                     duty_id: selectedDuty || undefined,
+                    schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
                 },
             });
 
             if (res.data && res.data.groups) {
-                const rows = res.data.groups.flatMap((g: any) => g.rows || []);
-                setDuties(rows);
+                const allRows = res.data.groups.flatMap((g: any) => {
+                    // Normalize group header info
+                    const name = g.user_name || g.full_name || g.name || "-";
+                    const eid = g.employee_id || g.user_id || "-";
+
+                    return (g.rows || []).map((r: any) => ({
+                        ...r,
+                        employee_name: name,
+                        employee_id: eid,
+                    }));
+                });
+                // Sort by date DESC
+                allRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setDuties(allRows);
             } else if (Array.isArray(res.data)) {
-                setDuties(res.data);
+                // Fallback for flat array response
+                const flattened = res.data.map((r: any) => ({
+                    ...r,
+                    employee_name: r.employee_name || r.user_name || r.name || "-",
+                    employee_id: r.employee_id || r.user_id || "-",
+                }));
+                // Sort by date DESC
+                flattened.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setDuties(flattened);
             } else {
                 setDuties([]);
             }
@@ -174,15 +287,59 @@ function UserWiseReportNew() {
         }
     }
 
+    function clearPreview() {
+        setDuties([]);
+        setFirstLoad(true);
+        setSelectedDuty("");
+        setSelectedSchedule("all");
+    }
+
     /* ================= Download DOCX ================= */
 
+    /* ================= Helpers ================= */
+
+    const getNepaliWeekday = (englishWeekday: string) => {
+        const map: { [key: string]: string } = {
+            "Sunday": "आईतबार",
+            "Monday": "सोमबार",
+            "Tuesday": "मंगलबार",
+            "Wednesday": "बुधबार",
+            "Thursday": "बिहिवार",
+            "Friday": "शुक्रबार",
+            "Saturday": "शनिबार"
+        };
+        return map[englishWeekday] || englishWeekday;
+    };
+
+    const getFormattedDate = (isoDate: string) => {
+        try {
+            const ad = new Date(isoDate);
+            const bs = new NepaliDate(ad);
+            return {
+                ad: format(ad, "MMM dd, yyyy"),
+                bs: bs.format("YYYY-MM-DD")
+            };
+        } catch {
+            return { ad: isoDate, bs: isoDate };
+        }
+    };
+
     async function downloadReport() {
+        if (!selectedDuty || selectedDuty === "none") {
+            toast.error("Please select a Duty Chart first.");
+            return;
+        }
+        if (!selectedSchedule) {
+            toast.error("Please select a Shift.");
+            return;
+        }
         if (!selectAllUsers && selectedUsers.length === 0) {
-            alert("No users selected!");
+            toast.warning("No employees selected!");
             return;
         }
 
         try {
+            setDownloading(true);
             const params: any = {
                 date_from: dateFrom,
                 date_to: dateTo,
@@ -198,6 +355,10 @@ function UserWiseReportNew() {
                 params["duty_id"] = selectedDuty;
             }
 
+            if (selectedSchedule !== "all") {
+                params["schedule_id"] = selectedSchedule;
+            }
+
             const response = await api.get("/reports/duties/file-new/", {
                 params,
                 responseType: "blob",
@@ -209,16 +370,21 @@ function UserWiseReportNew() {
                 })
             );
 
+            const selectedDutyName = dutyOptions.find(d => d.id.toString() === selectedDuty)?.name || "Report";
+            const safeDutyName = selectedDutyName.replace(/[/\\?%*:|"<>]/g, '-');
+
             const link = document.createElement("a");
             link.href = url;
-            link.download = `Completed_Work_Report_${dateFrom}_${dateTo}.docx`;
+            link.download = `DutyCompletion_Report_अनुसूची-2_${safeDutyName}_${dateFrom}_${dateTo}.docx`;
             document.body.appendChild(link);
             link.click();
             link.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error("Download failed", err);
-            alert("Failed to download report");
+            toast.error("Failed to download report");
+        } finally {
+            setDownloading(false);
         }
     }
 
@@ -229,11 +395,10 @@ function UserWiseReportNew() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-                        <FileText className="h-6 w-6 text-primary" />
-                        Completed Work Report (अनुसूची - २)
+                        Duty Report (अनुसूची - २)
                     </h1>
                     <p className="text-muted-foreground text-sm">
-                        Generate and export professional performance reports in "Annex 2" format.
+                        Generate and export report in अनुसूची - २ format.
                     </p>
                 </div>
             </div>
@@ -246,140 +411,189 @@ function UserWiseReportNew() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                    <p className="text-muted-foreground text-xs mb-6">Select the timeframe and personnel to include in the report.</p>
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 items-end">
-                        {/* Duty Selection */}
+
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[240px_240px_minmax(210px,0.8fr)_1.2fr] items-end">
+
+                        {/* 1. Duty Selection */}
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-slate-500">
-                                <Calendar className="h-3.5 w-3.5" />
-                                Select Duty Chart
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500 ">
+                                <Calendar className="h-3 w-3" />
+                                Duty Chart
                             </Label>
-                            <Select value={selectedDuty} onValueChange={handleDutyChange}>
-                                <SelectTrigger className="w-full bg-white h-9 text-xs font-medium">
-                                    <SelectValue placeholder="-- Select Duty Chart --" />
+                            <Select value={selectedDuty} onValueChange={setSelectedDuty}>
+                                <SelectTrigger className="w-full bg-white h-10 text-sm font-medium border-slate-200">
+                                    <SelectValue placeholder="Select Duty Chart" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none" className="text-xs">-- Select Duty --</SelectItem>
-                                    {dutyOptions.map((d) => (
-                                        <SelectItem key={d.id} value={d.id.toString()} className="text-xs">
-                                            {d.name}
+                                    <SelectItem value="none" className="text-sm">-- Select Chart --</SelectItem>
+                                    {dutyOptions.map((opt) => (
+                                        <SelectItem key={opt.id} value={opt.id.toString()} className="text-sm">
+                                            {opt.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        {/* Date Range */}
+                        {/* 2. Shift (Schedule) Selection */}
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-slate-500">
-                                <Calendar className="h-3.5 w-3.5" />
-                                Custom Date Range
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500 ">
+                                <Clock className="h-3 w-3" />
+                                Shift
                             </Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                    type="date"
-                                    value={dateFrom}
-                                    onChange={(e) => setDateFrom(e.target.value)}
-                                    className="bg-white h-9 text-xs font-medium"
-                                    title="From Date"
-                                />
-                                <Input
-                                    type="date"
-                                    value={dateTo}
-                                    onChange={(e) => setDateTo(e.target.value)}
-                                    className="bg-white h-9 text-xs font-medium"
-                                    title="To Date"
-                                />
-                            </div>
+                            <Select value={selectedSchedule} onValueChange={setSelectedSchedule} disabled={!selectedDuty || selectedDuty === "none"}>
+                                <SelectTrigger className="w-full bg-white h-10 text-sm font-medium border-slate-200">
+                                    <SelectValue placeholder="-- All Shifts --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all" className="text-sm">-- All Shifts --</SelectItem>
+                                    {schedules.map((s) => (
+                                        <SelectItem key={s.id} value={s.id.toString()} className="text-sm">
+                                            {s.name} ({s.start_time.slice(0, 5)})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
-                        {/* User Selection */}
+                        {/* 3. Date Range */}
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-slate-500">
-                                <Users className="h-3.5 w-3.5" />
-                                Personnel Selection
-                            </Label>
-
-                            <div className="flex gap-2">
-                                <div className="flex items-center space-x-2 w-fit px-3 bg-muted/50 rounded-md border h-9 shrink-0">
-                                    <Checkbox
-                                        id="all-users"
-                                        checked={selectAllUsers}
-                                        onCheckedChange={(checked) => {
-                                            setSelectAllUsers(checked === true);
-                                            if (checked) setSelectedUsers([]);
-                                        }}
-                                    />
-                                    <Label htmlFor="all-users" className="cursor-pointer font-bold whitespace-nowrap text-[10px] uppercase">All</Label>
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center justify-between text-slate-500 w-full">
+                                <span className="flex items-center gap-1.5">
+                                    <Calendar className="h-3 w-3" />
+                                    Date Range
+                                </span>
+                                <div className="flex bg-slate-100 border rounded p-0.5 items-center">
+                                    <button
+                                        onClick={() => setDateMode("BS")}
+                                        className={cn("px-1.5 py-0.5 text-[12px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}
+                                    >BS</button>
+                                    <button
+                                        onClick={() => setDateMode("AD")}
+                                        className={cn("px-1.5 py-0.5 text-[12px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}
+                                    >AD</button>
                                 </div>
-
-                                {me && me.is_staff ? (
-                                    <div className="relative flex-1" ref={dropdownRef}>
-                                        <Button
-                                            variant="outline"
-                                            type="button"
-                                            className="w-full justify-between bg-white text-left font-medium h-9 text-xs"
-                                            disabled={selectAllUsers}
-                                            onClick={() => setDropdownOpen((p) => !p)}
-                                        >
-                                            <span className="truncate">
-                                                {selectedUsers.length === 0
-                                                    ? "Select Employee"
-                                                    : `${selectedUsers.length} selected`}
-                                            </span>
-                                            <Users className="ml-2 h-3.5 w-3.5 opacity-50 shrink-0" />
-                                        </Button>
-
-                                        {dropdownOpen && !selectAllUsers && (
-                                            <Card className="absolute z-50 mt-1 w-full shadow-2xl animate-in fade-in zoom-in duration-200 min-w-[250px]">
-                                                <div className="p-2 border-b">
-                                                    <Input
-                                                        placeholder="Search employees..."
-                                                        value={searchTerm}
-                                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                                        className="h-8 text-xs"
-                                                        autoFocus
-                                                    />
-                                                </div>
-                                                <div className="max-h-60 overflow-y-auto p-2">
-                                                    {users
-                                                        .filter(u => u.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
-                                                        .map((u) => (
-                                                            <div key={u.id} className="flex items-center space-x-2 p-2 hover:bg-muted rounded-sm transition-colors cursor-pointer text-xs">
-                                                                <Checkbox
-                                                                    id={`user-${u.id}`}
-                                                                    checked={selectedUsers.includes(u.id)}
-                                                                    onCheckedChange={() =>
-                                                                        setSelectedUsers((prev) =>
-                                                                            prev.includes(u.id)
-                                                                                ? prev.filter((id) => id !== u.id)
-                                                                                : [...prev, u.id]
-                                                                        )
-                                                                    }
-                                                                />
-                                                                <Label
-                                                                    htmlFor={`user-${u.id}`}
-                                                                    className="w-full cursor-pointer pr-4 font-medium"
-                                                                >
-                                                                    {u.full_name}
-                                                                </Label>
-                                                            </div>
-                                                        ))}
-                                                    {users.filter(u => u.full_name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                                                        <div className="p-4 text-center text-muted-foreground italic text-xs">No employees found</div>
-                                                    )}
-                                                </div>
-                                            </Card>
-                                        )}
-                                    </div>
+                            </Label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                                {dateMode === "BS" ? (
+                                    <>
+                                        <NepaliDatePicker
+                                            value={dateFrom}
+                                            onChange={setDateFrom}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                        <NepaliDatePicker
+                                            value={dateTo}
+                                            onChange={setDateTo}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                    </>
                                 ) : (
-                                    <div className="p-2 border rounded-md bg-muted/20 text-xs h-9 flex items-center flex-1 truncate font-medium">{me?.full_name}</div>
+                                    <>
+                                        <GregorianDatePicker
+                                            value={dateFrom}
+                                            onChange={setDateFrom}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                        <GregorianDatePicker
+                                            value={dateTo}
+                                            onChange={setDateTo}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                    </>
                                 )}
                             </div>
                         </div>
-                    </div>
 
-                    <div className="mt-8 flex flex-col sm:flex-row gap-4 pt-6 border-t justify-center md:justify-end">
+                        {/* 4. Employee Selection */}
+                        <div className="space-y-2">
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center justify-between text-slate-500">
+                                <span className="flex items-center gap-1.5 ">
+                                    <Users className="h-3 w-3" />
+                                    Employee
+                                </span>
+                                <div className="flex items-center space-x-2 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                    <Checkbox
+                                        id="selectAll"
+                                        checked={selectAllUsers}
+                                        onCheckedChange={(checked) => setSelectAllUsers(!!checked)}
+                                        disabled={!selectedDuty || selectedDuty === "none"}
+                                        className="h-3.5 w-3.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                    />
+                                    <label htmlFor="selectAll" className="text-[9px] font-black cursor-pointer text-slate-600 uppercase">
+                                        All
+                                    </label>
+                                </div>
+                            </Label>
+                            <div className="relative">
+                                <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            disabled={selectAllUsers || !selectedDuty || selectedDuty === "none"}
+                                            className="w-full h-10 justify-between bg-white text-sm font-medium border-slate-200 hover:bg-slate-50/50"
+                                        >
+                                            <div className="flex items-center gap-2 truncate">
+                                                <Users className="h-4 w-4 text-slate-400 shrink-0" />
+                                                <span className="truncate">
+                                                    {selectedUsers.length > 0
+                                                        ? `${selectedUsers.length} selected`
+                                                        : "Select Employee"}
+                                                </span>
+                                            </div>
+                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                                        <Command>
+                                            <CommandInput
+                                                placeholder="Search..."
+                                                className="h-8 text-[11px]"
+                                                value={searchTerm}
+                                                onValueChange={setSearchTerm}
+                                            />
+                                            <CommandList className="max-h-52 custom-scrollbar">
+                                                <CommandEmpty className="py-4 text-center text-[11px] text-muted-foreground">
+                                                    Empty.
+                                                </CommandEmpty>
+                                                <CommandGroup>
+                                                    {users.filter(u => u.full_name.toLowerCase().includes(searchTerm.toLowerCase())).map((u) => {
+                                                        const isSelected = selectedUsers.includes(u.id);
+                                                        return (
+                                                            <CommandItem
+                                                                key={u.id}
+                                                                value={u.full_name}
+                                                                onSelect={() => {
+                                                                    setSelectedUsers(prev =>
+                                                                        isSelected
+                                                                            ? prev.filter(id => id !== u.id)
+                                                                            : [...prev, u.id]
+                                                                    );
+                                                                }}
+                                                                className="text-sm cursor-pointer"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={cn(
+                                                                        "w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors",
+                                                                        isSelected ? "bg-primary border-primary" : "border-slate-300 bg-white"
+                                                                    )}>
+                                                                        {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                                                                    </div>
+                                                                    <span>{u.full_name}</span>
+                                                                </div>
+                                                            </CommandItem>
+                                                        );
+                                                    })}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-4 flex flex-col sm:flex-row gap-4 justify-center md:justify-end">
                         <Button
                             size="default"
                             onClick={loadReport}
@@ -392,19 +606,34 @@ function UserWiseReportNew() {
 
                         <Button
                             size="default"
+                            onClick={clearPreview}
+                            variant="ghost"
+                            className="min-w-[140px] h-9 text-xs font-bold text-slate-500 hover:text-destructive hover:bg-destructive/5"
+                        >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Clear Preview
+                        </Button>
+
+                        <Button
+                            size="default"
                             onClick={downloadReport}
+                            disabled={downloading}
                             variant="outline"
                             className="min-w-[140px] h-9 text-xs font-bold border-primary text-primary hover:bg-primary/10 shadow-sm"
                         >
-                            <Download className="h-4 w-4 mr-2" />
+                            {downloading ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                                <Download className="h-4 w-4 mr-2" />
+                            )}
                             Download DOCX
                         </Button>
                     </div>
                 </CardContent>
             </Card>
 
-            <div className="space-y-4 pt-4">
-                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2 border-b-2 border-primary/20 pb-2">
+            <div className="space-y-4 pt-1">
+                <h3 className="text-2xl font-bold text-primary flex items-center gap-2">
                     Report Preview
                 </h3>
 
@@ -419,9 +648,8 @@ function UserWiseReportNew() {
                         </p>
                     </div>
                 ) : loading ? (
-                    <div className="p-20 text-center flex flex-col items-center gap-4">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        <p className="text-lg font-medium text-muted-foreground animate-pulse font-mono tracking-widest uppercase">Fetching data...</p>
+                    <div className="p-20 text-center flex flex-col items-center justify-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     </div>
                 ) : duties.length === 0 ? (
                     <div className="p-16 border-2 border-dashed border-destructive/20 rounded-xl bg-destructive/5 text-center transition-all shadow-inner">
@@ -435,41 +663,69 @@ function UserWiseReportNew() {
                         </p>
                     </div>
                 ) : (
-                    <Card className="overflow-hidden border-none shadow-xl rounded-xl">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-primary/90 text-white">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider border-r border-white/10">Date</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider border-r border-white/10">Weekday</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider border-r border-white/10">Schedule</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider border-r border-white/10">Time (Start - End)</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100 italic font-mono">
-                                    {duties.map((d, i) => (
-                                        <tr key={d.id} className={cn("hover:bg-primary/5 transition-colors", i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50')}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r">{d.date}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground border-r">{d.weekday}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-primary/80 border-r">{d.schedule}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-center font-bold border-r">
-                                                {d.start_time.slice(0, 5)} - {d.end_time.slice(0, 5)}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                <span className={cn(
-                                                    "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-tighter shadow-sm",
-                                                    d.is_completed ? "bg-green-100 text-green-700 border border-green-200" : "bg-red-100 text-red-700 border border-red-200"
-                                                )}>
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <Table>
+                            <TableHeader className="bg-primary hover:bg-primary">
+                                <TableRow className="hover:bg-transparent border-none">
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">ID</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Employee</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Date (BS / AD)</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Weekday</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Schedule</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider text-center">Time</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider text-center">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {duties.map((d) => {
+                                    const dateInfo = getFormattedDate(d.date);
+                                    const nepaliWeekday = getNepaliWeekday(d.weekday);
+                                    return (
+                                        <TableRow key={d.id} className="hover:bg-slate-50/80 transition-colors border-slate-100">
+                                            <TableCell className="py-4">
+                                                <span className="text-xm font-mono text-primary font-bold uppercase whitespace-nowrap">{d.employee_id}</span>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <span className="font-medium text-slate-800 text-sm whitespace-nowrap">{d.employee_name}</span>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono text-sm font-bold text-slate-700">{dateInfo.bs}</span>
+                                                    <span className="text-[12px] text-slate-400 font-medium">{dateInfo.ad}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-semibold text-slate-700">{nepaliWeekday}</span>
+                                                    <span className="text-[11px] text-slate-400 italic">({d.weekday})</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <span className="text-sm font-semibold text-primary/80">{d.schedule}</span>
+                                            </TableCell>
+                                            <TableCell className="py-4 text-center">
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded border border-slate-100 font-mono text-xs font-bold text-slate-700">
+                                                    <Clock className="h-3 w-3 text-slate-400" />
+                                                    {d.start_time.slice(0, 5)} - {d.end_time.slice(0, 5)}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4 text-center">
+                                                <Badge
+                                                    variant={d.is_completed ? "default" : "secondary"}
+                                                    className={cn(
+                                                        "text-[12px] font-bold px-3 py-0.5  tracking-tighter",
+                                                        d.is_completed ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
+                                                    )}
+                                                >
                                                     {d.is_completed ? "Completed" : "Not Finished"}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
             </div>
         </div>

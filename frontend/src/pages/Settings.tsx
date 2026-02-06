@@ -24,7 +24,7 @@ const Settings = () => {
   });
 
   useEffect(() => {
-    document.title = "Settings - INOC Duty Roster";
+    document.title = "Settings - NT Duty Chart Management System";
     fetchSettings();
   }, []);
 

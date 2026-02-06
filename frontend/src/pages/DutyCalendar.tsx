@@ -132,8 +132,7 @@ const DutyCalendar = () => {
     const location = useLocation();
     const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
-    // --- 0. Handle Preselection from Navigation State (Removed to keep "Select Office" as default) ---
-    /*
+    // --- 0. Handle Preselection from Navigation State ---
     useEffect(() => {
         const state = location.state as { preselect?: { officeId: string; dutyChartId: string } };
         if (state?.preselect) {
@@ -141,7 +140,7 @@ const DutyCalendar = () => {
             setSelectedDutyChartId(state.preselect.dutyChartId);
         }
     }, [location.state]);
-    */
+
 
     // --- 1. Load Offices ---
     useEffect(() => {

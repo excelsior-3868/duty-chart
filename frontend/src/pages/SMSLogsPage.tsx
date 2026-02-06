@@ -27,6 +27,11 @@ export default function SMSLogsPage() {
     const [search, setSearch] = useState("");
     const [selectedLog, setSelectedLog] = useState<SMSLogItem | null>(null);
 
+    // Set document title
+    useEffect(() => {
+        document.title = "SMS Logs - NT Duty Chart Management System";
+    }, []);
+
     // Debounce search
     const [debouncedSearch, setDebouncedSearch] = useState(search);
     useEffect(() => {

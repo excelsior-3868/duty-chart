@@ -202,4 +202,28 @@
     scrollbar-width: none !important;
     /* Firefox */
   }
+
+  .scrollbar-visible::-webkit-scrollbar {
+    display: block !important;
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background: hsla(215, 16%, 47%, 0.4);
+    border-radius: 10px;
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: hsla(215, 16%, 47%, 0.6);
+  }
+
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-visible {
+    -ms-overflow-style: auto !important;
+    scrollbar-width: thin !important;
+  }
 }

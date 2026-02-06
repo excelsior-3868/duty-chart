@@ -60,6 +60,11 @@ export default function AccountingOfficesPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedOffice, setSelectedOffice] = useState<AccountingOffice | null>(null);
 
+    // Set document title
+    React.useEffect(() => {
+        document.title = "Accounting Offices - NT Duty Chart Management System";
+    }, []);
+
     // Debounce search
     React.useEffect(() => {
         const handler = setTimeout(() => {
@@ -168,7 +173,7 @@ export default function AccountingOfficesPage() {
             <div className="flex justify-between items-end md:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-primary">Accounting Offices</h1>
-                    <p className="text-muted-foreground text-sm">Manage accounting offices and their directorate mapping.</p>
+                    <p className="text-muted-foreground text-sm">Manage accounting offices and their provincial directorate mapping.</p>
                 </div>
                 <Button onClick={() => { resetForm(); setIsAddModalOpen(true); }} className="gap-2 shadow-sm whitespace-nowrap">
                     <Plus className="h-4 w-4" /> Add Office
@@ -179,11 +184,11 @@ export default function AccountingOfficesPage() {
             <Card className="border-none shadow-sm bg-white">
                 <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                        <div className="relative w-full md:w-80">
+                        <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search offices..."
-                                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary"
+                                placeholder="Search by Office or Provincial Directorate..."
+                                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary h-11"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
@@ -281,7 +286,7 @@ export default function AccountingOfficesPage() {
                                         <TableRow className="hover:bg-transparent border-none">
                                             <TableHead className="w-[80px] py-3 text-white font-bold pl-6 text-sm">ID</TableHead>
                                             <TableHead className="py-3 text-white font-bold text-sm">Office Name</TableHead>
-                                            <TableHead className="py-3 text-white font-bold text-sm">Directorate</TableHead>
+                                            <TableHead className="py-3 text-white font-bold text-sm">Provincial Directorate</TableHead>
                                             <TableHead className="w-[120px] py-3 text-white font-bold text-sm text-right pr-6">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -289,7 +294,7 @@ export default function AccountingOfficesPage() {
                                         {offices?.map((office) => (
                                             <TableRow key={office.id} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
                                                 <TableCell className="font-mono text-xs font-bold text-primary pl-6">
-                                                    #{office.id}
+                                                    {office.id}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
@@ -429,13 +434,13 @@ export default function AccountingOfficesPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold text-slate-500">Directorate</Label>
+                            <Label className="text-xs font-bold text-slate-500">Provincial Directorate</Label>
                             <Select
                                 value={formData.directorate ? String(formData.directorate) : "none"}
                                 onValueChange={(val) => setFormData({ ...formData, directorate: val === "none" ? null : Number(val) })}
                             >
                                 <SelectTrigger className="bg-slate-50/50 border-slate-200 h-11">
-                                    <SelectValue placeholder="Select Directorate" />
+                                    <SelectValue placeholder="Select Provincial Directorate" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">None</SelectItem>
@@ -481,13 +486,13 @@ export default function AccountingOfficesPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-xs font-bold text-slate-500">Directorate</Label>
+                            <Label className="text-xs font-bold text-slate-500">Provincial Directorate</Label>
                             <Select
                                 value={formData.directorate ? String(formData.directorate) : "none"}
                                 onValueChange={(val) => setFormData({ ...formData, directorate: val === "none" ? null : Number(val) })}
                             >
                                 <SelectTrigger className="bg-slate-50/50 border-slate-200 h-11">
-                                    <SelectValue placeholder="Select Directorate" />
+                                    <SelectValue placeholder="Select Provincial Directorate" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">None</SelectItem>

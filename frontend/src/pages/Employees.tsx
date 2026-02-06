@@ -47,56 +47,7 @@ import {
 } from "@/components/ui/dialog";
 
 const Employees = () => {
-  const employees: UserData[] = [
-    {
-      id: 1,
-      name: "Ram Sharma",
-      position: "Network Engineer",
-      department: "Technical",
-      employeeId: "EMP001",
-      status: "active",
-      phone: "+977-9841234567",
-      email: "ram.sharma@ntc.net.np",
-      location: "Central Office",
-      joinDate: "Jan 2022"
-    },
-    {
-      id: 2,
-      name: "Sita Karki",
-      position: "Customer Service Representative",
-      department: "Customer Service",
-      employeeId: "EMP002",
-      status: "active",
-      phone: "+977-9841234568",
-      email: "sita.karki@ntc.net.np",
-      location: "Call Center",
-      joinDate: "Mar 2021"
-    },
-    {
-      id: 3,
-      name: "Hari Thapa",
-      position: "Field Technician",
-      department: "Maintenance",
-      employeeId: "EMP003",
-      status: "on_leave",
-      phone: "+977-9841234569",
-      email: "hari.thapa@ntc.net.np",
-      location: "Field Office",
-      joinDate: "Jul 2020"
-    },
-    {
-      id: 4,
-      name: "Maya Gurung",
-      position: "Supervisor",
-      department: "Operations",
-      employeeId: "EMP004",
-      status: "active",
-      phone: "+977-9841234570",
-      email: "maya.gurung@ntc.net.np",
-      location: "Main Office",
-      joinDate: "Sep 2019"
-    }
-  ];
+
 
   // ---------------- Add Employee Card State ----------------
   const [fullName, setFullName] = useState("");
@@ -644,11 +595,11 @@ const Employees = () => {
       <Card className="border-none shadow-sm bg-white">
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div className="relative w-full md:w-80">
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by Name, ID, Mobile, Dept, or Email..."
-                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary"
+                placeholder="Search by Name, ID, Mobile, Email, Office, or Status..."
+                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary h-11"
                 value={nameQuery}
                 onChange={(e) => setNameQuery(e.target.value)}
               />

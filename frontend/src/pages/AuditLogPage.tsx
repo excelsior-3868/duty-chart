@@ -35,6 +35,11 @@ export default function AuditLogPage() {
     const [actionFilter, setActionFilter] = useState<string>("ALL");
     const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
+    // Set document title
+    useEffect(() => {
+        document.title = "System Audit Logs - NT Duty Chart Management System";
+    }, []);
+
     // Debounce search
     const [debouncedSearch, setDebouncedSearch] = useState(search);
     useEffect(() => {

@@ -344,7 +344,7 @@ class UserDashboardOfficeSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserDashboardOffice
-        fields = ['id', 'user', 'office', 'office_name']
+        fields = ['id', 'user', 'office', 'office_name', 'order']
         validators = [
             UniqueTogetherValidator(
                 queryset=UserDashboardOffice.objects.all(),

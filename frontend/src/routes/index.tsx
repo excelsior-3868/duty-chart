@@ -110,11 +110,19 @@ import SMSLogsPage from "@/pages/SMSLogsPage";
 import DirectoratePage from "@/pages/DirectoratePage";
 import AccountingOfficesPage from "@/pages/AccountingOfficesPage";
 import CCOfficesPage from "@/pages/CCOfficesPage";
+import ScrollToTop from "@/components/ScrollToTop";
+import { Outlet } from "react-router-dom";
 
 
 export const router = createBrowserRouter([
   {
     path: "/",
+    element: (
+      <>
+        <ScrollToTop />
+        <Outlet />
+      </>
+    ),
     children: [
       {
         index: true,

@@ -59,6 +59,11 @@ export default function CCOfficesPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedOffice, setSelectedOffice] = useState<CCOffice | null>(null);
 
+    // Set document title
+    React.useEffect(() => {
+        document.title = "CC Offices - NT Duty Chart Management System";
+    }, []);
+
     // Debounce search
     React.useEffect(() => {
         const handler = setTimeout(() => {
@@ -178,11 +183,11 @@ export default function CCOfficesPage() {
             <Card className="border-none shadow-sm bg-white">
                 <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                        <div className="relative w-full md:w-80">
+                        <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search offices..."
-                                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary"
+                                placeholder="Search by CC Office or Accounting Office..."
+                                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary h-11"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
@@ -288,7 +293,7 @@ export default function CCOfficesPage() {
                                         {offices?.map((office) => (
                                             <TableRow key={office.id} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
                                                 <TableCell className="font-mono text-xs font-bold text-primary pl-6">
-                                                    #{office.id}
+                                                    {office.id}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">

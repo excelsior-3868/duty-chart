@@ -26,25 +26,18 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const Dashboard = () => {
-  // State
-  const [duties, setDuties] = useState<Duty[]>([]);
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [dutyCharts, setDutyCharts] = useState<DutyChart[]>([]);
-  const [offices, setOffices] = useState<Office[]>([]);
-  const [selectedOffices, setSelectedOffices] = useState<DashboardOffice[]>([]);
-  const [myDuties, setMyDuties] = useState<Duty[]>([]);
-
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [expandedOffice, setExpandedOffice] = useState<Record<string, boolean>>({});
   const [isAddCardOpen, setIsAddCardOpen] = useState(false);
   const [selectedForAdd, setSelectedForAdd] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const todayLocalISODate = useMemo(() => {
     const dt = new Date();
@@ -63,65 +56,81 @@ const Dashboard = () => {
     };
   }, []);
 
-  const selectedOfficeIds = useMemo(() => selectedOffices.map(so => so.office), [selectedOffices]);
-
+  // Set document title
   useEffect(() => {
     document.title = "Dashboard - NT Duty Chart Managment System";
-    let mounted = true;
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      getDutiesFiltered({ date: todayLocalISODate }),
-      getUsers(),
-      getDutyCharts(),
-      getOffices(),
-      getDashboardOffices(),
-      user?.id ? getDutiesFiltered({ user: user.id }) : Promise.resolve([])
-    ])
-      .then(([dutiesRes, usersRes, dutyChartsRes, officesRes, selectedRes, myDutiesRes]) => {
-        if (!mounted) return;
-        setDuties(dutiesRes || []);
-        setUsers(usersRes || []);
-        setDutyCharts(dutyChartsRes || []);
-        setOffices(officesRes || []);
-        setSelectedOffices(selectedRes || []);
+  }, []);
 
-        setMyDuties(myDutiesRes || []);
-      })
-      .catch((e) => {
-        if (!mounted) return;
-        setError(e?.response?.data?.detail || e?.message || "Failed to load Dashboard data");
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [todayLocalISODate, user?.id]);
+  /* ==================== QUERIES ==================== */
+  // Stale time of 5 minutes to avoid refetching on every navigation
 
-  // Computations
+  const { data: duties = [], isLoading: dutiesLoading } = useQuery({
+    queryKey: ['duties', 'today', todayLocalISODate],
+    queryFn: () => getDutiesFiltered({ date: todayLocalISODate }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: users = [], isLoading: usersLoading } = useQuery({
+    queryKey: ['users', 'all'],
+    queryFn: () => getUsers(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: dutyCharts = [], isLoading: chartsLoading } = useQuery({
+    queryKey: ['dutyCharts', 'all'],
+    queryFn: () => getDutyCharts(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: offices = [], isLoading: officesLoading } = useQuery({
+    queryKey: ['offices', 'all'],
+    queryFn: () => getOffices(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: selectedOffices = [], isLoading: selectedOfficesLoading } = useQuery({
+    queryKey: ['dashboard-offices'],
+    queryFn: () => getDashboardOffices(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: myDuties = [], isLoading: myDutiesLoading } = useQuery({
+    queryKey: ['duties', 'my', user?.id],
+    queryFn: () => user?.id ? getDutiesFiltered({ user: user.id }) : Promise.resolve([]),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: officeDuties = [], isLoading: officeDutiesLoading } = useQuery({
+    queryKey: ['duties', 'office', user?.office_id],
+    queryFn: () => user?.office_id ? getDutiesFiltered({ office: user.office_id }) : Promise.resolve([]),
+    enabled: !!user?.office_id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const loading = dutiesLoading || usersLoading || chartsLoading || officesLoading || selectedOfficesLoading || myDutiesLoading || officeDutiesLoading;
+
+  // Memoize selectedOfficeIds from the query data
+  const selectedOfficeIds = useMemo(() => selectedOffices.map((so: DashboardOffice) => so.office), [selectedOffices]);
+
+  /* ==================== COMPUTATIONS ==================== */
+
   const activeDutyCharts = useMemo(() => {
-    return dutyCharts.filter(dc => {
+    return dutyCharts.filter((dc: DutyChart) => {
+      // Must be one of the selected offices
+      if (!selectedOfficeIds.includes(dc.office)) return false;
+
       const start = dc.effective_date;
       const end = dc.end_date;
       const isStarted = start <= todayLocalISODate;
       const isNotEnded = !end || end >= todayLocalISODate;
       return isStarted && isNotEnded;
     });
-  }, [dutyCharts, todayLocalISODate]);
-
-  const expiringChartsCount = useMemo(() => {
-    const nextWeek = format(addDays(new Date(), 7), "yyyy-MM-dd");
-    return activeDutyCharts.filter(chart =>
-      chart.end_date && chart.end_date <= nextWeek
-    ).length;
-  }, [activeDutyCharts]);
+  }, [dutyCharts, todayLocalISODate, selectedOfficeIds]);
 
   const userById = useMemo(() => {
     const map = new Map<number, AppUser>();
-    users.forEach((u) => {
+    users.forEach((u: AppUser) => {
       if (typeof u.id === "number") {
         map.set(u.id, u);
       }
@@ -143,14 +152,14 @@ const Dashboard = () => {
     const groups = new Map<number, { officeName: string; officeId: number; rows: NowRow[] }>();
 
     // First, initialize with selected offices if any, to show empty cards if they have no duties
-    selectedOfficeIds.forEach(id => {
-      const off = offices.find(o => o.id === id);
+    selectedOfficeIds.forEach((id: number) => {
+      const off = offices.find((o: Office) => o.id === id);
       if (off) {
         groups.set(id, { officeName: off.name, officeId: id, rows: [] });
       }
     });
 
-    duties.forEach((d) => {
+    duties.forEach((d: Duty) => {
       const officeId = d.office;
       if (!selectedOfficeIds.includes(officeId)) return;
 
@@ -205,24 +214,22 @@ const Dashboard = () => {
   }, [duties, userById, selectedOfficeIds, offices]);
 
   const chartData = useMemo(() => {
-    const groups = new Map<string, number>();
-    duties.forEach(d => {
-      const name = d.office_name || "Unknown";
-      groups.set(name, (groups.get(name) || 0) + 1);
-    });
-    return Array.from(groups.entries()).map(([name, count]) => ({ name, count }));
-  }, [duties]);
+    return groupedByOffice.map(group => ({
+      name: group.officeName,
+      count: group.rows.filter(r => r.currently_available).length
+    }));
+  }, [groupedByOffice]);
 
   const myCurrentDuty = useMemo(() => {
     if (!myDuties || myDuties.length === 0) return null;
 
     // Filter duties for today
-    const todaysDuties = myDuties.filter(d => d.date === todayLocalISODate);
+    const todaysDuties = myDuties.filter((d: Duty) => d.date === todayLocalISODate);
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    return todaysDuties.find(d => {
+    return todaysDuties.find((d: Duty) => {
       if (d.start_time && d.end_time) {
         const parseTime = (t: string) => {
           const [h, m] = t.split(":").map(Number);
@@ -258,7 +265,7 @@ const Dashboard = () => {
     // Filter duties that are either:
     // 1. Future date
     // 2. Today, but start time is in the future
-    const futureDuties = myDuties.filter(d => {
+    const futureDuties = myDuties.filter((d: Duty) => {
       if (d.date > todayStr) return true;
       if (d.date === todayStr && d.start_time) {
         const start = parseTime(d.start_time);
@@ -268,7 +275,7 @@ const Dashboard = () => {
     });
 
     // Sort by date then start_time
-    futureDuties.sort((a, b) => {
+    futureDuties.sort((a: Duty, b: Duty) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
       const startA = parseTime(a.start_time || "00:00");
       const startB = parseTime(b.start_time || "00:00");
@@ -277,6 +284,47 @@ const Dashboard = () => {
 
     return futureDuties.length > 0 ? futureDuties[0] : null;
   }, [myDuties]);
+
+  const currentBSMonthInfo = useMemo(() => {
+    const nd = new NepaliDate(new Date());
+    return {
+      month: nd.getMonth(),
+      year: nd.getYear(),
+      name: nd.format("MMMM")
+    };
+  }, []);
+
+  const myDutiesThisMonth = useMemo(() => {
+    if (!myDuties || myDuties.length === 0) return 0;
+    const { month, year } = currentBSMonthInfo;
+
+    return myDuties.filter((d: Duty) => {
+      try {
+        const dBS = new NepaliDate(new Date(d.date));
+        return dBS.getMonth() === month && dBS.getYear() === year;
+      } catch (e) {
+        return false;
+      }
+    }).length;
+  }, [myDuties, currentBSMonthInfo]);
+
+  const officeDutiesThisMonth = useMemo(() => {
+    if (!officeDuties || officeDuties.length === 0) return 0;
+    const { month, year } = currentBSMonthInfo;
+
+    return officeDuties.filter((d: Duty) => {
+      try {
+        const dBS = new NepaliDate(new Date(d.date));
+        return dBS.getMonth() === month && dBS.getYear() === year;
+      } catch (e) {
+        return false;
+      }
+    }).length;
+  }, [officeDuties, currentBSMonthInfo]);
+
+  const officeDutiesTodayCount = useMemo(() => {
+    return officeDuties.filter((d: Duty) => d.date === todayLocalISODate).length;
+  }, [officeDuties, todayLocalISODate]);
 
   const stats = [
     {
@@ -298,24 +346,38 @@ const Dashboard = () => {
       isDuty: false
     },
     {
-      title: "Active Duty Charts",
-      value: activeDutyCharts.length.toString(),
-      description: "Charts currently in operation",
-      icon: FileText,
+      title: `My Duties (${currentBSMonthInfo.name})`,
+      value: myDutiesThisMonth.toString(),
+      description: "",
+      icon: CalendarDays,
+      trend: "Your shifts this month",
+      colorClass: "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none"
+    },
+    {
+      title: `Office Duties (${currentBSMonthInfo.name})`,
+      value: officeDutiesThisMonth.toString(),
+      description: "",
+      icon: Building2,
+      trend: "Total office shifts",
+      colorClass: "bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-none"
     },
     {
       title: "On Duty Today",
-      value: duties.length.toString(),
-      description: "Total staff across offices",
+      value: officeDutiesTodayCount.toString(),
+      description: "",
       icon: Calendar,
+      trend: `Staffs on duty in ${user?.office_name || 'Office'}`,
+      colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100 border-none"
     },
   ];
+
+  /* ==================== ACTIONS ==================== */
 
   const handleAddOffice = async (id: number) => {
     if (selectedOfficeIds.includes(id)) return;
     try {
-      const res = await addDashboardOffice(id);
-      setSelectedOffices(prev => [...prev, res]);
+      await addDashboardOffice(id);
+      queryClient.invalidateQueries({ queryKey: ['dashboard-offices'] });
       toast.success("Office added to board");
     } catch (e) {
       toast.error("Failed to add office to board");
@@ -324,11 +386,11 @@ const Dashboard = () => {
 
   const handleAddMultipleOffices = async () => {
     if (selectedForAdd.length === 0) return;
-    setLoading(true);
+
+    setActionLoading(true);
     try {
       await Promise.all(selectedForAdd.map(id => addDashboardOffice(id)));
-      const updatedSelected = await getDashboardOffices();
-      setSelectedOffices(updatedSelected);
+      queryClient.invalidateQueries({ queryKey: ['dashboard-offices'] });
       toast.success(`${selectedForAdd.length} office(s) added to board`);
       setIsAddCardOpen(false);
       setSelectedForAdd([]);
@@ -336,16 +398,16 @@ const Dashboard = () => {
     } catch (e) {
       toast.error("Failed to add some offices to board");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleRemoveOffice = async (officeId: number) => {
-    const pref = selectedOffices.find(so => so.office === officeId);
+    const pref = selectedOffices.find((so: DashboardOffice) => so.office === officeId);
     if (!pref) return;
     try {
       await removeDashboardOffice(pref.id);
-      setSelectedOffices(prev => prev.filter(so => so.id !== pref.id));
+      queryClient.invalidateQueries({ queryKey: ['dashboard-offices'] });
       toast.success("Office removed from board");
     } catch (e) {
       toast.error("Failed to remove office from board");
@@ -368,68 +430,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-
-
-      {/* Hero Section: Single Row with 6 Columns */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {/* Profile/Welcome Card - Takes 2 columns for better readability */}
-        <div className="xl:col-span-2">
-          <Card className="h-full bg-white border border-slate-200 shadow-sm group">
-            <CardContent className="p-4 h-full flex flex-col justify-center">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-slate-900 truncate">
-                    Welcome, <span className="text-primary">{user?.full_name || user?.username}!</span>
-                  </h2>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-2 mt-4">
-                <div className="flex flex-col items-center text-center px-1">
-                  <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
-                    <Users className="h-5 w-5 text-indigo-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">ID</span>
-                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.employee_id}>
-                    {user?.employee_id || "N/A"}
-                  </span>
-                </div>
-
-                <div className="flex flex-col items-center text-center px-1">
-                  <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
-                    <Shield className="h-5 w-5 text-red-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Role</span>
-                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.role}>
-                    {user?.role === 'SUPERADMIN' ? 'Super Admin' : user?.role === 'OFFICE_ADMIN' ? 'Office Admin' : 'Staff'}
-                  </span>
-                </div>
-
-                <div className="flex flex-col items-center text-center px-1">
-                  <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
-                    <Building2 className="h-5 w-5 text-emerald-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Office</span>
-                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.office_name || "Headquarters"}>
-                    {user?.office_name || "HQ"}
-                  </span>
-                </div>
-
-                <div className="flex flex-col items-center text-center px-1">
-                  <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center mb-1.5 transition-transform group-hover:scale-110">
-                    <Briefcase className="h-5 w-5 text-blue-500" />
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Position</span>
-                  <span className="text-[11px] font-bold text-slate-800 mt-1" title={user?.position_name || "Staff"}>
-                    {user?.position_name || "Staff"}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Stats Grid - Mapping stats to individual columns */}
+      {/* Hero Section: Stats Grid with 5 Columns */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat) => {
           const IconComponent = stat.icon;
           return (
@@ -444,11 +446,11 @@ const Dashboard = () => {
                 <div className={`text-xl font-bold ${stat.isDuty && myCurrentDuty ? 'text-emerald-900' : 'text-slate-900'} truncate`} title={stat.value}>
                   {stat.value}
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{stat.description}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{stat.description}</p>
                 {stat.trend && (
                   <Badge
                     variant={stat.variant as any || "secondary"}
-                    className={`mt-1.5 px-1.5 py-0 text-[9px] font-bold ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none' : ''}`}
+                    className={`mt-1.5 px-1.5 py-0 text-[9px] font-bold ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none' : ''} ${(stat as any).colorClass || ''}`}
                   >
                     {stat.trend}
                   </Badge>
@@ -496,13 +498,13 @@ const Dashboard = () => {
               <ScrollArea className="mt-4 h-[300px] pr-4">
                 <div className="space-y-2">
                   {offices
-                    .filter(o => !selectedOfficeIds.includes(o.id))
-                    .filter(o =>
+                    .filter((o: Office) => !selectedOfficeIds.includes(o.id))
+                    .filter((o: Office) =>
                       o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (o.directorate_name && o.directorate_name.toLowerCase().includes(searchTerm.toLowerCase()))
                     )
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(office => (
+                    .sort((a: Office, b: Office) => a.name.localeCompare(b.name))
+                    .map((office: Office) => (
                       <div
                         key={office.id}
                         className={`w-full text-left p-3 rounded-lg border transition-all flex items-center justify-between group cursor-pointer ${selectedForAdd.includes(office.id)
@@ -535,7 +537,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                     ))}
-                  {offices.filter(o => !selectedOfficeIds.includes(o.id)).length === 0 && (
+                  {offices.filter((o: Office) => !selectedOfficeIds.includes(o.id)).length === 0 && (
                     <p className="text-center py-8 text-sm text-muted-foreground">All offices are already on your board.</p>
                   )}
                 </div>
@@ -555,10 +557,10 @@ const Dashboard = () => {
                   </Button>
                   <Button
                     size="sm"
-                    disabled={selectedForAdd.length === 0 || loading}
+                    disabled={selectedForAdd.length === 0 || actionLoading}
                     onClick={handleAddMultipleOffices}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                     Add Selected
                   </Button>
                 </div>
@@ -573,15 +575,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {error && (
-          <Card className="border-destructive/30 bg-destructive/5">
-            <CardContent>
-              <p className="text-sm text-destructive py-6 text-center">{error}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {!loading && !error && selectedOfficeIds.length === 0 && (
+        {!loading && selectedOfficeIds.length === 0 && (
           <Card className="border-dashed border-2 bg-slate-50/50">
             <CardContent className="flex flex-col items-center py-12 text-center">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
@@ -596,7 +590,7 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <div className="flex gap-4 overflow-x-auto snap-x pb-2 no-scrollbar">
+        <div className="flex gap-4 overflow-x-auto snap-x pb-2 scrollbar-visible">
           {groupedByOffice.map((group) => {
             const onDutyRows = group.rows.filter((r) => r.currently_available);
             const expanded = !!expandedOffice[group.officeName];
@@ -606,7 +600,7 @@ const Dashboard = () => {
             return (
               <Card
                 key={group.officeId}
-                className="rounded-xl hover:shadow-md transition-shadow relative group/card flex-none w-[280px] sm:w-[320px] md:w-[calc((100%-32px)/3)] lg:w-[calc((100%-48px)/4)] xl:w-[calc((100%-64px)/5)] snap-start"
+                className="rounded-xl hover:shadow-md transition-shadow relative group/card flex-none w-[300px] sm:w-[350px] md:w-[calc((100%-32px)/2)] lg:w-[calc((100%-48px)/3)] xl:w-[calc((100%-64px)/4)] snap-start"
               >
                 <button
                   onClick={() => handleRemoveOffice(group.officeId)}
@@ -681,7 +675,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Charts & Lists Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-3">
           <CardHeader>
@@ -696,7 +689,7 @@ const Dashboard = () => {
               {activeDutyCharts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No active duty charts found.</p>
               ) : (
-                activeDutyCharts.map((chart) => (
+                activeDutyCharts.map((chart: DutyChart) => (
                   <button
                     key={chart.id}
                     type="button"
@@ -730,7 +723,7 @@ const Dashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
-              Office-wise Duty Counts
+              Office-wise Shifts Counts
             </CardTitle>
             <CardDescription>Today's duty distribution</CardDescription>
           </CardHeader>

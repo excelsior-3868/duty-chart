@@ -28,7 +28,8 @@ class DirectorateViewSet(viewsets.ModelViewSet):
         queryset = Directorate.objects.all().order_by('id')
         search = self.request.query_params.get('search', None)
         if search:
-            queryset = queryset.filter(name__icontains=search)
+            from django.db.models import Q
+            queryset = queryset.filter(Q(directorate__icontains=search) | Q(parent__directorate__icontains=search))
         return queryset
 
     def paginate_queryset(self, queryset):
@@ -69,7 +70,8 @@ class AccountingOfficeViewSet(viewsets.ModelViewSet):
         queryset = AccountingOffice.objects.all().order_by('id')
         search = self.request.query_params.get('search', None)
         if search:
-            queryset = queryset.filter(name__icontains=search)
+            from django.db.models import Q
+            queryset = queryset.filter(Q(name__icontains=search) | Q(directorate__directorate__icontains=search))
         return queryset
 
     def paginate_queryset(self, queryset):
@@ -87,7 +89,8 @@ class CCOfficeViewSet(viewsets.ModelViewSet):
         queryset = CCOffice.objects.all().order_by('id')
         search = self.request.query_params.get('search', None)
         if search:
-            queryset = queryset.filter(name__icontains=search)
+            from django.db.models import Q
+            queryset = queryset.filter(Q(name__icontains=search) | Q(accounting_office__name__icontains=search))
         return queryset
 
 class SystemSettingViewSet(viewsets.ModelViewSet):

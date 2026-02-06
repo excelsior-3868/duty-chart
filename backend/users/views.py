@@ -2,7 +2,7 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Max, Case, When, Value, CharField
 from django.core.exceptions import ValidationError
 from .models import User, Position, Role, Permission, RolePermission, UserDashboardOffice
 from .serializers import UserSerializer, PositionSerializer, RoleSerializer, PermissionSerializer, UserDashboardOfficeSerializer
@@ -23,7 +23,7 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [AdminOrReadOnly]
     pagination_class = UserPagination
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['full_name', 'email', 'employee_id', 'username', 'phone_number', 'department__name']
+    search_fields = ['full_name', 'email', 'employee_id', 'username', 'phone_number', 'department__name', 'office__name', 'directorate__directorate', 'status_text']
     ordering_fields = ['full_name', 'employee_id']
     ordering = ['full_name']
 
@@ -32,6 +32,13 @@ class UserViewSet(viewsets.ModelViewSet):
             User.objects
             .select_related('position', 'office', 'department', 'directorate')
             .prefetch_related('secondary_offices')
+            .annotate(
+                status_text=Case(
+                    When(is_activated=True, then=Value('Active')),
+                    When(is_activated=False, then=Value('Inactive')),
+                    output_field=CharField()
+                )
+            )
         )
 
         office_id = self.request.query_params.get('office', None)
@@ -180,8 +187,21 @@ class UserDashboardOfficeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return UserDashboardOffice.objects.filter(user=self.request.user)
+        return UserDashboardOffice.objects.filter(user=self.request.user).order_by('order', 'id')
 
     def perform_create(self, serializer):
-        serializer.save()
+        # Auto-set order to max+1
+        max_order = UserDashboardOffice.objects.filter(user=self.request.user).aggregate(m=Max('order'))['m'] or 0
+        serializer.save(order=max_order + 1)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        orders = request.data.get('orders', []) # List of {id: X, order: Y}
+        if not isinstance(orders, list):
+            return Response({'detail': 'orders must be a list'}, status=400)
+        
+        for item in orders:
+            UserDashboardOffice.objects.filter(user=request.user, id=item.get('id')).update(order=item.get('order'))
+            
+        return Response({'status': 'reordered'})
 

@@ -58,6 +58,11 @@ export default function DirectoratePage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedDirectorate, setSelectedDirectorate] = useState<Directorate | null>(null);
 
+    // Set document title
+    React.useEffect(() => {
+        document.title = "Directorates - NT Duty Chart Management System";
+    }, []);
+
     // Debounce search
     React.useEffect(() => {
         const handler = setTimeout(() => {
@@ -172,11 +177,11 @@ export default function DirectoratePage() {
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-end md:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-primary">Directorates</h1>
-                    <p className="text-muted-foreground text-sm">Manage organization-level directorates and structure.</p>
+                    <h1 className="text-2xl font-bold text-primary">Office Hierarchy (Directorates)</h1>
+                    <p className="text-muted-foreground text-sm">Manage organization-level offices and structure.</p>
                 </div>
                 <Button onClick={() => { resetForm(); setIsAddModalOpen(true); }} className="gap-2 shadow-sm whitespace-nowrap">
-                    <Plus className="h-4 w-4" /> Add Directorate
+                    <Plus className="h-4 w-4" /> Add Office
                 </Button>
             </div>
 
@@ -184,11 +189,11 @@ export default function DirectoratePage() {
             <Card className="border-none shadow-sm bg-white">
                 <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                        <div className="relative w-full md:w-80">
+                        <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search directorates..."
-                                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary"
+                                placeholder="Search by Office or Parent Office Name..."
+                                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary h-11"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
@@ -285,8 +290,8 @@ export default function DirectoratePage() {
                                     <TableHeader className="bg-primary hover:bg-primary">
                                         <TableRow className="hover:bg-transparent border-none">
                                             <TableHead className="w-[80px] py-3 text-white font-bold pl-6 text-sm">ID</TableHead>
-                                            <TableHead className="py-3 text-white font-bold text-sm">Directorate Name</TableHead>
-                                            <TableHead className="py-3 text-white font-bold text-sm">Parent</TableHead>
+                                            <TableHead className="py-3 text-white font-bold text-sm">Office Name</TableHead>
+                                            <TableHead className="py-3 text-white font-bold text-sm">Parent Office</TableHead>
                                             <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Level</TableHead>
                                             <TableHead className="py-3 text-white font-bold text-sm">Remarks</TableHead>
                                             <TableHead className="w-[120px] py-3 text-white font-bold text-sm text-right pr-6">Actions</TableHead>
@@ -296,7 +301,7 @@ export default function DirectoratePage() {
                                         {directorates?.map((dir) => (
                                             <TableRow key={dir.id} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
                                                 <TableCell className="font-mono text-xs font-bold text-primary pl-6">
-                                                    #{dir.id}
+                                                    {dir.id}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
@@ -427,13 +432,13 @@ export default function DirectoratePage() {
             <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                 <DialogContent className="sm:max-w-[425px] border-none shadow-2xl overflow-hidden rounded-2xl p-0">
                     <div className="p-6 border-b border-slate-100">
-                        <DialogTitle className="text-xl font-bold text-slate-900">New Directorate</DialogTitle>
-                        <p className="text-slate-500 text-xs mt-1">Create a new organizational directorate unit.</p>
+                        <DialogTitle className="text-xl font-bold text-slate-900">New Office</DialogTitle>
+                        <p className="text-slate-500 text-xs mt-1">Create a new organizational office unit.</p>
                     </div>
                     <form onSubmit={handleAdd} className="p-6 space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="name" className="text-xs font-bold text-slate-500">
-                                Directorate Name
+                                Office Name
                             </Label>
                             <Input
                                 id="name"
@@ -447,7 +452,7 @@ export default function DirectoratePage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-500">Parent</Label>
+                                <Label className="text-xs font-bold text-slate-500">Parent Office</Label>
                                 <Select
                                     value={formData.parent ? String(formData.parent) : "none"}
                                     onValueChange={(val) => setFormData({ ...formData, parent: val === "none" ? null : Number(val) })}
@@ -491,7 +496,7 @@ export default function DirectoratePage() {
                             </Button>
                             <Button type="submit" disabled={createMutation.isPending || !formData.name.trim()} className="px-8 bg-primary hover:bg-primary/90">
                                 {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                                Create Directorate
+                                Create Office
                             </Button>
                         </DialogFooter>
                     </form>
@@ -502,13 +507,13 @@ export default function DirectoratePage() {
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
                 <DialogContent className="sm:max-w-[425px] border-none shadow-2xl overflow-hidden rounded-2xl p-0">
                     <div className="p-6 border-b border-slate-100">
-                        <DialogTitle className="text-xl font-bold text-slate-900">Edit Directorate</DialogTitle>
-                        <p className="text-slate-500 text-xs mt-1">Modify the details of the directorate.</p>
+                        <DialogTitle className="text-xl font-bold text-slate-900">Edit Office</DialogTitle>
+                        <p className="text-slate-500 text-xs mt-1">Modify the details of the office.</p>
                     </div>
                     <form onSubmit={handleEdit} className="p-6 space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-name" className="text-xs font-bold text-slate-500">
-                                Directorate Name
+                                Office Name
                             </Label>
                             <Input
                                 id="edit-name"
@@ -521,7 +526,7 @@ export default function DirectoratePage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-500">Parent</Label>
+                                <Label className="text-xs font-bold text-slate-500">Parent Office</Label>
                                 <Select
                                     value={formData.parent ? String(formData.parent) : "none"}
                                     onValueChange={(val) => setFormData({ ...formData, parent: val === "none" ? null : Number(val) })}
@@ -583,7 +588,7 @@ export default function DirectoratePage() {
                     </div>
                     <div className="p-6">
                         <p className="text-slate-600 text-sm leading-relaxed">
-                            Are you sure you want to delete the directorate <span className="font-bold text-slate-900">"{selectedDirectorate?.name}"</span>?
+                            Are you sure you want to delete the office <span className="font-bold text-slate-900">"{selectedDirectorate?.name}"</span>?
                             This might affect related departments and staff.
                         </p>
                         <div className="mt-8 flex justify-end gap-2">
