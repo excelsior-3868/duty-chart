@@ -27,6 +27,8 @@ export const getAuditLogs = async (params: {
     search?: string;
     action?: string;
     entity_type?: string;
+    start_date?: string;
+    end_date?: string;
 }): Promise<AuditLogResponse> => {
     const response = await api.get("auditlogs/", { params });
     return response.data;

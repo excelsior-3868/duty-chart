@@ -175,9 +175,7 @@ export default function AccountingOfficesPage() {
                     <h1 className="text-2xl font-bold text-primary">Accounting Offices</h1>
                     <p className="text-muted-foreground text-sm">Manage accounting offices and their provincial directorate mapping.</p>
                 </div>
-                <Button onClick={() => { resetForm(); setIsAddModalOpen(true); }} className="gap-2 shadow-sm whitespace-nowrap">
-                    <Plus className="h-4 w-4" /> Add Office
-                </Button>
+
             </div>
 
             {/* Filter Card */}

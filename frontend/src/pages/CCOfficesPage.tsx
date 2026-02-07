@@ -174,9 +174,7 @@ export default function CCOfficesPage() {
                     <h1 className="text-2xl font-bold text-primary">CC Offices</h1>
                     <p className="text-muted-foreground text-sm">Manage Collection Centre offices.</p>
                 </div>
-                <Button onClick={() => { resetForm(); setIsAddModalOpen(true); }} className="gap-2 shadow-sm whitespace-nowrap">
-                    <Plus className="h-4 w-4" /> Add Office
-                </Button>
+
             </div>
 
             {/* Filter Card */}

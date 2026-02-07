@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import rest_framework as django_filters
 from .models import AuditLog
 from .serializers import AuditLogSerializer
 
@@ -19,6 +20,14 @@ class AuditLogPagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 100
 
+class AuditLogFilter(django_filters.FilterSet):
+    start_date = django_filters.DateFilter(field_name="timestamp__date", lookup_expr='gte')
+    end_date = django_filters.DateFilter(field_name="timestamp__date", lookup_expr='lte')
+
+    class Meta:
+        model = AuditLog
+        fields = ['action', 'entity_type', 'status', 'actor_userid', 'actor_employee_id', 'start_date', 'end_date']
+
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AuditLog.objects.all().order_by('-timestamp')
     serializer_class = AuditLogSerializer
@@ -26,8 +35,18 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = AuditLogPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     
-    filterset_fields = ['action', 'entity_type', 'status', 'actor_userid', 'actor_employee_id']
-    search_fields = ['actor_userid', 'actor_employee_id', 'entity_type', 'details']
+    filterset_class = AuditLogFilter
+    # Enhanced search to include actor's name/email and user details
+    search_fields = [
+        'actor_userid', 
+        'actor_employee_id', 
+        'entity_type', 
+        'details',
+        'actor__first_name',
+        'actor__last_name',
+        'actor__full_name',
+        'actor__email'
+    ]
 
     def get_queryset(self):
         print("DEBUG: AuditLogViewSet.get_queryset called")

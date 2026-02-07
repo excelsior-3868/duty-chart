@@ -33,6 +33,8 @@ export default function AuditLogPage() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
     const [actionFilter, setActionFilter] = useState<string>("ALL");
+    const [startDate, setStartDate] = useState<string>("");
+    const [endDate, setEndDate] = useState<string>("");
     const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
     // Set document title
@@ -51,11 +53,13 @@ export default function AuditLogPage() {
     }, [search]);
 
     const { data, isLoading, isError } = useQuery({
-        queryKey: ["auditLogs", page, debouncedSearch, actionFilter],
+        queryKey: ["auditLogs", page, debouncedSearch, actionFilter, startDate, endDate],
         queryFn: () => getAuditLogs({
             page,
             search: debouncedSearch,
-            action: actionFilter === "ALL" ? undefined : actionFilter
+            action: actionFilter === "ALL" ? undefined : actionFilter,
+            start_date: startDate || undefined,
+            end_date: endDate || undefined,
         }),
     });
 
@@ -83,19 +87,38 @@ export default function AuditLogPage() {
             <Card className="border-none shadow-sm bg-white">
                 <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                        <div className="relative w-full md:w-80">
+                        <div className="relative w-full md:flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search by name, ID or details..."
+                                placeholder="Search by name, ID, details..."
                                 className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </div>
-                        <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex items-center gap-3 w-full md:w-auto whitespace-nowrap">
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:block">Filter:</span>
+
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    type="date"
+                                    className="w-[140px] bg-slate-50/50 border-slate-200 text-xs"
+                                    value={startDate}
+                                    onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
+                                    max={endDate || undefined}
+                                />
+                                <span className="text-slate-400">-</span>
+                                <Input
+                                    type="date"
+                                    className="w-[140px] bg-slate-50/50 border-slate-200 text-xs"
+                                    value={endDate}
+                                    onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
+                                    min={startDate || undefined}
+                                />
+                            </div>
+
                             <Select value={actionFilter} onValueChange={(val) => { setActionFilter(val); setPage(1); }}>
-                                <SelectTrigger className="w-full md:w-[180px] bg-slate-50/50 border-slate-200">
+                                <SelectTrigger className="w-full md:w-[150px] bg-slate-50/50 border-slate-200 text-xs">
                                     <SelectValue placeholder="Action Type" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -192,7 +215,7 @@ export default function AuditLogPage() {
                                     <TableHeader className="bg-primary hover:bg-primary">
                                         <TableRow className="hover:bg-transparent border-none">
                                             <TableHead className="w-[180px] py-3 text-white font-bold text-sm">Timestamp</TableHead>
-                                            <TableHead className="w-[200px] py-3 text-white font-bold text-sm">Actor Name</TableHead>
+                                            <TableHead className="w-[200px] py-3 text-white font-bold text-sm">Employee Name</TableHead>
                                             <TableHead className="w-[120px] py-3 text-white font-bold text-sm">Employee ID</TableHead>
                                             <TableHead className="w-[100px] py-3 text-white font-bold text-sm">Action</TableHead>
                                             <TableHead className="py-3 text-white font-bold text-sm">Operation Details</TableHead>
@@ -206,14 +229,9 @@ export default function AuditLogPage() {
                                                     {format(new Date(log.timestamp), "yyyy-MM-dd HH:mm:ss")}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-slate-800 text-sm">
-                                                            {log.actor_full_name || log.actor_userid || "System"}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-400 font-medium">
-                                                            @{log.actor_userid || "system"}
-                                                        </span>
-                                                    </div>
+                                                    <span className="font-medium text-slate-800 text-sm">
+                                                        {log.actor_full_name || log.actor_userid || "System"}
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell>
                                                     {log.actor_employee_id ? (

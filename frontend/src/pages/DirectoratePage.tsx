@@ -159,13 +159,19 @@ export default function DirectoratePage() {
 
     const handleAdd = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name.trim()) return;
+        if (!formData.name.trim() || !formData.parent) {
+            toast.error("Please fill in all required fields (Name and Parent Office)");
+            return;
+        }
         createMutation.mutate(formData as any);
     };
 
     const handleEdit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedDirectorate || !formData.name.trim()) return;
+        if (!selectedDirectorate || !formData.name.trim() || !formData.parent) {
+            toast.error("Please fill in all required fields (Name and Parent Office)");
+            return;
+        }
         updateMutation.mutate({
             id: selectedDirectorate.id,
             data: formData,
@@ -472,7 +478,9 @@ export default function DirectoratePage() {
 
                         <div className="grid grid-cols-[1fr,120px] gap-4">
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-500">Parent Office</Label>
+                                <Label className="text-xs font-bold text-slate-500">
+                                    Parent Office <span className="text-red-500">*</span>
+                                </Label>
                                 <Popover open={openParentSelect} onOpenChange={setOpenParentSelect}>
                                     <PopoverTrigger asChild>
                                         <Button
@@ -495,21 +503,7 @@ export default function DirectoratePage() {
                                             <CommandList>
                                                 <CommandEmpty>No office found.</CommandEmpty>
                                                 <CommandGroup>
-                                                    <CommandItem
-                                                        value="none"
-                                                        onSelect={() => {
-                                                            setFormData({ ...formData, parent: null });
-                                                            setOpenParentSelect(false);
-                                                        }}
-                                                    >
-                                                        <Check
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                !formData.parent ? "opacity-100" : "opacity-0"
-                                                            )}
-                                                        />
-                                                        None
-                                                    </CommandItem>
+
                                                     {allDirectorates.map((d) => (
                                                         <CommandItem
                                                             key={d.id}
@@ -560,7 +554,7 @@ export default function DirectoratePage() {
                             <Button type="button" variant="ghost" onClick={() => setIsAddModalOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={createMutation.isPending || !formData.name.trim()} className="px-8 bg-primary hover:bg-primary/90">
+                            <Button type="submit" disabled={createMutation.isPending || !formData.name.trim() || !formData.parent} className="px-8 bg-primary hover:bg-primary/90">
                                 {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                                 Create Office
                             </Button>
@@ -592,7 +586,9 @@ export default function DirectoratePage() {
 
                         <div className="grid grid-cols-[1fr,120px] gap-4">
                             <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-500">Parent Office</Label>
+                                <Label className="text-xs font-bold text-slate-500">
+                                    Parent Office <span className="text-red-500">*</span>
+                                </Label>
                                 <Popover open={openEditParentSelect} onOpenChange={setOpenEditParentSelect}>
                                     <PopoverTrigger asChild>
                                         <Button
@@ -615,21 +611,7 @@ export default function DirectoratePage() {
                                             <CommandList>
                                                 <CommandEmpty>No office found.</CommandEmpty>
                                                 <CommandGroup>
-                                                    <CommandItem
-                                                        value="none"
-                                                        onSelect={() => {
-                                                            setFormData({ ...formData, parent: null });
-                                                            setOpenEditParentSelect(false);
-                                                        }}
-                                                    >
-                                                        <Check
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                !formData.parent ? "opacity-100" : "opacity-0"
-                                                            )}
-                                                        />
-                                                        None
-                                                    </CommandItem>
+
                                                     {allDirectorates
                                                         .filter((d) => d.id !== selectedDirectorate?.id)
                                                         .map((d) => (
@@ -682,7 +664,7 @@ export default function DirectoratePage() {
                             <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={updateMutation.isPending || !formData.name.trim()} className="px-8 bg-primary hover:bg-primary/90">
+                            <Button type="submit" disabled={updateMutation.isPending || !formData.name.trim() || !formData.parent} className="px-8 bg-primary hover:bg-primary/90">
                                 {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Edit3 className="h-4 w-4 mr-2" />}
                                 Save Changes
                             </Button>
