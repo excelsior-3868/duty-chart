@@ -60,6 +60,9 @@ const Profile = () => {
     const [workingOffices, setWorkingOffices] = useState<any[]>([]);
     const [officeSearch, setOfficeSearch] = useState("");
     const [officePopoverOpen, setOfficePopoverOpen] = useState(false);
+    const [positions, setPositions] = useState<any[]>([]);
+    const [positionSearch, setPositionSearch] = useState("");
+    const [positionPopoverOpen, setPositionPopoverOpen] = useState(false);
 
     const BACKEND = import.meta.env.VITE_BACKEND_HOST || "";
 
@@ -99,8 +102,19 @@ const Profile = () => {
     useEffect(() => {
         if (isEditing) {
             fetchWorkingOffices();
+            fetchPositions();
         }
     }, [isEditing]);
+
+    const fetchPositions = async () => {
+        try {
+            const { data } = await api.get("/positions/");
+            setPositions(data);
+        } catch (err) {
+            console.error("Failed to fetch positions", err);
+            toast.error("Failed to load positions.");
+        }
+    };
 
     const fetchWorkingOffices = async () => {
         try {
@@ -114,6 +128,10 @@ const Profile = () => {
 
     const filteredOffices = workingOffices.filter((office) =>
         office.name.toLowerCase().includes(officeSearch.toLowerCase())
+    );
+
+    const filteredPositions = positions.filter((pos) =>
+        pos.name.toLowerCase().includes(positionSearch.toLowerCase())
     );
 
     const handleImageUpload = async (file: File) => {
@@ -147,9 +165,17 @@ const Profile = () => {
         try {
             const formData = new FormData();
             formData.append("full_name", editData.full_name);
-            formData.append("phone_number", editData.phone_number);
+            if (editData.phone_number) {
+                formData.append("phone_number", editData.phone_number);
+            }
+            if (editData.email) {
+                formData.append("email", editData.email);
+            }
             if (editData.office) {
                 formData.append("office", editData.office);
+            }
+            if (editData.position) {
+                formData.append("position", editData.position);
             }
 
             await api.patch(`/users/${user.id}/`, formData);
@@ -271,7 +297,7 @@ const Profile = () => {
                                 </div>
                                 <div className="mt-3 text-center">
                                     <h2 className="font-medium text-primary text-sm">{user.full_name}</h2>
-                                    <p className="text-sm text-slate-700 truncate w-full font-medium">{user.employee_id}</p>
+
                                 </div>
                             </CardContent>
                         </Card>
@@ -346,10 +372,83 @@ const Profile = () => {
                                                 </div>
 
                                                 <div className="space-y-0.5">
+                                                    <Label className="text-primary text-xs font-medium ml-1">Designation</Label>
+                                                    {isEditing ? (
+                                                        <Popover open={positionPopoverOpen} onOpenChange={setPositionPopoverOpen}>
+                                                            <PopoverTrigger asChild>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    role="combobox"
+                                                                    aria-expanded={positionPopoverOpen}
+                                                                    className="h-9 w-full justify-between font-normal text-sm border-slate-300"
+                                                                >
+                                                                    {editData?.position
+                                                                        ? positions.find((pos) => String(pos.id) === String(editData.position))?.name || user.position_name
+                                                                        : user.position_name || "Select Position"}
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        width="16"
+                                                                        height="16"
+                                                                        viewBox="0 0 24 24"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="2"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        className="ml-2 h-4 w-4 shrink-0 opacity-50"
+                                                                    >
+                                                                        <path d="m6 9 6 6 6-6" />
+                                                                    </svg>
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-full p-0" align="start">
+                                                                <Command shouldFilter={false}>
+                                                                    <CommandInput
+                                                                        placeholder="Search position..."
+                                                                        value={positionSearch}
+                                                                        onValueChange={setPositionSearch}
+                                                                    />
+                                                                    <CommandList>
+                                                                        <CommandEmpty>No position found.</CommandEmpty>
+                                                                        <CommandGroup>
+                                                                            {filteredPositions.map((pos) => (
+                                                                                <CommandItem
+                                                                                    key={pos.id}
+                                                                                    value={pos.name}
+                                                                                    onSelect={() => {
+                                                                                        setEditData({ ...editData, position: String(pos.id) });
+                                                                                        setPositionPopoverOpen(false);
+                                                                                        setPositionSearch("");
+                                                                                    }}
+                                                                                >
+                                                                                    {pos.name}
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                        </CommandGroup>
+                                                                    </CommandList>
+                                                                </Command>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    ) : (
+                                                        <div className="relative">
+                                                            <Briefcase size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                                                            <div className="px-2 py-1 pl-9 bg-slate-50 border rounded-lg h-9 flex items-center">
+                                                                <p className="text-slate-900 font-medium text-sm truncate">{user.position_name || "-"}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-0.5">
                                                     <Label className="text-primary text-xs font-medium ml-1">Email Address</Label>
                                                     <div className="relative">
-                                                        <Input className="h-9 rounded-lg text-sm font-medium pr-10 border-slate-300 bg-slate-50 text-slate-900" value={user.email} disabled />
-                                                        <Lock size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                        <Input
+                                                            className="h-9 rounded-lg text-sm font-medium pr-10 border-slate-300 bg-slate-50 text-slate-900"
+                                                            value={editData?.email || ""}
+                                                            onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                                                            disabled={!isEditing}
+                                                        />
+                                                        <Mail size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                                     </div>
                                                 </div>
 

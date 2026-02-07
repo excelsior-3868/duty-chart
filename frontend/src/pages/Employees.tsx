@@ -508,11 +508,11 @@ const Employees = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+977-98XXXXXXXX" />
+                <Input id="phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="98XXXXXXXX" />
               </div>
               <div className="space-y-2">
                 <Label>Designation / Position</Label>
-                <Select value={selectedPosition ? String(selectedPosition) : undefined} onValueChange={(v) => setSelectedPosition(Number(v))} disabled={!selectedOffice}>
+                <Select value={selectedPosition ? String(selectedPosition) : undefined} onValueChange={(v) => setSelectedPosition(Number(v))}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select position" />
                   </SelectTrigger>

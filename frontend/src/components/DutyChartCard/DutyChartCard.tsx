@@ -160,6 +160,10 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       toast.error("Effective date is required");
       return false;
     }
+    if (!formData.end_date) {
+      toast.error("End date is required");
+      return false;
+    }
     if (formData.effective_date && formData.end_date && formData.effective_date > formData.end_date) {
       toast.error("End date cannot be before effective date");
       return false;
@@ -443,7 +447,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
           </div>
 
           <div className="space-y-1">
-            <label className={labelClass}>End Date</label>
+            <label className={labelClass}>End Date *</label>
             {dateMode === "AD" ? (
               <GregorianDatePicker
                 value={formData.end_date}

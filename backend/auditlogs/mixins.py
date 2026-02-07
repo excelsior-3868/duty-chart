@@ -1,4 +1,5 @@
 from django.db.models.signals import post_save, post_delete
+from django.db import transaction
 import json
 from django.core.serializers.json import DjangoJSONEncoder
 from .models import AuditLog
@@ -81,15 +82,16 @@ class AuditableMixin:
                 except Exception:
                     pass
 
-            AuditLog.objects.create(
-                action=action,
-                entity_type=self.__class__.__name__,
-                actor=user,
-                actor_userid=actor_userid,
-                actor_employee_id=actor_employee_id,
-                ip_address=ip,
-                details=details
-            )
+            with transaction.atomic():
+                AuditLog.objects.create(
+                    action=action,
+                    entity_type=self.__class__.__name__,
+                    actor=user,
+                    actor_userid=actor_userid,
+                    actor_employee_id=actor_employee_id,
+                    ip_address=ip,
+                    details=details
+                )
         except Exception as e:
             print(f"Failed to write audit log: {e}")
 
@@ -114,14 +116,15 @@ class AuditableMixin:
                 except Exception:
                     pass
 
-            AuditLog.objects.create(
-                action='DELETE',
-                entity_type=self.__class__.__name__,
-                actor=user,
-                actor_userid=actor_userid,
-                actor_employee_id=actor_employee_id,
-                ip_address=ip,
-                details=details
-            )
+            with transaction.atomic():
+                AuditLog.objects.create(
+                    action='DELETE',
+                    entity_type=self.__class__.__name__,
+                    actor=user,
+                    actor_userid=actor_userid,
+                    actor_employee_id=actor_employee_id,
+                    ip_address=ip,
+                    details=details
+                )
         except Exception as e:
             print(f"Failed to write audit log (delete): {e}")

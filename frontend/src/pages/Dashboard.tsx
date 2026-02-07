@@ -214,11 +214,18 @@ const Dashboard = () => {
   }, [duties, userById, selectedOfficeIds, offices]);
 
   const chartData = useMemo(() => {
-    return groupedByOffice.map(group => ({
-      name: group.officeName,
-      count: group.rows.filter(r => r.currently_available).length
-    }));
-  }, [groupedByOffice]);
+    return groupedByOffice.map(group => {
+      // Filter active duty charts for this office
+      const officeCharts = activeDutyCharts.filter(dc => dc.office === group.officeId);
+      // Sum active schedules (shifts) in those charts
+      const activeShiftsCount = officeCharts.reduce((acc, dc) => acc + (dc.schedules?.length || 0), 0);
+
+      return {
+        name: group.officeName,
+        "Active Shifts": activeShiftsCount
+      };
+    });
+  }, [groupedByOffice, activeDutyCharts]);
 
   const myCurrentDuty = useMemo(() => {
     if (!myDuties || myDuties.length === 0) return null;
@@ -682,7 +689,7 @@ const Dashboard = () => {
               <FileText className="h-5 w-5" />
               Active Duty Charts
             </CardTitle>
-            <CardDescription>Currently active schedules</CardDescription>
+            <CardDescription>Currently active schedules of your selected offices</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
@@ -723,9 +730,9 @@ const Dashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
-              Office-wise Shifts Counts
+              Office-wise Active Shifts
             </CardTitle>
-            <CardDescription>Today's duty distribution</CardDescription>
+            <CardDescription>Today's active shift distribution of your selected offices</CardDescription>
           </CardHeader>
           <CardContent className="pl-0">
             <ResponsiveContainer width="100%" height={300}>
@@ -749,7 +756,7 @@ const Dashboard = () => {
                   cursor={{ fill: 'transparent' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={40} />
+                <Bar dataKey="Active Shifts" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

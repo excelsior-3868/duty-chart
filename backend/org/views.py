@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.db import transaction
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from users.permissions import SuperAdminOrReadOnly
@@ -36,6 +37,23 @@ class DirectorateViewSet(viewsets.ModelViewSet):
         if self.request.query_params.get('all') == 'true':
             return None
         return super().paginate_queryset(queryset)
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        directorate_instance = serializer.save()
+        # Also create a WorkingOffice entry with name_of_office and directorate_id
+        WorkingOffice.objects.create(
+            name=directorate_instance.directorate,
+            directorate=directorate_instance
+        )
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        directorate_instance = serializer.save()
+        # Update the corresponding WorkingOffice name
+        WorkingOffice.objects.filter(directorate=directorate_instance).update(
+            name=directorate_instance.directorate
+        )
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()

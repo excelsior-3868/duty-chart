@@ -27,6 +27,20 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import {
     Search,
     Loader2,
     Plus,
@@ -34,7 +48,9 @@ import {
     Trash2,
     Building2,
     AlertCircle,
-    GitBranch
+    GitBranch,
+    ChevronsUpDown,
+    Check
 } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
@@ -79,6 +95,10 @@ export default function DirectoratePage() {
         hierarchy_level: 1,
         remarks: ""
     });
+
+    // Combobox states
+    const [openParentSelect, setOpenParentSelect] = useState(false);
+    const [openEditParentSelect, setOpenEditParentSelect] = useState(false);
 
     const { data, isLoading, isError } = useQuery({
         queryKey: ["directorates", page, debouncedSearch],
@@ -430,12 +450,12 @@ export default function DirectoratePage() {
 
             {/* Add Modal */}
             <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-                <DialogContent className="sm:max-w-[425px] border-none shadow-2xl overflow-hidden rounded-2xl p-0">
-                    <div className="p-6 border-b border-slate-100">
+                <DialogContent className="sm:max-w-[550px] border-none shadow-2xl overflow-hidden rounded-2xl p-0">
+                    <div className="p-5 border-b border-slate-100">
                         <DialogTitle className="text-xl font-bold text-slate-900">New Office</DialogTitle>
                         <p className="text-slate-500 text-xs mt-1">Create a new organizational office unit.</p>
                     </div>
-                    <form onSubmit={handleAdd} className="p-6 space-y-4">
+                    <form onSubmit={handleAdd} className="p-5 space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="name" className="text-xs font-bold text-slate-500">
                                 Office Name
@@ -450,23 +470,69 @@ export default function DirectoratePage() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-[1fr,120px] gap-4">
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Parent Office</Label>
-                                <Select
-                                    value={formData.parent ? String(formData.parent) : "none"}
-                                    onValueChange={(val) => setFormData({ ...formData, parent: val === "none" ? null : Number(val) })}
-                                >
-                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 h-11">
-                                        <SelectValue placeholder="Select Parent" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">None</SelectItem>
-                                        {allDirectorates.map(d => (
-                                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Popover open={openParentSelect} onOpenChange={setOpenParentSelect}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={openParentSelect}
+                                            className="w-full justify-between bg-slate-50/50 border-slate-200 h-11 font-normal px-3"
+                                        >
+                                            <span className="truncate flex-1 text-left">
+                                                {formData.parent
+                                                    ? allDirectorates.find((d) => d.id === formData.parent)?.name
+                                                    : "Select Parent"}
+                                            </span>
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[350px] p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder="Search parent office..." />
+                                            <CommandList>
+                                                <CommandEmpty>No office found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    <CommandItem
+                                                        value="none"
+                                                        onSelect={() => {
+                                                            setFormData({ ...formData, parent: null });
+                                                            setOpenParentSelect(false);
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                "mr-2 h-4 w-4",
+                                                                !formData.parent ? "opacity-100" : "opacity-0"
+                                                            )}
+                                                        />
+                                                        None
+                                                    </CommandItem>
+                                                    {allDirectorates.map((d) => (
+                                                        <CommandItem
+                                                            key={d.id}
+                                                            value={d.name}
+                                                            onSelect={() => {
+                                                                setFormData({ ...formData, parent: d.id });
+                                                                setOpenParentSelect(false);
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    formData.parent === d.id ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {d.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Level</Label>
@@ -505,12 +571,12 @@ export default function DirectoratePage() {
 
             {/* Edit Modal */}
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="sm:max-w-[425px] border-none shadow-2xl overflow-hidden rounded-2xl p-0">
-                    <div className="p-6 border-b border-slate-100">
+                <DialogContent className="sm:max-w-[550px] border-none shadow-2xl overflow-hidden rounded-2xl p-0">
+                    <div className="p-5 border-b border-slate-100">
                         <DialogTitle className="text-xl font-bold text-slate-900">Edit Office</DialogTitle>
                         <p className="text-slate-500 text-xs mt-1">Modify the details of the office.</p>
                     </div>
-                    <form onSubmit={handleEdit} className="p-6 space-y-4">
+                    <form onSubmit={handleEdit} className="p-5 space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-name" className="text-xs font-bold text-slate-500">
                                 Office Name
@@ -524,23 +590,71 @@ export default function DirectoratePage() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-[1fr,120px] gap-4">
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Parent Office</Label>
-                                <Select
-                                    value={formData.parent ? String(formData.parent) : "none"}
-                                    onValueChange={(val) => setFormData({ ...formData, parent: val === "none" ? null : Number(val) })}
-                                >
-                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 h-11">
-                                        <SelectValue placeholder="Select Parent" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">None</SelectItem>
-                                        {allDirectorates.filter(d => d.id !== selectedDirectorate?.id).map(d => (
-                                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Popover open={openEditParentSelect} onOpenChange={setOpenEditParentSelect}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={openEditParentSelect}
+                                            className="w-full justify-between bg-slate-50/50 border-slate-200 h-11 font-normal px-3"
+                                        >
+                                            <span className="truncate flex-1 text-left">
+                                                {formData.parent
+                                                    ? allDirectorates.find((d) => d.id === formData.parent)?.name
+                                                    : "Select Parent"}
+                                            </span>
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[350px] p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder="Search parent office..." />
+                                            <CommandList>
+                                                <CommandEmpty>No office found.</CommandEmpty>
+                                                <CommandGroup>
+                                                    <CommandItem
+                                                        value="none"
+                                                        onSelect={() => {
+                                                            setFormData({ ...formData, parent: null });
+                                                            setOpenEditParentSelect(false);
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                "mr-2 h-4 w-4",
+                                                                !formData.parent ? "opacity-100" : "opacity-0"
+                                                            )}
+                                                        />
+                                                        None
+                                                    </CommandItem>
+                                                    {allDirectorates
+                                                        .filter((d) => d.id !== selectedDirectorate?.id)
+                                                        .map((d) => (
+                                                            <CommandItem
+                                                                key={d.id}
+                                                                value={d.name}
+                                                                onSelect={() => {
+                                                                    setFormData({ ...formData, parent: d.id });
+                                                                    setOpenEditParentSelect(false);
+                                                                }}
+                                                            >
+                                                                <Check
+                                                                    className={cn(
+                                                                        "mr-2 h-4 w-4",
+                                                                        formData.parent === d.id ? "opacity-100" : "opacity-0"
+                                                                    )}
+                                                                />
+                                                                {d.name}
+                                                            </CommandItem>
+                                                        ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Level</Label>
