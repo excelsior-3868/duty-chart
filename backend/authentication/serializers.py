@@ -19,8 +19,15 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         username = attrs.get('employee_id') or attrs.get('email') # field named 'employee_id' but contains username/email/id
         user = User.objects.filter(Q(email=username) | Q(username=username) | Q(employee_id=username)).first()
         
-        if user and not user.is_active:
-            raise serializers.ValidationError({"detail": "Your Account is not active. Please contact your administrator."})
+        if user:
+            if not user.is_active:
+                raise serializers.ValidationError({"detail": "Your Account is not active. Please contact your administrator."})
+            
+            # Explicitly check password to provide specific error message
+            password = attrs.get('password')
+            if password and not user.check_password(password):
+                from rest_framework.exceptions import AuthenticationFailed
+                raise AuthenticationFailed({"detail": "Incorrect password"})
 
         # Validate credentials normally
         data = super().validate(attrs)

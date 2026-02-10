@@ -1018,15 +1018,8 @@ const DutyCalendar = () => {
                             </DialogDescription>
                         </DialogHeader>
 
+
                         <div className="grid gap-4 py-4 text-xs sm:text-sm">
-                            <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
-                                <span className="md:text-right font-medium">Directorate:</span>
-                                <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.directorate}</span>
-                            </div>
-                            <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
-                                <span className="md:text-right font-medium">Department:</span>
-                                <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.department}</span>
-                            </div>
                             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
                                 <span className="md:text-right font-medium">Office:</span>
                                 <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.office}</span>
@@ -1076,10 +1069,6 @@ const DutyCalendar = () => {
                                     </AlertDialogContent>
                                 </AlertDialog>
                             )}
-                            <Button type="button" className="flex items-center gap-2 w-full sm:w-auto">
-                                <Phone className="h-3 w-3 sm:h-4 sm:w-4" />
-                                <span className="text-xs sm:text-sm">Call</span>
-                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

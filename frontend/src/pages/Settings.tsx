@@ -111,34 +111,7 @@ const Settings = () => {
               </CardContent>
             </Card>
 
-            {/* User Preferences */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  User Preferences
-                </CardTitle>
-                <CardDescription>Personal settings and preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="language">Language</Label>
-                  <Input id="language" defaultValue="English" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="theme">Theme</Label>
-                  <Input id="theme" defaultValue="Light" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="auto-refresh">Auto-refresh Dashboard</Label>
-                  <Switch id="auto-refresh" defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="compact-view">Compact View</Label>
-                  <Switch id="compact-view" />
-                </div>
-              </CardContent>
-            </Card>
+
 
 
             {/* Security Settings */}

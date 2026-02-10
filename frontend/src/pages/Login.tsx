@@ -117,8 +117,25 @@ const Login = () => {
                 navigate(ROUTES.DASHBOARD);
             }
         } catch (err: any) {
-            toast.error(err.response?.data?.detail || "Invalid credentials");
             console.error("Login error:", err);
+            if (!err.response) {
+                toast.error("Network error. Please check your connection.");
+                return;
+            }
+            const status = err.response.status;
+            const data = err.response.data;
+
+            if (status === 401) {
+                toast.error(data?.detail || "Invalid Employee ID or Password");
+            } else if (status === 403) {
+                toast.error(data?.detail || "Account is inactive or locked");
+            } else if (status === 429) {
+                toast.error("Too many login attempts. Please try again later.");
+            } else if (status >= 500) {
+                toast.error("Server error. Please try again later.");
+            } else {
+                toast.error(data?.detail || "Login failed. Please try again.");
+            }
         } finally {
             setSubmitting(false);
         }
@@ -142,7 +159,21 @@ const Login = () => {
             toast.success("Login successful");
             navigate(ROUTES.DASHBOARD);
         } catch (err: any) {
-            toast.error(err.response?.data?.detail || "Invalid OTP");
+            console.error("2FA error:", err);
+            if (!err.response) {
+                toast.error("Network error. Please check your connection.");
+                return;
+            }
+            const status = err.response.status;
+            const data = err.response.data;
+
+            if (status === 400 || status === 401) {
+                toast.error(data?.detail || "Invalid OTP");
+            } else if (status >= 500) {
+                toast.error("Server error. Please try again later.");
+            } else {
+                toast.error(data?.detail || "Verification failed.");
+            }
         } finally {
             setSubmitting(false);
         }

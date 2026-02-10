@@ -26,6 +26,9 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  activeOffice: number | null;
+  activeOfficeName: string | null;
+  setActiveOffice: (officeId: number | null, officeName?: string) => void;
 
   // Actions
   refreshUser: () => Promise<void>;
@@ -49,13 +52,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [activeOffice, setActiveOfficeState] = useState<number | null>(null);
+  const [activeOfficeName, setActiveOfficeName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const setActiveOffice = (officeId: number | null, officeName?: string) => {
+    setActiveOfficeState(officeId);
+    if (officeName) {
+      setActiveOfficeName(officeName);
+    } else if (officeId === null) {
+      setActiveOfficeName(null);
+    }
+    // If officeName is not provided but ID is, we might want to look it up, 
+    // but typically we pass both from UI. ActiveOfficeName might remain stale if not carefully managed.
+    // For now, assume usage provides name or we rely on initial user load.
+  };
 
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem('access');
       if (!token) {
         setUser(null);
+        setActiveOfficeState(null);
+        setActiveOfficeName(null);
         setIsLoading(false);
         return;
       }
@@ -64,10 +83,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
       setUser(res.data);
+      // Set default active office from user's primary office
+      if (res.data.office_id) {
+        setActiveOfficeState(res.data.office_id);
+        setActiveOfficeName(res.data.office_name || null);
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       // api.ts interceptor might handle logout, but let's be safe
       setUser(null);
+      setActiveOfficeState(null);
+      setActiveOfficeName(null);
     } finally {
       setIsLoading(false);
     }
@@ -85,6 +111,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('access');
     localStorage.removeItem('refresh');
     setUser(null);
+    setActiveOfficeState(null);
+    setActiveOfficeName(null);
     window.location.href = '/login';
   };
 
@@ -117,6 +145,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = {
     user,
+    activeOffice,
+    activeOfficeName,
+    setActiveOffice,
     isLoading,
     isAuthenticated: !!user,
     refreshUser,

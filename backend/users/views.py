@@ -63,7 +63,8 @@ class UserViewSet(viewsets.ModelViewSet):
             from users.permissions import user_has_permission_slug
             can_see_all = getattr(user, 'role', None) == 'SUPERADMIN' or \
                           user_has_permission_slug(user, 'duties.assign_any_office_employee') or \
-                          user_has_permission_slug(user, 'users.view_all')
+                          user_has_permission_slug(user, 'users.view_all') or \
+                          user_has_permission_slug(user, 'users.view_employee')
 
             if not can_see_all and self.action != 'retrieve' and user.is_authenticated and getattr(user, 'office_id', None):
                 current_office_id = user.office_id

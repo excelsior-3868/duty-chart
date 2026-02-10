@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,16 +50,19 @@ import {
 const Employees = () => {
 
 
+  const queryClient = useQueryClient();
+
   // ---------------- Add Employee Card State ----------------
   const [fullName, setFullName] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [positions, setPositions] = useState<PositionType[]>([]);
+  // Metadata is now fetched via React Query
+  // const [positions, setPositions] = useState<PositionType[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
-  const [directorates, setDirectorates] = useState<Directorate[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [offices, setOffices] = useState<Office[]>([]);
+  // const [directorates, setDirectorates] = useState<Directorate[]>([]);
+  // const [departments, setDepartments] = useState<Department[]>([]);
+  // const [offices, setOffices] = useState<Office[]>([]);
   const [selectedDirectorate, setSelectedDirectorate] = useState<number | null>(null);
   const [filteredDepartments, setFilteredDepartments] = useState<Department[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<number | null>(null);
@@ -74,8 +78,8 @@ const Employees = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   // -------- Professional Table State --------
-  const [employeesList, setEmployeesList] = useState<any[]>([]);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  // const [employeesList, setEmployeesList] = useState<any[]>([]);
+  // const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -88,42 +92,7 @@ const Employees = () => {
   // Pagination & Search
   const [nameQuery, setNameQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 15;
-
-  // Fetch employees from backend
-  async function fetchEmployees(page = 1, query = "") {
-    setLoadingEmployees(true);
-    try {
-      const queryParams = new URLSearchParams();
-      queryParams.append("page", String(page));
-      queryParams.append("page_size", String(PAGE_SIZE));
-      if (query) queryParams.append("search", query);
-
-      const res = await api.get(`/users/?${queryParams.toString()}`);
-
-      // Handle paginated response
-      if (res.data.results) {
-        setEmployeesList(res.data.results);
-        setTotalCount(res.data.count);
-        setTotalPages(Math.ceil(res.data.count / PAGE_SIZE));
-      } else if (Array.isArray(res.data)) {
-        // Fallback if backend sends list
-        setEmployeesList(res.data);
-        setTotalCount(res.data.length);
-        setTotalPages(1);
-      } else {
-        setEmployeesList([]);
-      }
-    } catch (err) {
-      console.error("Failed to load employees", err);
-      toast.error("Failed to load employees from backend.");
-      setEmployeesList([]);
-    } finally {
-      setLoadingEmployees(false);
-    }
-  }
 
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -131,21 +100,71 @@ const Employees = () => {
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedQuery(nameQuery);
-      // Reset page to 1 when query actually changes
       if (nameQuery !== debouncedQuery) {
         setCurrentPage(1);
       }
     }, 500);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    return () => clearTimeout(handler);
   }, [nameQuery]);
 
-  // Fetch when page or debounced query changes
-  useEffect(() => {
-    fetchEmployees(currentPage, debouncedQuery);
-  }, [currentPage, debouncedQuery]);
+  // --- React Query: Fetch Employees ---
+  const { data: employeesData, isLoading: loadingEmployees } = useQuery({
+    queryKey: ['users', currentPage, debouncedQuery],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", String(currentPage));
+      queryParams.append("page_size", String(PAGE_SIZE));
+      if (debouncedQuery) queryParams.append("search", debouncedQuery);
+      const res = await api.get(`/users/?${queryParams.toString()}`);
+      return res.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const employeesList = useMemo(() => {
+    if (!employeesData) return [];
+    if (employeesData.results) return employeesData.results;
+    if (Array.isArray(employeesData)) return employeesData;
+    return [];
+  }, [employeesData]);
+
+  const totalCount = useMemo(() => {
+    if (!employeesData) return 0;
+    if (employeesData.count) return employeesData.count;
+    if (Array.isArray(employeesData)) return employeesData.length;
+    return 0;
+  }, [employeesData]);
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+
+  // --- React Query: Meta Data ---
+  const { data: directorates = [] } = useQuery({
+    queryKey: ['directorates', 'all'],
+    queryFn: () => getDirectorates({ all: true }) as Promise<Directorate[]>,
+    staleTime: 15 * 60 * 1000,
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments', 'all'],
+    queryFn: () => getDepartments(),
+    staleTime: 15 * 60 * 1000,
+  });
+
+  const { data: offices = [] } = useQuery({
+    queryKey: ['offices', 'all'],
+    queryFn: () => getOffices(),
+    staleTime: 15 * 60 * 1000,
+  });
+
+  const { data: positions = [] } = useQuery({
+    queryKey: ['positions', 'all'],
+    queryFn: () => getPositions(),
+    staleTime: 15 * 60 * 1000,
+  });
+
+  const metaLoading = !directorates.length && !departments.length && !offices.length && !positions.length;
+
+
 
   // Helper to get ID from nested object or raw ID
   function getIdFromField(field: any): number | null {
@@ -238,7 +257,9 @@ const Employees = () => {
       toast.success("Employee updated successfully!");
       setEditModalOpen(false);
       setSelectedEmployee(null);
-      fetchEmployees();
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      // Invalidate if needed: queryClient.invalidateQueries({ queryKey: ['positions'] }); // if new position added inline? unlikely
+
     } catch (err: any) {
       console.error("Update error:", err);
       console.error("Error response:", err?.response?.data);
@@ -261,46 +282,16 @@ const Employees = () => {
       toast.success("Employee deleted");
       setDeleteConfirmOpen(false);
       setSelectedEmployee(null);
-      fetchEmployees();
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (err) {
       console.error("Delete failed", err);
       toast.error("Failed to delete employee.");
     }
   }
 
+  // Load org hierarchy lists and positions in parallel
   useEffect(() => {
-    // Load org hierarchy lists and employees
     document.title = "Employees - NT Duty Chart Management";
-    async function loadOrg() {
-      try {
-        const [d1_resp, d2, d3] = await Promise.all([
-          getDirectorates({ all: true }) as Promise<Directorate[]>, // Get ALL directorates for dropdowns
-          getDepartments(),
-          getOffices(),
-        ]);
-        setDirectorates(d1_resp);
-        setDepartments(d2);
-        setOffices(d3);
-      } catch (err) {
-        console.error("Failed to load org lists", err);
-        toast.error("Failed to load organization lists.");
-      }
-    }
-    loadOrg();
-    // fetchEmployees call is handled by useEffect on mount/page change
-  }, []);
-
-  useEffect(() => {
-    async function loadPositions() {
-      try {
-        const list = await getPositions();
-        setPositions(list);
-      } catch (err) {
-        console.error("Failed to load positions", err);
-        toast.error("Failed to load positions.");
-      }
-    }
-    loadPositions();
   }, []);
 
   useEffect(() => {
@@ -454,6 +445,7 @@ const Employees = () => {
       setShowPassword(false);
       setRevealedOnce(false);
       setCreateModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (err: any) {
       console.error(err);
       const msg = err?.response?.data?.detail || "Failed to create employee.";
@@ -685,7 +677,7 @@ const Employees = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loadingEmployees ? (
+              {(loadingEmployees || metaLoading) ? (
                 <TableRow>
                   <TableCell colSpan={7} className="p-24 text-center">
                     <div className="flex justify-center items-center">
@@ -860,6 +852,7 @@ const Employees = () => {
           )}
         </DialogContent>
       </Dialog>
+
 
       {/* Edit Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>

@@ -38,6 +38,8 @@ interface AddScheduleCardProps {
   onCancelEdit?: () => void;
   initialSchedule?: ScheduleType | null;
   mode?: "create" | "edit";
+  activeOfficeId?: number | null;
+  userOfficeName?: string;
 }
 
 export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
@@ -45,19 +47,22 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   onCancelEdit,
   initialSchedule = null,
   mode = "create",
+  activeOfficeId,
+  userOfficeName,
 }) => {
-  const { canManageOffice } = useAuth();
+  const { user, canManageOffice } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     start_time: "",
     end_time: "",
-    office: "",
+    office: activeOfficeId ? String(activeOfficeId) : "",
     shift_type: "",
     alias: "",
   });
 
   const [offices, setOffices] = useState<Office[]>([]);
   const [scheduleTemplates, setScheduleTemplates] = useState<ScheduleType[]>([]);
+  const [existingSchedules, setExistingSchedules] = useState<ScheduleType[]>([]); // Store all schedules for validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -73,6 +78,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           getSchedules()
         ]);
         setOffices(officesData);
+        setExistingSchedules(allSchedules); // Store for validation
 
         const templateSchedules = allSchedules.filter(s => s.status === 'template' || (!s.office && !s.status));
 
@@ -113,13 +119,13 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
         name: "",
         start_time: "",
         end_time: "",
-        office: "",
+        office: activeOfficeId ? String(activeOfficeId) : "",
         shift_type: "",
         alias: "",
       });
       setIsCustomSchedule(false);
     }
-  }, [initialSchedule, mode]);
+  }, [initialSchedule, mode, activeOfficeId]);
 
   const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary";
   const errorInputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-500";
@@ -143,6 +149,29 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
 
     if (!formData.office) {
       newErrors.office = "Office is required";
+    }
+
+    // Duplicate Check
+    if (formData.name && formData.start_time && formData.end_time && formData.office) {
+      const cleanTime = (t: string) => t ? t.slice(0, 5) : "";
+
+      const isDuplicate = existingSchedules.some(s =>
+        // Same Office
+        String(s.office) === String(formData.office) &&
+        // Same Name
+        s.name.toLowerCase() === formData.name.toLowerCase() &&
+        // Same Times
+        cleanTime(s.start_time) === cleanTime(formData.start_time) &&
+        cleanTime(s.end_time) === cleanTime(formData.end_time) &&
+        // Exclude current if editing
+        (mode === 'edit' && initialSchedule ? s.id !== initialSchedule.id : true)
+      );
+
+      if (isDuplicate) {
+        const msg = `A schedule named "${formData.name}" with the same time (${formData.start_time} - ${formData.end_time}) already exists for this office.`;
+        toast.error(msg);
+        newErrors.general = msg; // Keep this to block submission
+      }
     }
 
     setErrors(newErrors);
@@ -270,11 +299,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {errors.general && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
-              {errors.general}
-            </div>
-          )}
+
 
           <form onSubmit={handlePreSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -348,7 +373,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                       )}
                     >
                       {formData.office
-                        ? offices.find((office) => String(office.id) === formData.office)?.name
+                        ? (offices.find((office) => String(office.id) === formData.office)?.name || (formData.office === String(activeOfficeId) ? userOfficeName : "Loading..."))
                         : "Select Office"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
                     </Button>

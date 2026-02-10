@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LogOut, UserCircle } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -154,8 +155,19 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
 
   const filteredItems = navigationItems.filter(item => {
     if (isLoading) return false;
-    if (!item.permission) return true;
-    return hasPermission(item.permission);
+
+    // Check parent permission
+    if (item.permission && !hasPermission(item.permission)) return false;
+
+    // Check children visibility
+    if (item.children && item.children.length > 0) {
+      const hasVisibleChild = item.children.some((child) =>
+        !child.permission || hasPermission(child.permission)
+      );
+      if (!hasVisibleChild) return false;
+    }
+
+    return true;
   });
 
   return (
@@ -308,37 +320,48 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
 
       </ScrollArea>
 
+
       {/* Profile Section */}
       <div className="p-4 border-t mt-auto">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div className="w-full flex items-center gap-3 rounded-lg bg-primary/5 p-3 hover:bg-primary/10 transition-colors cursor-pointer">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={(user as any)?.image || (user as any)?.avatar_url || (user as any)?.profile_image} alt={user?.full_name || "User"} />
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  {initials(user?.full_name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium truncate">{user?.full_name || "User"}</p>
-                <p className={`text-xs truncate ${roleColor(user?.role)}`}>{roleLabel(user?.role)}</p>
-              </div>
+        {isLoading ? (
+          <div className="w-full flex items-center gap-3 rounded-lg bg-primary/5 p-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-16" />
             </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="start" className="w-48">
-            <DropdownMenuItem onClick={() => navigate(ROUTES.PROFILE)} className="cursor-pointer">
-              <UserCircle className="mr-2 h-4 w-4" />
-              User Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => logout()}
-              className="cursor-pointer text-primary focus:bg-primary focus:text-primary-foreground"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="w-full flex items-center gap-3 rounded-lg bg-primary/5 p-3 hover:bg-primary/10 transition-colors cursor-pointer">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={(user as any)?.image || (user as any)?.avatar_url || (user as any)?.profile_image} alt={user?.full_name || "User"} />
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {initials(user?.full_name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium truncate">{user?.full_name || "User"}</p>
+                  <p className={`text-xs truncate ${roleColor(user?.role)}`}>{roleLabel(user?.role)}</p>
+                </div>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="start" className="w-48">
+              <DropdownMenuItem onClick={() => navigate(ROUTES.PROFILE)} className="cursor-pointer">
+                <UserCircle className="mr-2 h-4 w-4" />
+                User Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => logout()}
+                className="cursor-pointer text-primary focus:bg-primary focus:text-primary-foreground"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </aside>
   );

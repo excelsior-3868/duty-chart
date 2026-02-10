@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +28,9 @@ import { useAuth } from "@/context/AuthContext";
 const TemplateSchedule = () => {
     const { hasPermission } = useAuth();
 
-    const [schedules, setSchedules] = useState<Schedule[]>([]);
+    const queryClient = useQueryClient();
+
     const [loading, setLoading] = useState(false);
-    const [fetching, setFetching] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -42,23 +43,13 @@ const TemplateSchedule = () => {
 
     const [editingId, setEditingId] = useState<number | null>(null);
 
-    const fetchTemplates = async () => {
-        try {
-            setFetching(true);
-            const all = await getSchedules();
-            // Filter for templates only
-            const templates = all.filter(s => s.status === 'template');
-            setSchedules(templates);
-        } catch (error) {
-            console.error("Failed to fetch templates:", error);
-        } finally {
-            setFetching(false);
-        }
-    };
+    const { data: allSchedules = [], isLoading: fetching } = useQuery({
+        queryKey: ['schedules', 'all'],
+        queryFn: () => getSchedules(),
+        staleTime: 5 * 60 * 1000,
+    });
 
-    useEffect(() => {
-        fetchTemplates();
-    }, []);
+    const schedules = allSchedules.filter((s: Schedule) => s.status === 'template');
 
     const handleSave = async () => {
         if (!formData.name || !formData.start_time || !formData.end_time) {
@@ -91,7 +82,7 @@ const TemplateSchedule = () => {
             }
             setFormData({ name: '', start_time: '', end_time: '', shift_type: '', alias: '' });
             setEditingId(null);
-            fetchTemplates();
+            queryClient.invalidateQueries({ queryKey: ['schedules', 'all'] });
         } catch (error: any) {
             console.error("Save template error:", error.response?.data);
             const data = error.response?.data;
@@ -136,7 +127,7 @@ const TemplateSchedule = () => {
         try {
             await deleteSchedule(id);
             toast.success("Template deleted");
-            fetchTemplates();
+            queryClient.invalidateQueries({ queryKey: ['schedules', 'all'] });
         } catch (error) {
             toast.error("Failed to delete template");
         }

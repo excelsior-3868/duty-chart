@@ -1,22 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DutyHoursCard } from "@/components/DutyHoursCard";
 import {
-  WeekScheduleTable,
   Assignment,
-  NetworkKey,
 } from "@/components/WeekScheduleTable";
-import { AddAssignmentForm } from "@/components/WeekScheduleTable/AddAssignmentForm";
-import { BulkUpload } from "@/components/WeekScheduleTable/Bulkupload";
 import { getSchedules } from "@/services/schedule";
 import { getOffices } from "@/services/offices";
 import { useAuth } from "@/context/AuthContext";
-import { updateSchedule, deleteSchedule } from "@/services/schedule";
+import { deleteSchedule } from "@/services/schedule";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pencil, Loader2, Trash2 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +37,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 interface Schedule {
@@ -62,82 +57,43 @@ interface Office {
 }
 
 const Schedule = () => {
-  const { hasPermission, canManageOffice, refreshUser, isLoading } = useAuth();
-  const [assignments, setAssignments] = useState<
-    Record<string, Record<string, Assignment>>
-  >({});
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [offices, setOffices] = useState<Office[]>([]);
-  const [selectedOffice, setSelectedOffice] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, hasPermission, canManageOffice, isLoading: authLoading, activeOffice, activeOfficeName, setActiveOffice } = useAuth();
+  const queryClient = useQueryClient();
+
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleToDelete, setScheduleToDelete] = useState<Schedule | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    // Ensure we have the latest auth/user state when entering this page
-    refreshUser().catch(() => { });
-  }, []);
+  // Queries
+  const { data: offices = [], isLoading: officesLoading } = useQuery({
+    queryKey: ['offices', 'all'],
+    queryFn: () => getOffices(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: schedules = [], isLoading: schedulesLoading } = useQuery({
+    queryKey: ['schedules', 'office', activeOffice],
+    queryFn: () => activeOffice ? getSchedules(activeOffice) : Promise.resolve([]),
+    enabled: !!activeOffice && !authLoading,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const loading = authLoading || officesLoading || (!!activeOffice && schedulesLoading);
 
   const canCreateAtAll = hasPermission("duties.manage_schedule") || hasPermission("schedules.create");
   const canViewSchedules = hasPermission("duties.view_schedule") || hasPermission("schedules.view") || hasPermission("schedules.view_office_schedule");
 
   const canManageSelectedOffice =
-    selectedOffice !== null ? canManageOffice(selectedOffice) : false;
+    activeOffice !== null ? canManageOffice(activeOffice) : false;
   const canEditSchedules =
     (hasPermission("duties.manage_schedule") || hasPermission("schedules.edit")) && canManageSelectedOffice;
   const canDeleteSchedules =
     (hasPermission("duties.manage_schedule") || hasPermission("schedules.delete")) && canManageSelectedOffice;
 
-  const visibleSchedules = selectedOffice
-    ? schedules.filter((s) => s.office === selectedOffice)
+  const visibleSchedules = activeOffice
+    ? schedules.filter((s) => s.office === activeOffice)
     : [];
-
-  // Load initial data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [schedulesData, officesData] = await Promise.all([
-          getSchedules(),
-          getOffices(),
-        ]);
-
-        setSchedules(schedulesData);
-        setOffices(officesData);
-
-        // Default selection removed per user request: "Select Office" is default
-
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // Load schedules when office changes
-  useEffect(() => {
-    const fetchSchedulesForOffice = async () => {
-      if (selectedOffice) {
-        try {
-          const schedulesData = await getSchedules();
-          // Filter schedules by selected office
-          const filteredSchedules = schedulesData.filter(
-            schedule => schedule.office === selectedOffice
-          );
-          setSchedules(filteredSchedules);
-        } catch (error) {
-          console.error("Error fetching schedules for office:", error);
-        }
-      }
-    };
-
-    fetchSchedulesForOffice();
-  }, [selectedOffice]);
 
   useEffect(() => {
     document.title = "Duty Schedule - NT Duty Chart Management System";
@@ -156,6 +112,8 @@ const Schedule = () => {
     }
   }, []);
 
+
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -163,31 +121,25 @@ const Schedule = () => {
         <p className="text-muted-foreground">Define shift times and assign them to specific offices.</p>
       </div>
 
-      {/* Sections: Office Filter, Schedules List & Create Form in two columns */}
+      {/* Immediate Render: Removed isInitializing check to show UI instantly */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-        <div className="space-y-6">
-          {/* Create Schedule Card - Always visible if user has creation permission */}
-          {canCreateAtAll && (
+        {(canCreateAtAll || editingSchedule) && (
+          <div className="space-y-6">
             <DutyHoursCard
               mode={editingSchedule ? "edit" : "create"}
               initialSchedule={editingSchedule}
+              activeOfficeId={user?.office_id} // FIXED: Always default to user's home office, ignoring filter changes
+              userOfficeName={user?.office_name}
               onCancelEdit={() => setEditingSchedule(null)}
               onScheduleAdded={() => {
-                // When a schedule is added or updated, refresh the list if the added office 
-                // matches the one we are currently viewing in the right panel.
                 if (editingSchedule) {
                   setEditingSchedule(null);
                 }
-                getSchedules().then((all) => {
-                  if (selectedOffice) {
-                    const filtered = all.filter((s) => s.office === selectedOffice);
-                    setSchedules(filtered);
-                  }
-                });
+                queryClient.invalidateQueries({ queryKey: ['schedules', 'office', activeOffice] });
               }}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="space-y-6">
           {canViewSchedules && (
@@ -208,8 +160,9 @@ const Schedule = () => {
                         aria-expanded={open}
                         className="w-full justify-between bg-primary text-primary-foreground hover:bg-primary/90"
                       >
-                        {selectedOffice
-                          ? offices.find((office) => office.id === selectedOffice)?.name
+                        {/* INSTANT LOAD: Use global activeOfficeName */}
+                        {activeOffice
+                          ? (activeOfficeName || offices.find((o) => o.id === activeOffice)?.name || "Loading Office...")
                           : "Select Office"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
                       </Button>
@@ -223,7 +176,7 @@ const Schedule = () => {
                             <CommandItem
                               value="Select Office"
                               onSelect={() => {
-                                setSelectedOffice(null);
+                                setActiveOffice(null);
                                 setOpen(false);
                               }}
                               className="font-medium"
@@ -231,7 +184,7 @@ const Schedule = () => {
                               <Check
                                 className={cn(
                                   "mr-2 h-4 w-4",
-                                  !selectedOffice ? "opacity-100" : "opacity-0"
+                                  !activeOffice ? "opacity-100" : "opacity-0"
                                 )}
                               />
                               Select Office
@@ -243,14 +196,14 @@ const Schedule = () => {
                                   key={office.id}
                                   value={office.name}
                                   onSelect={() => {
-                                    setSelectedOffice(office.id);
+                                    setActiveOffice(office.id, office.name);
                                     setOpen(false);
                                   }}
                                 >
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      selectedOffice === office.id ? "opacity-100" : "opacity-0"
+                                      activeOffice === office.id ? "opacity-100" : "opacity-0"
                                     )}
                                   />
                                   {office.name}
@@ -264,12 +217,11 @@ const Schedule = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {(loading || isLoading) && (
+                {loading ? (
                   <div className="flex justify-center mb-4">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   </div>
-                )}
-                {visibleSchedules.length === 0 ? (
+                ) : visibleSchedules.length === 0 ? (
                   <div className="text-sm text-muted-foreground py-8 text-center border-2 border-dashed rounded-lg bg-muted/30">
                     No schedules found for the selected office.
                   </div>
@@ -301,7 +253,6 @@ const Schedule = () => {
                               className="h-8 w-8 p-0"
                               onClick={() => {
                                 setEditingSchedule(s);
-                                // Scroll to top to show the edit form
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
@@ -332,64 +283,6 @@ const Schedule = () => {
         </div>
       </div>
 
-
-
-
-
-      {/* Section 4: Assignment Management (Merged Add & Bulk) - HIDDEN AS PER USER REQUEST
-      {canCreateSchedule && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Assignment Management</CardTitle>
-            <CardDescription>Assign personnel to shifts manually or via bulk upload.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="manual" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="manual">Manual Assignment</TabsTrigger>
-                <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="manual" className="space-y-4">
-                <AddAssignmentForm
-                  onAdd={(assignment) => {
-                    setAssignments((prev) => {
-                      const updated = { ...prev };
-                      if (!updated[assignment.date]) updated[assignment.date] = {};
-                      updated[assignment.date][assignment.shift] = {
-                        employee: assignment.employee,
-                        network: assignment.network,
-                      };
-                      return updated;
-                    });
-                  }}
-                />
-              </TabsContent>
-
-              <TabsContent value="bulk">
-                <BulkUpload
-                  onUpload={(bulkAssignments) => {
-                    setAssignments((prev) => {
-                      const updated = { ...prev };
-                      bulkAssignments.forEach(({ employee, network, shift, date }) => {
-                        const formattedDate = new Date(date).toISOString().slice(0, 10);
-                        const networkKey = network as NetworkKey;
-                        const shiftKey = shift.toLowerCase() as "morning" | "afternoon" | "night";
-                        if (!updated[formattedDate]) updated[formattedDate] = {};
-                        updated[formattedDate][shiftKey] = { employee, network: networkKey };
-                      });
-                      return updated;
-                    });
-                  }}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      )}
-      */}
-
-
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -409,14 +302,7 @@ const Schedule = () => {
                   try {
                     await deleteSchedule(scheduleToDelete.id);
                     toast.success("Schedule deleted successfully");
-                    // Refresh schedules
-                    if (selectedOffice) {
-                      const all = await getSchedules();
-                      const filtered = all.filter(
-                        (s) => s.office === selectedOffice
-                      );
-                      setSchedules(filtered);
-                    }
+                    queryClient.invalidateQueries({ queryKey: ['schedules', 'office', activeOffice] });
                   } catch (error: any) {
                     toast.error("Failed to delete schedule");
                   }
