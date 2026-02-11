@@ -7,9 +7,10 @@ import { useAuth } from '@/context/AuthContext';
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredPermission?: string;
+  requiredRole?: string;
 }
-export const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) => {
-  const { isAuthenticated, isLoading, hasPermission } = useAuth();
+export const ProtectedRoute = ({ children, requiredPermission, requiredRole }: ProtectedRouteProps) => {
+  const { isAuthenticated, isLoading, hasPermission, hasRole } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -32,7 +33,12 @@ export const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteP
 
   // 2. Permission Check (from Roles)
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    return <div>You do not have permission to view this page.</div>;
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  // 3. Role Check
+  if (requiredRole && !hasRole(requiredRole)) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 
   return <>{children}</>;

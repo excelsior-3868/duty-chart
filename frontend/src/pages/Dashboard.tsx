@@ -27,6 +27,140 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { reorderDashboardOffices } from "@/services/dashboardService";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+interface SortableOfficeCardProps {
+  id: number;
+  group: { officeName: string; officeId: number; rows: any[] };
+  expanded: boolean;
+  onToggleExpand: (officeName: string) => void;
+  onRemove: (officeId: number) => void;
+}
+
+const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: SortableOfficeCardProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const onDutyRows = group.rows.filter((r) => r.currently_available);
+  const visibleRows = expanded ? onDutyRows : onDutyRows.slice(0, 3);
+  const hasMore = onDutyRows.length > 3;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`relative group/card flex-none w-[300px] sm:w-[350px] md:w-[calc((100%-32px)/2)] lg:w-[calc((100%-48px)/3)] xl:w-[calc((100%-64px)/4)] snap-start touch-none`}
+    >
+      <Card
+        className="rounded-xl hover:shadow-md transition-shadow h-full"
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent drag start when clicking remove
+            onRemove(group.officeId);
+          }}
+          // Keep the remove button interactive, use data-no-dnd if needed, accessing with pointer-events might be tricky if parent has listeners.
+          // dnd-kit listeners are on the parent div. Button clicks propagate. 
+          // We can stop propagation on mousedown/touchstart/pointerdown to prevent drag.
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute top-4 right-4 p-1 rounded-md opacity-0 group-hover/card:opacity-100 hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-all z-10"
+          title="Remove from board"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <CardHeader className="p-4 pb-2 pr-10 cursor-grab active:cursor-grabbing">
+          <CardTitle className="text-base whitespace-normal leading-tight">{group.officeName}</CardTitle>
+          <CardDescription className="text-[11px] mt-0.5">
+            {onDutyRows.length > 0 ? (
+              <span className="text-emerald-600 font-semibold">{onDutyRows.length} active</span>
+            ) : (
+              "No active duty"
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="space-y-3">
+            {visibleRows.map((row: any) => (
+              <div
+                key={row.id}
+                className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/50 border border-emerald-100/50 px-2.5 py-1.5"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-bold text-emerald-900 leading-tight">{row.full_name}</p>
+                  <p className="text-[10px] text-emerald-700/70">{row.phone_number || "No contact"}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-col items-end leading-none">
+                    <span className="text-[10px] text-emerald-800 font-semibold">{row.schedule_name || "—"}</span>
+                    {row.start_time && row.end_time && (
+                      <span className="text-[9px] text-emerald-600/60 font-medium">
+                        {row.start_time.substring(0, 5)}-{row.end_time.substring(0, 5)}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                    title="On duty"
+                  />
+                </div>
+              </div>
+            ))}
+            {onDutyRows.length === 0 && (
+              <div className="py-4 text-center border rounded-lg bg-slate-50/50">
+                <p className="text-xs text-muted-foreground">No personnel currently active</p>
+              </div>
+            )}
+          </div>
+
+          {hasMore && (
+            <div className="mt-4">
+              <button
+                type="button"
+                className="text-xs px-3 py-1 rounded-md border bg-muted hover:bg-muted/70 transition-colors"
+                onPointerDown={(e) => e.stopPropagation()} // Prevent drag on button click
+                onClick={() => onToggleExpand(group.officeName)}
+              >
+                {expanded ? "See less" : "See more"}
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const Dashboard = () => {
   const [expandedOffice, setExpandedOffice] = useState<Record<string, boolean>>({});
@@ -38,6 +172,17 @@ const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const todayLocalISODate = useMemo(() => {
     const dt = new Date();
@@ -421,6 +566,36 @@ const Dashboard = () => {
     }
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      // Find indices
+      const oldIndex = selectedOffices.findIndex((item: DashboardOffice) => item.id === active.id);
+      const newIndex = selectedOffices.findIndex((item: DashboardOffice) => item.id === over?.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(selectedOffices, oldIndex, newIndex);
+
+        // Optimistic Update
+        queryClient.setQueryData(['dashboard-offices'], newOrder);
+
+        // Call API
+        // We need to send { id, order } pairs.
+        // The order should be their new index + 1 (1-based or 0-based, backend auto-assigns max+1, so 1-based is safe usually, but let's stick to 0-based or index)
+        const reorderPayload = newOrder.map((item: DashboardOffice, index: number) => ({
+          id: item.id,
+          order: index
+        }));
+
+        reorderDashboardOffices(reorderPayload).catch(() => {
+          toast.error("Failed to update order");
+          queryClient.invalidateQueries({ queryKey: ['dashboard-offices'] });
+        });
+      }
+    }
+  };
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -598,87 +773,32 @@ const Dashboard = () => {
         )}
 
         <div className="flex gap-4 overflow-x-auto snap-x pb-2 scrollbar-visible">
-          {groupedByOffice.map((group) => {
-            const onDutyRows = group.rows.filter((r) => r.currently_available);
-            const expanded = !!expandedOffice[group.officeName];
-            const visibleRows = expanded ? onDutyRows : onDutyRows.slice(0, 3);
-            const hasMore = onDutyRows.length > 3;
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={selectedOffices.map((so: DashboardOffice) => so.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {groupedByOffice.map((group) => {
+                const dashboardOffice = selectedOffices.find((so: DashboardOffice) => so.office === group.officeId);
+                if (!dashboardOffice) return null;
 
-            return (
-              <Card
-                key={group.officeId}
-                className="rounded-xl hover:shadow-md transition-shadow relative group/card flex-none w-[300px] sm:w-[350px] md:w-[calc((100%-32px)/2)] lg:w-[calc((100%-48px)/3)] xl:w-[calc((100%-64px)/4)] snap-start"
-              >
-                <button
-                  onClick={() => handleRemoveOffice(group.officeId)}
-                  className="absolute top-4 right-4 p-1 rounded-md opacity-0 group-hover/card:opacity-100 hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-all z-10"
-                  title="Remove from board"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-
-                <CardHeader className="p-4 pb-2 pr-10">
-                  <CardTitle className="text-base whitespace-normal leading-tight">{group.officeName}</CardTitle>
-                  <CardDescription className="text-[11px] mt-0.5">
-                    {onDutyRows.length > 0 ? (
-                      <span className="text-emerald-600 font-semibold">{onDutyRows.length} active</span>
-                    ) : (
-                      "No active duty"
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="space-y-3">
-                    {visibleRows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/50 border border-emerald-100/50 px-2.5 py-1.5"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-bold text-emerald-900 leading-tight">{row.full_name}</p>
-                          <p className="text-[10px] text-emerald-700/70">{row.phone_number || "No contact"}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="flex flex-col items-end leading-none">
-                            <span className="text-[10px] text-emerald-800 font-semibold">{row.schedule_name || "—"}</span>
-                            {row.start_time && row.end_time && (
-                              <span className="text-[9px] text-emerald-600/60 font-medium">
-                                {row.start_time.substring(0, 5)}-{row.end_time.substring(0, 5)}
-                              </span>
-                            )}
-                          </div>
-                          <span
-                            className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                            title="On duty"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                    {onDutyRows.length === 0 && (
-                      <div className="py-4 text-center border rounded-lg bg-slate-50/50">
-                        <p className="text-xs text-muted-foreground">No personnel currently active</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {hasMore && (
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        className="text-xs px-3 py-1 rounded-md border bg-muted hover:bg-muted/70 transition-colors"
-                        onClick={() => setExpandedOffice((prev) => ({
-                          ...prev,
-                          [group.officeName]: !prev[group.officeName]
-                        }))}
-                      >
-                        {expanded ? "See less" : "See more"}
-                      </button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                return (
+                  <SortableOfficeCard
+                    key={dashboardOffice.id}
+                    id={dashboardOffice.id}
+                    group={group}
+                    expanded={!!expandedOffice[group.officeName]}
+                    onToggleExpand={(name) => setExpandedOffice((prev) => ({ ...prev, [name]: !prev[name] }))}
+                    onRemove={handleRemoveOffice}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ export interface DashboardOffice {
     user: number;
     office: number;
     office_name?: string;
+    order: number;
 }
 
 export const getDashboardOffices = async (): Promise<DashboardOffice[]> => {
@@ -20,4 +21,8 @@ export const addDashboardOffice = async (officeId: number): Promise<DashboardOff
 
 export const removeDashboardOffice = async (id: number): Promise<void> => {
     await api.delete(`/user-dashboard-offices/${id}/`);
+};
+
+export const reorderDashboardOffices = async (orders: { id: number; order: number }[]): Promise<void> => {
+    await api.post("/user-dashboard-offices/reorder/", { orders });
 };

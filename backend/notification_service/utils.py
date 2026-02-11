@@ -19,8 +19,8 @@ def send_sms(phone, message, user=None):
     
     base_url = "http://10.26.204.149:8080/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/"
     params = {
-        "username": "NtcSmsSender",
-        "password": ">xfhT4:/W^6YyY,M",
+        # "username": "NtcSmsSender", # Not required
+        # "password": "...",          # Not required
         "cellNo": phone,
         "message": message,
         "encoding": "E"

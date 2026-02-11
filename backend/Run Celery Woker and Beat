@@ -1,5 +1,0 @@
-Service	Command
-
-
-Celery Worker	celery -A config worker --loglevel=info
-Celery Beat	celery -A config beat --loglevel=info

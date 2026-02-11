@@ -110,6 +110,8 @@ import SMSLogsPage from "@/pages/SMSLogsPage";
 import DirectoratePage from "@/pages/DirectoratePage";
 import AccountingOfficesPage from "@/pages/AccountingOfficesPage";
 import CCOfficesPage from "@/pages/CCOfficesPage";
+import ApiDocsPage from "@/pages/ApiDocsPage";
+import ArchitecturePage from "@/pages/ArchitecturePage";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Outlet } from "react-router-dom";
 
@@ -223,7 +225,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SETTINGS,
             element: (
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <Settings />
               </ProtectedRoute>
             ),
@@ -231,7 +233,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.AUDIT_LOGS,
             element: (
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <AuditLogPage />
               </ProtectedRoute>
             ),
@@ -239,7 +241,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SMS_LOGS,
             element: (
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <SMSLogsPage />
               </ProtectedRoute>
             ),
@@ -247,7 +249,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.DIRECTORATES,
             element: (
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <DirectoratePage />
               </ProtectedRoute>
             ),
@@ -255,7 +257,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.ACCOUNTING_OFFICES,
             element: (
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <AccountingOfficesPage />
               </ProtectedRoute>
             ),
@@ -263,15 +265,31 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.CC_OFFICES,
             element: (
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <CCOfficesPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.API_DOCS,
+            element: (
+              <ProtectedRoute requiredRole="SUPERADMIN">
+                <ApiDocsPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.ARCHITECTURE,
+            element: (
+              <ProtectedRoute requiredRole="SUPERADMIN">
+                <ArchitecturePage />
               </ProtectedRoute>
             ),
           },
           {
             path: ROUTES.TEMPLATE_SCHEDULE,
             element: (
-              <ProtectedRoute requiredPermission="duties.view_chart">
+              <ProtectedRoute requiredRole="SUPERADMIN">
                 <ScheduleLayout>
                   <TemplateSchedule />
                 </ScheduleLayout>

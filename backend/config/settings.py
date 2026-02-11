@@ -28,12 +28,14 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-devel
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0,dutychart.ntc.net.np").split(",")
+
 # CORS Configuration
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True 
     CORS_ALLOW_CREDENTIALS = True
 else:
-    cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://localhost:8083")
+    cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://localhost:8083,https://dutychart.ntc.net.np")
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(",")]
     CORS_ALLOW_CREDENTIALS = True
 
@@ -98,7 +100,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'auditlogs.middleware.AuditContextMiddleware',
 ]
 
@@ -294,8 +296,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'notification_service.tasks.send_duty_reminders',
         'schedule': 900.0,  # 15 minutes
     },
-    'send-daily-summary-sms-at-10am': {
-        'task': 'notification_service.tasks.send_daily_summary_sms',
+    'send-daily-duty-reminders-at-10am': {
+        'task': 'notification_service.tasks.send_daily_duty_reminders',
         'schedule': crontab(hour=4, minute=15),  # 10:00 AM Nepal Time (UTC+5:45)
     },
 }

@@ -26,6 +26,8 @@ export const ROUTES = {
   DIRECTORATES: '/admin/directorates',
   ACCOUNTING_OFFICES: '/admin/accounting-offices',
   CC_OFFICES: '/admin/cc-offices',
+  API_DOCS: '/documentation/api-docs',
+  ARCHITECTURE: '/architecture',
 } as const;
 
 export const USER_ROLES = {

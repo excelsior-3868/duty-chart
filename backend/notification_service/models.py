@@ -32,6 +32,7 @@ class Notification(AuditableMixin, models.Model):
 
 class SMSLog(AuditableMixin, models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs')
+    duty = models.ForeignKey('duties.Duty', on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs_for_duty')
     phone = models.CharField(max_length=20)
     message = models.TextField()
     status = models.CharField(max_length=50, default='pending')

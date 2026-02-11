@@ -9,6 +9,8 @@ from django.urls import path, include, re_path
 
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from authentication.permissions import IsSuperAdmin
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -51,8 +53,9 @@ schema_view = get_schema_view(
         contact=openapi.Contact(email="contact@yourapp.com"),
         license=openapi.License(name="Your License"),
     ),
-    public=True,
-    permission_classes=(permissions.AllowAny,),
+    public=False,
+    permission_classes=(IsSuperAdmin,),
+    authentication_classes=(SessionAuthentication, BasicAuthentication),
 )
 
 # Apply Bearer JWT security globally in Swagger

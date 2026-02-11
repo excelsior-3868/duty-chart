@@ -173,7 +173,7 @@ class UserPermission(AuditableMixin, models.Model):
     def get_audit_details(self, action, changes):
         return f"RBAC: Modified direct permissions for User ID {self.user_id}."
 
-class UserDashboardOffice(AuditableMixin, models.Model):
+class UserDashboardOffice(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dashboard_offices')
     office = models.ForeignKey(WorkingOffice, on_delete=models.CASCADE, related_name='dashboard_users')
     order = models.PositiveIntegerField(default=0)
@@ -187,10 +187,6 @@ class UserDashboardOffice(AuditableMixin, models.Model):
         return f"{self.user.username} - {self.office.name}"
 
     def get_audit_details(self, action, changes):
-        if action == 'CREATE':
-            return f"PREFERENCE: User {self.user.username} pinned {self.office.name} to dashboard."
-        elif action == 'DELETE':
-            return f"PREFERENCE: User {self.user.username} unpinned {self.office.name} from dashboard."
         return ""
 
 @receiver(post_delete, sender=User)

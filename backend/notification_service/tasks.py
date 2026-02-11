@@ -95,9 +95,9 @@ def send_duty_reminders():
     return sent_count
 
 @shared_task
-def send_daily_summary_sms():
+def send_daily_duty_reminders():
     """
-    Periodic task to send a summary SMS at 10:00 AM for today's duties.
+    Periodic task to send a reminder SMS at 10:00 AM for each of today's duties.
     """
     from duties.models import Duty
     from django.contrib.auth import get_user_model
@@ -112,36 +112,22 @@ def send_daily_summary_sms():
         schedule__shift_type='Shift'
     ).select_related('user', 'schedule', 'duty_chart', 'office')
     
-    # Group duties by user
-    user_duties = {}
-    for duty in duties:
-        if duty.user_id not in user_duties:
-            user_duties[duty.user_id] = []
-        user_duties[duty.user_id].append(duty)
-        
     sent_count = 0
-    for user_id, duties_list in user_duties.items():
-        user = duties_list[0].user
+    for duty in duties:
+        user = duty.user
         if not getattr(user, 'phone_number', None):
             continue
             
         full_name = getattr(user, 'full_name', user.username)
+        chart_name = duty.duty_chart.name if duty.duty_chart else "Duty Chart"
+        schedule_name = duty.schedule.name if duty.schedule else "Duty"
+        office_name = duty.office.name if duty.office else "Unknown Office"
         
-        # Construct summary message
-        # If multiple duties, list them
-        if len(duties_list) == 1:
-            duty = duties_list[0]
-            chart_name = duty.duty_chart.name if duty.duty_chart else "Duty Chart"
-            schedule_name = duty.schedule.name if duty.schedule else "Duty"
-            office_name = duty.office.name if duty.office else "Unknown Office"
-            sms_message = f'Dear {full_name}, you have been assigned to "{chart_name}" for the "{schedule_name}" at "{office_name}" today. Visit dutychart.ntc.net.np for details.'
-        else:
-            # Multiple duties summary
-            duties_summary = ", ".join([f'"{d.schedule.name}" at "{d.office.name}"' for d in duties_list if d.schedule])
-            sms_message = f'Dear {full_name}, you have {len(duties_list)} duties today: {duties_summary}. Visit dutychart.ntc.net.np for details.'
-            
+        # Individual Reminder Message
+        sms_message = f'Reminder: Dear {full_name}, you have a duty "{schedule_name}" at "{office_name}" today ({today}). Visit https://dutychart.ntc.net.np for details.'
+        
         async_send_sms.delay(user.phone_number, sms_message, user.id)
         sent_count += 1
         
-    logger.info(f"Finished sending {sent_count} daily summary SMS notifications for {today}.")
+    logger.info(f"Finished sending {sent_count} daily duty reminder SMS notifications for {today}.")
     return sent_count

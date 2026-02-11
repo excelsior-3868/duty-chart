@@ -15,6 +15,50 @@ services:
       - ./.env
     depends_on:
       - db
+      - redis
+
+  # Redis Broker
+  redis:
+    image: redis:7-alpine
+    container_name: duty-chart-redis
+    ports:
+      - "6379:6379"
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: ./duty-chart-backend
+      dockerfile: Dockerfile
+    container_name: duty-chart-celery-worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./duty-chart-backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - ./.env
+    depends_on:
+      - backend
+      - db
+      - redis
+
+  # Celery Beat
+  celery_beat:
+    build:
+      context: ./duty-chart-backend
+      dockerfile: Dockerfile
+    container_name: duty-chart-celery-beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./duty-chart-backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - ./.env
+    depends_on:
+      - backend
+      - db
+      - redis
 
   # Database (Postgres)
   db:

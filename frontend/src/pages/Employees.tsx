@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserCard, UserData } from "@/components/UserCard";
+import { useAuth } from "@/context/AuthContext";
+
 import { ChevronsUpDown, Check, Users, Search, Eye, EyeOff, Copy, KeyRound, Edit3, Trash2, RotateCw, Loader2, Plus } from 'lucide-react';
 import {
   Command,
@@ -48,6 +50,7 @@ import {
 } from "@/components/ui/dialog";
 
 const Employees = () => {
+  const { user } = useAuth();
 
 
   const queryClient = useQueryClient();
@@ -239,9 +242,16 @@ const Employees = () => {
     })();
   }
 
+  const [editSubmitConfirmOpen, setEditSubmitConfirmOpen] = useState(false);
+
   // Submit edit
   async function submitEdit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedEmployee?.id) return;
+    setEditSubmitConfirmOpen(true);
+  }
+
+  async function confirmEditEmployee() {
     if (!selectedEmployee?.id) return;
     try {
       const payload = {
@@ -260,6 +270,7 @@ const Employees = () => {
       console.log("Update response:", res.data);
       toast.success("Employee updated successfully!");
       setEditModalOpen(false);
+      setEditSubmitConfirmOpen(false);
       setSelectedEmployee(null);
       queryClient.invalidateQueries({ queryKey: ['users'] });
       // Invalidate if needed: queryClient.invalidateQueries({ queryKey: ['positions'] }); // if new position added inline? unlikely
@@ -392,6 +403,8 @@ const Employees = () => {
     setRevealedOnce(true);
   }
 
+  const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
+
   async function handleCreateEmployee(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName || !employeeId || !email) {
@@ -406,7 +419,10 @@ const Employees = () => {
       toast.error("Select designation / position.");
       return;
     }
+    setCreateConfirmOpen(true);
+  }
 
+  async function confirmCreateEmployee() {
     setSubmitting(true);
     try {
       // Generate a random password since UI is removed
@@ -430,8 +446,6 @@ const Employees = () => {
         password: autoPassword,
       };
 
-
-
       await createUser(payload);
       toast.success("Employee created successfully.");
       // Reset form
@@ -449,6 +463,7 @@ const Employees = () => {
       setShowPassword(false);
       setRevealedOnce(false);
       setCreateModalOpen(false);
+      setCreateConfirmOpen(false);
       queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (err: any) {
       console.error(err);
@@ -724,9 +739,11 @@ const Employees = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Protect permission="users.edit_employee">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => openEditModal(emp)} title="Edit Employee">
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
+                          {(user?.role === 'SUPERADMIN' || (user?.office_id && getIdFromField(emp.office) === user.office_id)) && (
+                            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => openEditModal(emp)} title="Edit Employee">
+                              <Edit3 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </Protect>
                         <Protect permission="users.delete_employee">
                           <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => openDeleteConfirm(emp)} title="Delete Employee">
@@ -943,51 +960,55 @@ const Employees = () => {
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Label>Active</Label>
-                  <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4" />
-                </div>
+                {user?.role === 'SUPERADMIN' && (
+                  <div className="flex items-center gap-2">
+                    <Label>Active</Label>
+                    <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4" />
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-4">
-                <h4 className="text-md font-semibold">Access Control</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Role</Label>
-                    <Select value={selectedEmployee.role || ""} onValueChange={async (v) => {
-                      setSelectedEmployee({ ...selectedEmployee, role: v });
-                      const r = roles.find((x: any) => x.slug === v);
-                      if (r?.id) {
-                        try {
-                          const pRes = await api.get(`/roles/${r.id}/permissions/`);
-                          setRolePermsPreview(pRes.data?.permissions || []);
-                        } catch {
+              {user?.role === 'SUPERADMIN' && (
+                <div className="space-y-4">
+                  <h4 className="text-md font-semibold">Access Control</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Role</Label>
+                      <Select value={selectedEmployee.role || ""} onValueChange={async (v) => {
+                        setSelectedEmployee({ ...selectedEmployee, role: v });
+                        const r = roles.find((x: any) => x.slug === v);
+                        if (r?.id) {
+                          try {
+                            const pRes = await api.get(`/roles/${r.id}/permissions/`);
+                            setRolePermsPreview(pRes.data?.permissions || []);
+                          } catch {
+                            setRolePermsPreview([]);
+                          }
+                        } else {
                           setRolePermsPreview([]);
                         }
-                      } else {
-                        setRolePermsPreview([]);
-                      }
-                    }}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(roles.length ? roles : [
-                          { slug: "SUPERADMIN", name: "Super Admin" }, { slug: "OFFICE_ADMIN", name: "Office Admin" }, { slug: "USER", name: "User" }
-                        ]).map((r: any) => (
-                          <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Effective Permissions (by role)</Label>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(rolePermsPreview || []).map((p) => <Badge key={p} variant="secondary">{p}</Badge>)}
+                      }}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(roles.length ? roles : [
+                            { slug: "SUPERADMIN", name: "Super Admin" }, { slug: "OFFICE_ADMIN", name: "Office Admin" }, { slug: "USER", name: "User" }
+                          ]).map((r: any) => (
+                            <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Effective Permissions (by role)</Label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(rolePermsPreview || []).map((p) => <Badge key={p} variant="secondary">{p}</Badge>)}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={() => { setEditModalOpen(false); setSelectedEmployee(null); }}>Cancel</Button>
@@ -1015,6 +1036,43 @@ const Employees = () => {
           </div>
         )
       }
+
+      {/* Create Confirmation Modal */}
+      <Dialog open={createConfirmOpen} onOpenChange={setCreateConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Creation</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to create this new employee?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setCreateConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={confirmCreateEmployee} disabled={submitting}>
+              {submitting ? "Creating..." : "Confirm Create"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Confirmation Modal */}
+      <Dialog open={editSubmitConfirmOpen} onOpenChange={setEditSubmitConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Updates</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to save changes for <strong>{selectedEmployee?.full_name}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setEditSubmitConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={confirmEditEmployee}>
+              Confirm Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div >
   );
 };
