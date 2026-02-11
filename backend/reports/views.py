@@ -529,7 +529,7 @@ class DutyReportNewFileView(APIView):
             p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
         center("अनुसूची-२", True)
-        center("(परिच्छेद - ३ को दफा ८,९र १० सँग सम्बन्धित)")
+        center("(परिच्छेद - ३ को दफा ८,९ र १० सँग सम्बन्धित)")
         center("नेपाल दूरसंचार कम्पनी लिमिटेड (नेपाल टेलिकम)")
         center("सिफ्ट ड्यूटी सम्पन्न भए पश्चात भर्नु पर्ने बिवरण")
         meta = doc.add_paragraph()
@@ -686,8 +686,8 @@ class DutyReportNewFileView(APIView):
                 cells[i].paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.LEFT if i in [2, 4] else WD_PARAGRAPH_ALIGNMENT.CENTER
             sn += 1
 
-        doc.add_paragraph("\nकम्पनीको सिफ्ट ड्यूटी निर्देशिका बमोजिम तपाईंहरुले माथि उल्लेखित समयसीमा भित्र कार्य सम्पन्न गरेको प्रमाणित गराई पेश गर्नुहुन अनुरोध छ |")
-        doc.add_paragraph("\nकाममा खटाउने अधिकार प्राप्त पदाधिकारीको बिवरण:-")
+        
+        doc.add_paragraph("\nकाम सम्पादन भएको प्रमाणित गर्ने पदाधिकारीको बिवरण:-")
         doc.add_paragraph("नाम:-")
         doc.add_paragraph("पद:-")
         doc.add_paragraph("दस्तखत:-")

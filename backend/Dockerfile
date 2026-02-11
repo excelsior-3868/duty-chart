@@ -31,3 +31,5 @@ COPY . .
 
 EXPOSE 8000
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
+CMD ["celery", "-A", "config", "worker", "--loglevel=info"]
+CMD ["celery", "-A", "config", "beat", "--loglevel=info"]

@@ -73,26 +73,29 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [officesData, allSchedules] = await Promise.all([
+        const [officesData, templateSchedules] = await Promise.all([
           getOffices(),
-          getSchedules()
+          getSchedules(undefined, undefined, 'template') // Explicitly request templates
         ]);
         setOffices(officesData);
-        setExistingSchedules(allSchedules); // Store for validation
 
-        const templateSchedules = allSchedules.filter(s => s.status === 'template' || (!s.office && !s.status));
+        console.log('Raw templates fetched:', templateSchedules.length, templateSchedules);
 
-        if (templateSchedules.length > 0) {
-          setScheduleTemplates(templateSchedules);
-        } else {
-          const uniqueMap = new Map();
-          allSchedules.forEach(s => {
-            if (s.name && !uniqueMap.has(s.name) && !s.office) {
-              uniqueMap.set(s.name, s);
-            }
-          });
-          setScheduleTemplates(Array.from(uniqueMap.values()));
-        }
+        // Deduplicate templates by name - keep only the first occurrence of each unique name
+        const uniqueTemplates = templateSchedules.reduce((acc, template) => {
+          if (!acc.find(t => t.name === template.name)) {
+            acc.push(template);
+          }
+          return acc;
+        }, [] as typeof templateSchedules);
+
+        console.log('Unique templates after dedup:', uniqueTemplates.length, uniqueTemplates);
+
+        setScheduleTemplates(uniqueTemplates);
+
+        // Also fetch all schedules for validation (without status filter)
+        const allSchedules = await getSchedules();
+        setExistingSchedules(allSchedules);
       } catch (error) {
         console.error("Failed to load data:", error);
       }
@@ -151,28 +154,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
       newErrors.office = "Office is required";
     }
 
-    // Duplicate Check
-    if (formData.name && formData.start_time && formData.end_time && formData.office) {
-      const cleanTime = (t: string) => t ? t.slice(0, 5) : "";
-
-      const isDuplicate = existingSchedules.some(s =>
-        // Same Office
-        String(s.office) === String(formData.office) &&
-        // Same Name
-        s.name.toLowerCase() === formData.name.toLowerCase() &&
-        // Same Times
-        cleanTime(s.start_time) === cleanTime(formData.start_time) &&
-        cleanTime(s.end_time) === cleanTime(formData.end_time) &&
-        // Exclude current if editing
-        (mode === 'edit' && initialSchedule ? s.id !== initialSchedule.id : true)
-      );
-
-      if (isDuplicate) {
-        const msg = `A schedule named "${formData.name}" with the same time (${formData.start_time} - ${formData.end_time}) already exists for this office.`;
-        toast.error(msg);
-        newErrors.general = msg; // Keep this to block submission
-      }
-    }
+    // Duplicate Check Removed as per request
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;

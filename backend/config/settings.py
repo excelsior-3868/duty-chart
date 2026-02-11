@@ -33,7 +33,7 @@ if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True 
     CORS_ALLOW_CREDENTIALS = True
 else:
-    cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080")
+    cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://localhost:8083")
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(",")]
     CORS_ALLOW_CREDENTIALS = True
 

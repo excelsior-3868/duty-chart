@@ -15,15 +15,27 @@ export interface Schedule {
 }
 
 // GET schedules (optionally filtered by office and/or duty_chart)
+// GET schedules (optionally filtered by office and/or duty_chart)
 export const getSchedules = async (
   officeId?: number,
-  dutyChartId?: number
+  dutyChartId?: number,
+  status?: string
 ): Promise<Schedule[]> => {
-  const params: Record<string, number> = {};
-  if (typeof officeId === "number") params.office = officeId;
-  if (typeof dutyChartId === "number") params.duty_chart = dutyChartId;
+  const params = new URLSearchParams();
+  if (typeof officeId === "number" && !isNaN(officeId)) {
+    params.append("office", officeId.toString());
+  }
+  if (typeof dutyChartId === "number" && !isNaN(dutyChartId)) {
+    params.append("duty_chart", dutyChartId.toString());
+  }
+  if (status) {
+    params.append("status", status);
+  }
 
-  const response = await api.get("/schedule/", { params });
+  const queryString = params.toString();
+  const url = queryString ? `/schedule/?${queryString}` : "/schedule/";
+
+  const response = await api.get(url);
   return response.data;
 };
 

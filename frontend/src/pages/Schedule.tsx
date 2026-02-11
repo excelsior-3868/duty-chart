@@ -69,14 +69,12 @@ const Schedule = () => {
   const { data: offices = [], isLoading: officesLoading } = useQuery({
     queryKey: ['offices', 'all'],
     queryFn: () => getOffices(),
-    staleTime: 5 * 60 * 1000,
   });
 
   const { data: schedules = [], isLoading: schedulesLoading } = useQuery({
     queryKey: ['schedules', 'office', activeOffice],
     queryFn: () => activeOffice ? getSchedules(activeOffice) : Promise.resolve([]),
     enabled: !!activeOffice && !authLoading,
-    staleTime: 5 * 60 * 1000,
   });
 
   const loading = authLoading || officesLoading || (!!activeOffice && schedulesLoading);
@@ -92,7 +90,7 @@ const Schedule = () => {
     (hasPermission("duties.manage_schedule") || hasPermission("schedules.delete")) && canManageSelectedOffice;
 
   const visibleSchedules = activeOffice
-    ? schedules.filter((s) => s.office === activeOffice)
+    ? schedules.filter((s) => s.office === activeOffice || s.office === null)
     : [];
 
   useEffect(() => {
@@ -111,6 +109,16 @@ const Schedule = () => {
       );
     }
   }, []);
+
+  const initializedRef = useRef(false);
+
+  // Reset active office to user's home office ONLY ONCE when the page loads
+  useEffect(() => {
+    if (!initializedRef.current && user?.office_id) {
+      setActiveOffice(user.office_id, user.office_name);
+      initializedRef.current = true;
+    }
+  }, [user, setActiveOffice]);
 
 
 
@@ -142,144 +150,143 @@ const Schedule = () => {
         )}
 
         <div className="space-y-6">
-          {canViewSchedules && (
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Schedules</CardTitle>
-                    <CardDescription>Existing shifts for the selected office</CardDescription>
-                  </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Schedules</CardTitle>
+                  <CardDescription>Existing shifts for the selected office</CardDescription>
                 </div>
-                <div className="mt-4">
-                  <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="default"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between bg-primary text-primary-foreground hover:bg-primary/90"
-                      >
-                        {/* INSTANT LOAD: Use global activeOfficeName */}
-                        {activeOffice
-                          ? (activeOfficeName || offices.find((o) => o.id === activeOffice)?.name || "Loading Office...")
-                          : "Select Office"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput placeholder="Search office..." />
-                        <CommandList>
-                          <CommandEmpty>No office found.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value="Select Office"
-                              onSelect={() => {
-                                setActiveOffice(null);
-                                setOpen(false);
-                              }}
-                              className="font-medium"
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  !activeOffice ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              Select Office
-                            </CommandItem>
-                            {offices
-                              .filter(office => canManageOffice(office.id) || hasPermission("duties.assign_any_office_employee"))
-                              .map((office) => (
-                                <CommandItem
-                                  key={office.id}
-                                  value={office.name}
-                                  onSelect={() => {
-                                    setActiveOffice(office.id, office.name);
-                                    setOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      activeOffice === office.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {office.name}
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex justify-center mb-4">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  </div>
-                ) : visibleSchedules.length === 0 ? (
-                  <div className="text-sm text-muted-foreground py-8 text-center border-2 border-dashed rounded-lg bg-muted/30">
-                    No schedules found for the selected office.
-                  </div>
-                ) : (
-                  <div className="divide-y max-h-[400px] overflow-y-auto pr-2">
-                    {visibleSchedules.map((s) => (
-                      <div key={s.id} className="py-3 flex items-center justify-between">
-                        <div>
-                          <div className="font-medium flex items-center gap-2 text-sm">
-                            {s.name}
-                            {s.status && s.status !== 'template' && (
-                              <Badge
-                                variant={s.status === 'expired' ? 'destructive' : 'default'}
-                                className="text-[10px] h-4"
+              </div>
+              <div className="mt-4">
+                <Popover open={open} onOpenChange={setOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="default"
+                      role="combobox"
+                      aria-expanded={open}
+                      className="w-full justify-between bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      {/* INSTANT LOAD: Use global activeOfficeName */}
+                      {activeOffice
+                        ? (activeOfficeName || offices.find((o) => o.id === activeOffice)?.name || "Loading Office...")
+                        : "Select Office"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search office..." />
+                      <CommandList>
+                        <CommandEmpty>No office found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="Select Office"
+                            onSelect={() => {
+                              setActiveOffice(null);
+                              setOpen(false);
+                            }}
+                            className="font-medium"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                !activeOffice ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Select Office
+                          </CommandItem>
+                          {offices
+                            .map((office) => (
+                              <CommandItem
+                                key={office.id}
+                                value={office.name}
+                                onSelect={() => {
+                                  setActiveOffice(office.id, office.name);
+                                  setOpen(false);
+                                }}
                               >
-                                {s.status === 'expired' ? 'expired' : 'duty schedule'}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {s.start_time} - {s.end_time}
-                          </div>
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    activeOffice === office.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {office.name}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex justify-center mb-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                </div>
+              ) : visibleSchedules.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-8 text-center border-2 border-dashed rounded-lg bg-muted/30">
+                  No schedules found for the selected office.
+                </div>
+              ) : (
+                <div className="divide-y max-h-[400px] overflow-y-auto pr-2">
+                  {visibleSchedules.map((s) => (
+                    <div key={s.id} className="py-3 flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2 text-sm">
+                          {s.name}
+                          {s.status && s.status !== 'template' && (
+                            <Badge
+                              variant={s.status === 'expired' ? 'destructive' : 'default'}
+                              className="text-[10px] h-4"
+                            >
+                              {s.status === 'expired' ? 'expired' : 'duty schedule'}
+                            </Badge>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          {canEditSchedules && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={() => {
-                                setEditingSchedule(s);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {canDeleteSchedules && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => {
-                                setScheduleToDelete(s);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
+                        <div className="text-xs text-muted-foreground">
+                          {s.start_time} - {s.end_time}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                      <div className="flex items-center gap-2">
+                        {canEditSchedules && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setEditingSchedule(s);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {canDeleteSchedules && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              setScheduleToDelete(s);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
         </div>
       </div>
 

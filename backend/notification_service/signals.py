@@ -81,7 +81,7 @@ def _handle_duty_assignment_notification(instance):
                 if instance.duty_chart and instance.duty_chart.name:
                     chart_name = instance.duty_chart.name
                 
-                # Custom Message: Dear {Name} You have been assigned "{Chart}" for the "{Schedule}" at "{Office}". Visit dutychart.ntc.net.np for the detail
+                # Custom Message: Dear {Name} You have been assigned "{Chart}" for the "{Schedule}" at "{Office}". Visit https://dutychart.ntc.net.np for the detail
                 office_name = instance.office.name if instance.office else "Unknown Office"
                 sms_message = f'Dear {full_name} , You have been assigned to "{chart_name}" for the "{duty_name}". Please visit dutychart.ntc.net.np for the detail.'
                 

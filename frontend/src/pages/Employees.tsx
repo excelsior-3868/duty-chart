@@ -168,9 +168,13 @@ const Employees = () => {
 
   // Helper to get ID from nested object or raw ID
   function getIdFromField(field: any): number | null {
-    if (!field) return null;
+    if (field === null || field === undefined) return null;
     if (typeof field === "number") return field;
-    if (typeof field === "object" && field.id) return field.id;
+    if (typeof field === "string") {
+      const parsed = parseInt(field, 10);
+      return isNaN(parsed) ? null : parsed;
+    }
+    if (typeof field === "object" && field.id) return Number(field.id);
     return null;
   }
 
@@ -707,7 +711,7 @@ const Employees = () => {
                       {emp.email || "-"}
                     </TableCell>
                     <TableCell className="text-slate-700 font-medium text-sm">
-                      {offices.find(o => o.id === getIdFromField(emp.office))?.name || "-"}
+                      {emp.office_name || offices.find(o => o.id === getIdFromField(emp.office))?.name || "-"}
                     </TableCell>
                     <TableCell>
                       <Badge variant={emp.is_active ? "default" : "secondary"} className="text-[10px] font-bold px-2 py-0.5 h-5 w-fit">
@@ -830,7 +834,7 @@ const Employees = () => {
               <div>
                 <Label className="text-muted-foreground">Office</Label>
                 <div className="font-medium">
-                  {offices.find(o => o.id === getIdFromField(selectedEmployee.office))?.name || "-"}
+                  {selectedEmployee.office_name || offices.find(o => o.id === getIdFromField(selectedEmployee.office))?.name || "-"}
                 </div>
               </div>
 
@@ -891,7 +895,7 @@ const Employees = () => {
                         className="w-full justify-between font-normal"
                       >
                         {selectedEmployee.office
-                          ? offices.find((o) => o.id === getIdFromField(selectedEmployee.office))?.name
+                          ? (selectedEmployee.office_name || offices.find((o) => o.id === getIdFromField(selectedEmployee.office))?.name)
                           : "Select office"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>

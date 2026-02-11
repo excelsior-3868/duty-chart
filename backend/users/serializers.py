@@ -22,24 +22,34 @@ class UserSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Add readable position name if available
+        
+        # Office Name
         try:
-            # Add working office name
             data['office_name'] = instance.office.name if instance.office else None
+        except Exception:
+            data['office_name'] = None
+
+        # Position Name/Alias
+        try:
             data['position_name'] = instance.position.name if instance.position else None
             data['position_alias'] = instance.position.alias if instance.position else None
-            data['department_name'] = instance.department.name if instance.department else None
+        except Exception:
+            data['position_name'] = None
+            data['position_alias'] = None
 
-            # IDs for internal use if needed
+        # Department Name
+        try:
+            data['department_name'] = instance.department.name if instance.department else None
+        except Exception:
+             data['department_name'] = None
+
+        # IDs
+        try:
             data['directorate_id'] = instance.directorate_id
             data['department_id'] = instance.department_id
         except Exception:
-            data['position_name'] = None
-            data['office_name'] = None
-            data['department_name'] = None
-            data['directorate_name'] = None
-            data['directorate_id'] = None
-            data['department_id'] = None
+            pass # these should exist on model instance
+            
         return data
     
     def validate(self, attrs):

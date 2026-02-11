@@ -82,92 +82,66 @@ class ScheduleView(viewsets.ModelViewSet):
     permission_classes = [AdminOrReadOnly]
 
     @swagger_auto_schema(
-        operation_description="List schedules, optionally filtered by office and/or duty chart.",
+        operation_description="List schedules, optionally filtered by office, duty chart, and/or status.",
         manual_parameters=[
             openapi.Parameter("office", openapi.IN_QUERY, description="Filter by Office ID", type=openapi.TYPE_INTEGER),
             openapi.Parameter("duty_chart", openapi.IN_QUERY, description="Filter by Duty Chart ID (schedules linked to chart)", type=openapi.TYPE_INTEGER),
+            openapi.Parameter("status", openapi.IN_QUERY, description="Filter by status (e.g., 'template', 'office_schedule')", type=openapi.TYPE_STRING),
         ],
     )
     def list(self, request, *args, **kwargs):
+        print(f"[DEBUG] ScheduleView.list() called by user: {request.user}, params: {request.query_params}")
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = Schedule.objects.all()
+        user = self.request.user
         office_id = self.request.query_params.get("office", None)
         duty_chart_id = self.request.query_params.get("duty_chart", None)
+        status = self.request.query_params.get("status", None)
 
-        user = self.request.user
-        if not IsSuperAdmin().has_permission(self.request, self):
-            allowed = get_allowed_office_ids(user)
-            
-            # If filtering by duty_chart, check if user has access to that chart
-            if duty_chart_id:
-                 # Check for 'view_any' permission first
-                can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
-                
-                if not can_view_any:
-                    # If user has specific office restrictions
-                    if allowed:
-                        # Check if the requested chart belongs to one of their allowed offices
-                        chart_accessible = DutyChart.objects.filter(id=duty_chart_id, office_id__in=allowed).exists()
-                        if not chart_accessible:
-                            return Schedule.objects.none()
-                # If permitted to see the chart (via view_any or office match), we return schedules
+        queryset = Schedule.objects.all()
 
-            
-            # Otherwise (no chart filter), apply standard office restrictions
-            elif allowed:
-                # Check if user has 'view_any' permission before restricting to 'allowed'
-                # Check for either 'duties.view_any_office_chart' OR 'schedules.view_any_office'
-                can_view_any = (
-                    user_has_permission_slug(user, 'duties.view_any_office_chart') or 
-                    user_has_permission_slug(user, 'schedules.view_any_office')
-                )
-                
-                if not can_view_any:
+        # 1. STRICT OFFICE FILTERING (High Priority)
+        # If an office is selected, we ONLY show schedules for that office.
+        # This explicitly EXCLUDES global templates (where office_id is NULL).
+        if office_id and str(office_id).strip():
+            try:
+                oid = int(str(office_id).strip())
+                queryset = queryset.filter(office_id=oid)
+            except (ValueError, TypeError):
+                return Schedule.objects.none()
 
-
-                    from django.db.models import Q
-                    
-                    # Default: Only show office schedules
-                    q_filter = Q(office_id__in=allowed)
-    
-                    # If user has permission to view schedule templates, ALSO include global templates
-                    if user_has_permission_slug(user, 'schedule_templates.view'):
-                         q_filter |= Q(office_id__isnull=True)
-                    
-                    queryset = queryset.filter(q_filter)
-
-
-
-        # Apply office filter if explicit
-        if office_id:
-            # Re-verify allowed if not superadmin
-            if not IsSuperAdmin().has_permission(self.request, self):
-                can_view_any = (
-                    user_has_permission_slug(user, 'duties.view_any_office_chart') or 
-                    user_has_permission_slug(user, 'schedules.view_any_office')
-                )
-                if not can_view_any:
-                    allowed = get_allowed_office_ids(user)
-                    if allowed and int(office_id) not in allowed:
-                        return queryset.none()
-
-
-
-            
-            from django.db.models import Q
-            local_names = Schedule.objects.filter(office_id=office_id).values_list('name', flat=True)
-            queryset = queryset.filter(
-                Q(office_id=office_id) |
-                (Q(office_id__isnull=True) & ~Q(name__in=local_names))
-            )
-
-        # Apply duty_chart filter
+        # 2. STATUS & CHART FILTERING
+        if status:
+            queryset = queryset.filter(status=status)
         if duty_chart_id:
             queryset = queryset.filter(duty_charts__id=duty_chart_id)
 
-        return queryset.distinct()
+        # 3. PERMISSION-BASED VISIBILITY (Access Control)
+        # Apply this after functional filters to ensure security.
+        if not IsSuperAdmin().has_permission(self.request, self):
+            allowed = get_allowed_office_ids(user)
+            can_view_any = (
+                user_has_permission_slug(user, 'duties.view_any_office_chart') or 
+                user_has_permission_slug(user, 'schedules.view_any_office')
+            )
+            
+            if not can_view_any:
+                from django.db.models import Q
+                
+                if office_id:
+                    # If they asked for a specific office, ensure they have permission to see it.
+                    # Note: We already filtered by office_id above.
+                    if int(office_id) not in allowed:
+                        return Schedule.objects.none()
+                else:
+                    # No office specified -> Show global templates + their allowed offices
+                    q_res = Q(office_id__isnull=True)
+                    if allowed:
+                        q_res |= Q(office_id__in=allowed)
+                    queryset = queryset.filter(q_res)
+
+        return queryset.distinct().order_by('name')
 
     def perform_create(self, serializer):
         if IsSuperAdmin().has_permission(self.request, self):
