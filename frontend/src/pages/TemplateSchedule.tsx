@@ -23,6 +23,7 @@ import { createSchedule, getSchedules, deleteSchedule, updateSchedule, type Sche
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
+import { TimePicker } from "@/components/common/TimePicker";
 
 
 const TemplateSchedule = () => {
@@ -198,22 +199,18 @@ const TemplateSchedule = () => {
                                 {/* Start Time */}
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium">Start Time <span className="text-destructive">*</span></Label>
-                                    <Input
-                                        type="time"
-                                        className="h-10 px-3"
+                                    <TimePicker
                                         value={formData.start_time}
-                                        onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                                        onChange={(val) => setFormData({ ...formData, start_time: val })}
                                     />
                                 </div>
 
                                 {/* End Time */}
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium">End Time <span className="text-destructive">*</span></Label>
-                                    <Input
-                                        type="time"
-                                        className="h-10 px-3"
+                                    <TimePicker
                                         value={formData.end_time}
-                                        onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                                        onChange={(val) => setFormData({ ...formData, end_time: val })}
                                     />
                                 </div>
                             </div>

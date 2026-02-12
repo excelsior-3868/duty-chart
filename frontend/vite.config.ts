@@ -17,6 +17,21 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
       },
+      "/swagger": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/redoc": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
+      "/api-auth": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   plugins: [
@@ -25,7 +40,7 @@ export default defineConfig(({ mode }) => ({
     componentTagger(),
     {
       name: "emit-telecom-image",
-      apply: "build",
+      apply: "build" as const,
       generateBundle() {
         try {
           const srcPath = path.resolve(__dirname, "./src/assets/telecom.png");

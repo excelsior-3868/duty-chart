@@ -53,8 +53,8 @@ schema_view = get_schema_view(
         contact=openapi.Contact(email="contact@yourapp.com"),
         license=openapi.License(name="Your License"),
     ),
-    public=False,
-    permission_classes=(IsSuperAdmin,),
+    public=True,
+    permission_classes=(permissions.AllowAny,),
     authentication_classes=(SessionAuthentication, BasicAuthentication),
 )
 

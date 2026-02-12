@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 export default function ApiDocsPage() {
     const [isLoading, setIsLoading] = useState(true);
     // Point directly to Swagger UI since the user is now authenticated
-    const swaggerUrl = "http://localhost:8000/swagger/";
+    const swaggerUrl = "/swagger/";
 
     useEffect(() => {
         document.title = "API Documentation - NT Duty Chart Management System";

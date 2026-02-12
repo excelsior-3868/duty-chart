@@ -62,17 +62,18 @@ def send_duty_reminders():
         if window_start <= start_datetime <= window_end:
             user = duty.user
             
+            duty_name = duty.schedule.name
+            
             # Idempotency: Check if reminder already sent for this specific duty today via SMSLog
             from .models import SMSLog
             already_notified = SMSLog.objects.filter(
                 user=user,
                 phone=user.phone_number,
-                created_at__date=timezone.now().date()
+                created_at__date=timezone.localdate()
             ).filter(message__contains=f'"{duty_name}"').filter(message__contains="starting in about 1 hour").exists()
 
             if not already_notified:
                 full_name = getattr(user, 'full_name', user.username)
-                duty_name = duty.schedule.name
                 time_str = start_time.strftime('%H:%M')
                 
                 # 1. Dashboard Notification (Disabled for now)
@@ -87,7 +88,7 @@ def send_duty_reminders():
                 # 2. SMS Notification
                 if getattr(user, 'phone_number', None):
                     office_name = duty.office.name if duty.office else "Unknown Office"
-                    sms_message = f'Dear {full_name}, your duty "{duty_name}" at "{office_name}" is starting in about 1 hour. Please visit dutychart.ntc.net.np for details.'
+                    sms_message = f'Dear {full_name}, your duty "{duty_name}" at "{office_name}" is starting in about 1 hour. Please visit https://dutychart.ntc.net.np for details.'
                     async_send_sms.delay(user.phone_number, sms_message, user.id)
                     sent_count += 1
                     
@@ -103,7 +104,7 @@ def send_daily_duty_reminders():
     from django.contrib.auth import get_user_model
     User = get_user_model()
     
-    today = timezone.now().date()
+    today = timezone.localdate()
     
     # Get all duties for today with a user assigned and of type 'Shift'
     duties = Duty.objects.filter(

@@ -20,8 +20,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Fonts
     fonts-dejavu-core \
     fonts-noto-core \
-    fonts-noto-extra \
-    fonts-nepali \
  && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

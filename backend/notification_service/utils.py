@@ -1,4 +1,5 @@
 import requests
+import os
 import logging
 from django.conf import settings
 from django.db import transaction
@@ -17,10 +18,10 @@ def send_sms(phone, message, user=None):
     # Gateway URL structure:
     # http://10.26.204.149:8080/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/?username=...&password=...&cellNo=...&message=...&encoding=E
     
-    base_url = "http://10.26.204.149:8080/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/"
+    base_url = os.getenv("NTC_SMS_URL", "http://10.26.204.149:8080/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/")
     params = {
-        # "username": "NtcSmsSender", # Not required
-        # "password": "...",          # Not required
+        "username": os.getenv("NTC_SMS_USERNAME", "NtcSmsSender"),
+        "password": os.getenv("NTC_SMS_PASSWORD", ""),
         "cellNo": phone,
         "message": message,
         "encoding": "E"

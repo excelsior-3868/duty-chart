@@ -160,7 +160,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kathmandu'
 USE_I18N = True
 USE_TZ = True
 
@@ -274,30 +274,38 @@ LOGOUT_URL = '/api-auth/logout/'
 # Django Channels Configuration
 ASGI_APPLICATION = 'config.asgi.application'
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'), 6379)],
+if os.getenv('USE_INMEMORY_CHANNEL_LAYER') == 'True' or not os.getenv('REDIS_HOST'):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                "hosts": [(os.environ.get('REDIS_HOST', '127.0.0.1'), 6379)],
+            },
         },
-    },
-}
+    }
 
 # Celery Configuration
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f"redis://{os.environ.get('REDIS_HOST', '127.0.0.1')}:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_TIMEZONE = 'Asia/Kathmandu'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    'send-duty-reminders-every-15-minutes': {
+    'send-duty-reminders-every-5-minutes': {
         'task': 'notification_service.tasks.send_duty_reminders',
-        'schedule': 900.0,  # 15 minutes
+        'schedule': 300.0,  # 5 minutes
     },
     'send-daily-duty-reminders-at-10am': {
         'task': 'notification_service.tasks.send_daily_duty_reminders',
-        'schedule': crontab(hour=4, minute=15),  # 10:00 AM Nepal Time (UTC+5:45)
+        'schedule': crontab(hour=10, minute=0),  # 10:00 AM Kathmandu Time
     },
 }

@@ -32,6 +32,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { TimePicker } from "@/components/common/TimePicker";
 
 interface AddScheduleCardProps {
   onScheduleAdded?: () => void;
@@ -449,13 +450,10 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               <div className="space-y-2">
                 <label className={labelClass}>Start Time *</label>
                 <div className="relative">
-                  <input
-                    type="time"
+                  <TimePicker
                     value={formData.start_time}
-                    onChange={(e) => handleInputChange("start_time", e.target.value)}
+                    onChange={(val) => handleInputChange("start_time", val)}
                     disabled={!isCustomSchedule && mode !== 'edit'}
-                    className={`${errors.start_time ? errorInputClass : inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
-                    style={{ colorScheme: 'light' }}
                   />
                 </div>
                 {errors.start_time && <div className={errorClass}>{errors.start_time}</div>}
@@ -465,13 +463,10 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
               <div className="space-y-2">
                 <label className={labelClass}>End Time *</label>
                 <div className="relative">
-                  <input
-                    type="time"
+                  <TimePicker
                     value={formData.end_time}
-                    onChange={(e) => handleInputChange("end_time", e.target.value)}
+                    onChange={(val) => handleInputChange("end_time", val)}
                     disabled={!isCustomSchedule && mode !== 'edit'}
-                    className={`${errors.end_time ? errorInputClass : inputClass} disabled:opacity-50 disabled:cursor-not-allowed`}
-                    style={{ colorScheme: 'light' }}
                   />
                 </div>
                 {errors.end_time && <div className={errorClass}>{errors.end_time}</div>}

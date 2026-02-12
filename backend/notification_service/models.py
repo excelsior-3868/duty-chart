@@ -30,9 +30,9 @@ class Notification(AuditableMixin, models.Model):
         fullname = getattr(self.user, 'full_name', self.user.username)
         return f"NOTIFICATION: {action.capitalize()}d notification for {fullname}."
 
-class SMSLog(AuditableMixin, models.Model):
+class SMSLog(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs')
-    duty = models.ForeignKey('duties.Duty', on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs_for_duty')
+    # duty = models.ForeignKey('duties.Duty', on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs_for_duty')
     phone = models.CharField(max_length=20)
     message = models.TextField()
     status = models.CharField(max_length=50, default='pending')
@@ -45,5 +45,3 @@ class SMSLog(AuditableMixin, models.Model):
     def __str__(self):
         return f"To {self.phone} - {self.status}"
 
-    def get_audit_details(self, action, changes):
-        return f"SMS: {action.capitalize()}d SMS log for {self.phone}."

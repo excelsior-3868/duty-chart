@@ -1,0 +1,73 @@
+services:
+  # Backend (Django)
+  duty-chart-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: duty-chart-backend
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env.docker
+    depends_on:
+      - duty-chart-redis
+
+  # Redis Broker
+  duty-chart-redis:
+    image: redis:7-alpine
+    container_name: duty-chart-redis
+    ports:
+      - "6379:6379"
+
+  # Celery Worker
+  duty-chart-celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: duty-chart-celery-worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - ./.env.docker
+    depends_on:
+      - duty-chart-backend
+      - duty-chart-redis
+
+  # Celery Beat
+  duty-chart-celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: duty-chart-celery-beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - ./.env.docker
+    depends_on:
+      - duty-chart-backend
+      - duty-chart-redis
+
+  # Frontend (React + Nginx)
+  duty-chart-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: duty-chart-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - duty-chart-backend
+
+volumes:
+  static_volume:
+  media_volume:

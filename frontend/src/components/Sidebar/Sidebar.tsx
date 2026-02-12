@@ -15,7 +15,6 @@ import {
   Mail,
   Building2,
   Landmark,
-  Code2,
   Network
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -310,41 +309,6 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                     >
                       <Mail className="h-4 w-4" />
                       SMS Logs
-                    </NavLink>
-                  </Button>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="documentation" className="border-none">
-                <AccordionTrigger
-                  className={cn(
-                    "w-full text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary px-3 py-2 rounded-md transition-all hover:no-underline",
-                    "flex items-center"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <Code2 className="h-5 w-5" />
-                    <span className="text-sm font-medium">Documentation</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-0 pt-1 pl-6 space-y-1">
-                  <Button
-                    variant="ghost"
-                    asChild
-                    className="w-full justify-start gap-3 text-[hsl(var(--sidebar-foreground))] hover:bg-primary/10 hover:text-primary h-9"
-                    onClick={onClose}
-                  >
-                    <NavLink
-                      to={ROUTES.API_DOCS}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex w-full items-center gap-3 px-2 py-1.5 rounded-md text-sm',
-                          isActive && 'bg-primary/10 text-primary'
-                        )
-                      }
-                    >
-                      <FileText className="h-4 w-4" />
-                      API Documentation
                     </NavLink>
                   </Button>
                 </AccordionContent>

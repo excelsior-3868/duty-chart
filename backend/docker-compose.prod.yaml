@@ -1,0 +1,71 @@
+services:
+  backend:
+    # Use the image from Nexus
+    image: nexus.ntc.net.np/dcms-backend:1.0.0
+    container_name: dcms-backend
+    env_file:
+      - ./backend.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-media:/app/media
+      - backend-static:/app/staticfiles
+    restart: unless-stopped
+
+  frontend:
+    # Use the image from Nexus
+    image: nexus.ntc.net.np/dcms-frontend:1.0.0
+    container_name: dcms-frontend
+    env_file:
+      - ./frontend.env
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+# Redis Broker
+  redis:
+    image: redis:7-alpine
+    container_name: dcms-redis
+    ports:
+      - "6379:6379"
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: ./dcms-backend
+      dockerfile: Dockerfile
+    container_name: dcms-celery-worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./dcms-backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - ./.env
+    depends_on:
+      - backend
+      - db
+      - redis
+
+  # Celery Beat
+  celery_beat:
+    build:
+      context: ./dcms-backend
+      dockerfile: Dockerfile
+    container_name: dcms-celery-beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./duty-chart-backend:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - ./.env
+    depends_on:
+      - backend
+      - db
+      - redis
+
+volumes:
+  backend-media:
+  backend-static:
