@@ -5,12 +5,19 @@ class Command(BaseCommand):
     help = 'Seed RBAC roles and permissions'
 
     def handle(self, *args, **options):
+        # 0. Cleanup: Delete old/conflicting permission slugs
+        old_slugs = ["duties.edit_chart", "duties.editchart"]
+        deleted_count, _ = Permission.objects.filter(slug__in=old_slugs).delete()
+        if deleted_count > 0:
+            self.stdout.write(self.style.WARNING(f"Deleted {deleted_count} old permission slugs."))
+
         # 1. Define Permissions (Matches standard IDs 1-20)
         permissions_data = [
             {"slug": "duties.view_chart", "name": "View Duty Chart", "description": "Can view duty charts"}, # 1
             {"slug": "duties.create_chart", "name": "Create Duty Chart", "description": "Can create new duty charts"}, # 2
-            {"slug": "duties.edit_chart", "name": "Edit Duty Chart", "description": "Can edit existing duty charts"}, # 3
+            {"slug": "duties.edit_dutychart", "name": "Edit Duty Chart", "description": "Can edit existing duty charts"}, # 3
             {"slug": "duties.delete_chart", "name": "Delete Duty Chart", "description": "Can delete duty charts"}, # 4
+            {"slug": "duties.create_any_office_chart", "name": "Create Duty Chart (Any Office)", "description": "Can create duty charts in any office"}, # New
             {"slug": "duties.generate_rotation", "name": "Generate Rotation", "description": "Can trigger automated duty rotation"}, # 5
             {"slug": "users.view_employee", "name": "View Employee", "description": "Can view employee details"}, # 6
             {"slug": "users.create_employee", "name": "Create Employee", "description": "Can create new employees"}, # 7
@@ -73,6 +80,7 @@ class Command(BaseCommand):
         roles_data = [
             {"slug": "SUPERADMIN", "name": "Super Admin"},
             {"slug": "OFFICE_ADMIN", "name": "Office Admin"},
+            {"slug": "NETWORK_ADMIN", "name": "Network Admin"},
             {"slug": "USER", "name": "Regular User"},
         ]
 
@@ -100,7 +108,7 @@ class Command(BaseCommand):
         role_permissions = {
             "SUPERADMIN": list(perms_map.keys()), # 1-20
             "OFFICE_ADMIN": [
-                "duties.view_chart", "duties.create_chart", "duties.edit_chart", 
+                "duties.view_chart", "duties.create_chart", "duties.edit_dutychart", 
                 "duties.generate_rotation", "users.view_employee", "users.create_employee", 
                 "users.edit_employee", "org.view_office", "duties.create_duty", 
                 "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view",
@@ -113,6 +121,10 @@ class Command(BaseCommand):
                 "duties.view_chart", "users.view_employee", "duties.export_chart", 
                 "duties.view_schedule", "schedules.view", "schedules.view_office_schedule",
                 "duties.view_available_shifts"
+            ],
+            "NETWORK_ADMIN": [
+                "duties.view_chart", "users.view_employee", "duties.view_schedule", 
+                "schedules.view", "schedules.view_office_schedule", "duties.view_available_shifts"
             ]
 
         }

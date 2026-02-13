@@ -481,7 +481,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                             <CommandEmpty>No office found.</CommandEmpty>
                             <CommandGroup>
                               {offices
-                                .filter(office => user?.office_id ? office.id === user.office_id : canManageOffice(office.id))
+                                .filter(office => (user?.office_id && (!hasPermission('duties.view_any_office_chart') && !hasPermission('duties.create_any_office_chart'))) ? office.id === user.office_id : true)
                                 .map((office) => (
                                   <CommandItem
                                     key={office.id}

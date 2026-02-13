@@ -19,6 +19,7 @@ class User(AuditableMixin, AbstractUser):
         choices=(
             ('SUPERADMIN', 'SuperAdmin'),
             ('OFFICE_ADMIN', 'Office Admin'),
+            ('NETWORK_ADMIN', 'Network Admin'),
             ('USER', 'User'),
         ),
         default='USER',

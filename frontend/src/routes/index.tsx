@@ -225,7 +225,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SETTINGS,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="system.view_settings">
                 <Settings />
               </ProtectedRoute>
             ),
@@ -233,7 +233,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.AUDIT_LOGS,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="system.view_settings">
                 <AuditLogPage />
               </ProtectedRoute>
             ),
@@ -241,7 +241,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SMS_LOGS,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="system.view_settings">
                 <SMSLogsPage />
               </ProtectedRoute>
             ),
@@ -249,7 +249,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.DIRECTORATES,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="org.view_directorate">
                 <DirectoratePage />
               </ProtectedRoute>
             ),
@@ -257,7 +257,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.ACCOUNTING_OFFICES,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="org.view_accounting_office">
                 <AccountingOfficesPage />
               </ProtectedRoute>
             ),
@@ -265,7 +265,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.CC_OFFICES,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="org.view_cc_office">
                 <CCOfficesPage />
               </ProtectedRoute>
             ),
@@ -273,7 +273,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.API_DOCS,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="system.view_settings">
                 <ApiDocsPage />
               </ProtectedRoute>
             ),
@@ -281,7 +281,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.ARCHITECTURE,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="system.view_settings">
                 <ArchitecturePage />
               </ProtectedRoute>
             ),
@@ -289,7 +289,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.TEMPLATE_SCHEDULE,
             element: (
-              <ProtectedRoute requiredRole="SUPERADMIN">
+              <ProtectedRoute requiredPermission="schedule_templates.view">
                 <ScheduleLayout>
                   <TemplateSchedule />
                 </ScheduleLayout>

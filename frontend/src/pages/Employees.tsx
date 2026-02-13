@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/dialog";
 
 const Employees = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
 
 
   const queryClient = useQueryClient();
@@ -72,6 +72,7 @@ const Employees = () => {
   const [filteredOffices, setFilteredOffices] = useState<Office[]>([]);
   const [selectedOffice, setSelectedOffice] = useState<number | null>(null);
   const [selectedSecondaryOffice, setSelectedSecondaryOffice] = useState<number | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>("USER");
   const [submitting, setSubmitting] = useState(false);
   const [openOfficeCombobox, setOpenOfficeCombobox] = useState(false);
 
@@ -442,6 +443,7 @@ const Employees = () => {
         // directorate and department removed
         office: selectedOffice,
         position: selectedPosition,
+        role: selectedRole,
         is_active: true,
         password: autoPassword,
       };
@@ -458,7 +460,7 @@ const Employees = () => {
       setSelectedDepartment(null);
       setSelectedOffice(null);
       setSelectedSecondaryOffice(null);
-      setSelectedSecondaryOffice(null);
+      setSelectedRole("USER");
       setGeneratedPassword("");
       setShowPassword(false);
       setRevealedOnce(false);
@@ -591,6 +593,20 @@ const Employees = () => {
                 </Popover>
               </div>
 
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
+                    <SelectItem value="OFFICE_ADMIN">Office Admin</SelectItem>
+                    <SelectItem value="NETWORK_ADMIN">Network Admin</SelectItem>
+                    <SelectItem value="USER">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           {/* Bottom-right action */}
@@ -739,7 +755,7 @@ const Employees = () => {
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Protect permission="users.edit_employee">
-                          {(user?.role === 'SUPERADMIN' || (user?.office_id && getIdFromField(emp.office) === user.office_id)) && (
+                          {(hasPermission('users.create_any_office_employee') || (user?.office_id && getIdFromField(emp.office) === user.office_id)) && (
                             <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => openEditModal(emp)} title="Edit Employee">
                               <Edit3 className="h-4 w-4" />
                             </Button>
@@ -960,7 +976,7 @@ const Employees = () => {
                   </Select>
                 </div>
 
-                {user?.role === 'SUPERADMIN' && (
+                {(hasPermission('users.edit_employee') || hasPermission('users.create_any_office_employee')) && (
                   <div className="flex items-center gap-2">
                     <Label>Active</Label>
                     <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4" />
@@ -968,7 +984,7 @@ const Employees = () => {
                 )}
               </div>
 
-              {user?.role === 'SUPERADMIN' && (
+              {hasPermission('system.manage_rbac') && (
                 <div className="space-y-4">
                   <h4 className="text-md font-semibold">Access Control</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -993,7 +1009,10 @@ const Employees = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {(roles.length ? roles : [
-                            { slug: "SUPERADMIN", name: "Super Admin" }, { slug: "OFFICE_ADMIN", name: "Office Admin" }, { slug: "USER", name: "User" }
+                            { slug: "SUPERADMIN", name: "Super Admin" },
+                            { slug: "OFFICE_ADMIN", name: "Office Admin" },
+                            { slug: "NETWORK_ADMIN", name: "Network Admin" },
+                            { slug: "USER", name: "User" }
                           ]).map((r: any) => (
                             <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
                           ))}

@@ -142,6 +142,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
     switch (role) {
       case "SUPERADMIN": return "Superadmin";
       case "OFFICE_ADMIN": return "Office Admin";
+      case "NETWORK_ADMIN": return "Network Admin";
       case "USER": return "User";
       default: return role || "";
     }
@@ -150,6 +151,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
     switch (role) {
       case "SUPERADMIN": return "text-primary";
       case "OFFICE_ADMIN": return "text-primary";
+      case "NETWORK_ADMIN": return "text-primary";
       default: return "text-muted-foreground";
     }
   };
@@ -258,7 +260,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
           })}
 
 
-          {user?.role === 'SUPERADMIN' && (
+          {hasPermission('system.view_settings') && (
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="logs" className="border-none">
                 <AccordionTrigger

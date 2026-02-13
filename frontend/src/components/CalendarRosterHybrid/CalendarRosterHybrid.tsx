@@ -243,7 +243,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
     if (!selectedDutyChartInfo) return false;
 
     // 1. Must have general permission to edit charts
-    if (!hasPermission('duties.edit_chart')) return false;
+    if (!hasPermission('duties.edit_dutychart')) return false;
 
     // 2. Must have scope for this specific chart's office
     const chartOfficeId = typeof selectedDutyChartInfo.office === "object"

@@ -413,6 +413,9 @@ const DutyCalendar = () => {
         // Must have the base permission
         if (!hasPermission('duties.assign_employee')) return false;
 
+        // If user has 'assign_any_office_employee', they skip the office ownership check
+        if (hasPermission('duties.assign_any_office_employee')) return true;
+
         const viewingOfficeId = Number(selectedOfficeId);
 
         // Resolve the office ID from the chart info
@@ -429,7 +432,10 @@ const DutyCalendar = () => {
 
     const canManageSelectedChart = useMemo(() => {
         if (!selectedDutyChartInfo) return false;
-        if (!hasPermission('duties.edit_chart')) return false;
+        if (!hasPermission('duties.edit_dutychart')) return false;
+
+        // If user has 'view_any_office_chart' and 'editchart', they can edit charts from any office
+        if (hasPermission('duties.view_any_office_chart')) return true;
 
         const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
             ? Number((selectedDutyChartInfo.office as any)?.id)
@@ -442,6 +448,9 @@ const DutyCalendar = () => {
     const canDeleteDuty = useMemo(() => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.delete')) return false;
+
+        // If user has 'view_any_office_chart' and 'delete', they can delete from any office
+        if (hasPermission('duties.view_any_office_chart')) return true;
 
         const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
             ? Number((selectedDutyChartInfo.office as any)?.id)
@@ -517,14 +526,16 @@ const DutyCalendar = () => {
                                 <Download className="w-3.5 h-3.5" /> Export
                             </Button>
                         )}
-                        {hasPermission('duties.create_chart') && (
+                        {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
                             <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
-                        <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
-                            <Pencil className="w-3.5 h-3.5" /> Edit Chart
-                        </Button>
+                        {hasPermission('duties.edit_dutychart') && (
+                            <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
+                                <Pencil className="w-3.5 h-3.5" /> Edit Chart
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -542,7 +553,7 @@ const DutyCalendar = () => {
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                                 <Command>
                                     <CommandInput placeholder="Search office..." className="h-9" />
-                                    <CommandList>
+                                    <CommandList className="max-h-[300px] overflow-y-auto">
                                         <CommandEmpty>No office found.</CommandEmpty>
                                         <CommandGroup>
                                             <CommandItem
@@ -561,25 +572,27 @@ const DutyCalendar = () => {
                                                 <Check className={cn("mr-2 h-4 w-4", !selectedOfficeId ? "opacity-100" : "opacity-0")} />
                                                 Select Office
                                             </CommandItem>
-                                            {sortedOffices.map((office) => (
-                                                <CommandItem
-                                                    key={office.id}
-                                                    value={office.name}
-                                                    onSelect={() => {
-                                                        setSelectedOfficeId(String(office.id));
-                                                        setOfficeOpen(false);
-                                                    }}
-                                                    className={cn(
-                                                        "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
-                                                        selectedOfficeId === String(office.id)
-                                                            ? "bg-primary text-white"
-                                                            : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
-                                                    )}
-                                                >
-                                                    <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
-                                                    {office.name}
-                                                </CommandItem>
-                                            ))}
+                                            {sortedOffices
+                                                .filter(office => (user?.office_id && (!hasPermission('duties.view_any_office_chart') && !hasPermission('duties.create_any_office_chart'))) ? office.id === user.office_id : true)
+                                                .map((office) => (
+                                                    <CommandItem
+                                                        key={office.id}
+                                                        value={office.name}
+                                                        onSelect={() => {
+                                                            setSelectedOfficeId(String(office.id));
+                                                            setOfficeOpen(false);
+                                                        }}
+                                                        className={cn(
+                                                            "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                                            selectedOfficeId === String(office.id)
+                                                                ? "bg-primary text-white"
+                                                                : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
+                                                        )}
+                                                    >
+                                                        <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
+                                                        {office.name}
+                                                    </CommandItem>
+                                                ))}
                                         </CommandGroup>
                                     </CommandList>
                                 </Command>

@@ -241,6 +241,7 @@ const Profile = () => {
         switch (role) {
             case 'SUPERADMIN': return 'Super Admin';
             case 'OFFICE_ADMIN': return 'Office Admin';
+            case 'NETWORK_ADMIN': return 'Network Admin';
             default: return 'User';
         }
     };

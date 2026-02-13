@@ -428,7 +428,7 @@ function UserWiseReportNew() {
                                     <SelectItem value="none" className="text-sm">-- Select Chart --</SelectItem>
                                     {dutyOptions.map((opt) => (
                                         <SelectItem key={opt.id} value={opt.id.toString()} className="text-sm">
-                                            {opt.name}
+                                            {opt.name} ({opt.office_name})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
