@@ -300,9 +300,9 @@ CELERY_RESULT_SERIALIZER = 'json'
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    'send-duty-reminders-every-5-minutes': {
+    'send-duty-reminders-every-1-minute': {
         'task': 'notification_service.tasks.send_duty_reminders',
-        'schedule': 300.0,  # 5 minutes
+        'schedule': crontab(minute='*'),  # Every 1 minute
     },
     'send-daily-duty-reminders-at-10am': {
         'task': 'notification_service.tasks.send_daily_duty_reminders',

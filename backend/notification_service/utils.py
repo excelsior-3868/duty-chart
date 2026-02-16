@@ -10,7 +10,7 @@ from .serializers import NotificationSerializer
 
 logger = logging.getLogger(__name__)
 
-def send_sms(phone, message, user=None):
+def send_sms(phone, message, user=None, log_id=None):
     """
     Sends SMS using the NTC SMS Gateway.
     Returns: (success: bool, response_text: str)
@@ -27,12 +27,26 @@ def send_sms(phone, message, user=None):
         "encoding": "E"
     }
     
-    log = SMSLog.objects.create(
-        user=user,
-        phone=phone,
-        message=message,
-        status='sending'
-    )
+    if log_id:
+        try:
+            log = SMSLog.objects.get(id=log_id)
+            log.status = 'sending'
+            log.save()
+        except SMSLog.DoesNotExist:
+            # Fallback if log not found (shouldn't happen with correct flow)
+            log = SMSLog.objects.create(
+                user=user,
+                phone=phone,
+                message=message,
+                status='sending'
+            )
+    else:
+        log = SMSLog.objects.create(
+            user=user,
+            phone=phone,
+            message=message,
+            status='sending'
+        )
     
     try:
         response = requests.get(base_url, params=params, timeout=10)

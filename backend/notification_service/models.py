@@ -32,15 +32,22 @@ class Notification(AuditableMixin, models.Model):
 
 class SMSLog(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs')
-    # duty = models.ForeignKey('duties.Duty', on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs_for_duty')
+    duty = models.ForeignKey('duties.Duty', on_delete=models.SET_NULL, null=True, blank=True, related_name='sms_logs_for_duty')
     phone = models.CharField(max_length=20)
     message = models.TextField()
     status = models.CharField(max_length=50, default='pending')
+    reminder_type = models.CharField(max_length=50, default='GENERAL', help_text="Type of reminder (e.g., 1_HOUR, DAILY, ASSIGNMENT)")
     response_raw = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'duty', 'reminder_type'],
+                name='unique_sms_reminder_per_duty'
+            )
+        ]
 
     def __str__(self):
         return f"To {self.phone} - {self.status}"

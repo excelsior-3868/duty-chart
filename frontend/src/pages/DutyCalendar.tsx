@@ -910,43 +910,30 @@ const DutyCalendar = () => {
                                                     </div>
 
                                                     {/* Add Button on Hover */}
-                                                    {canAssignDuties && format(date, "yyyy-MM-dd") >= todayStr && (
-                                                        <Button
-                                                            variant="secondary"
-                                                            size="icon"
-                                                            className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
+                                                    {(() => {
+                                                        const dateStr = format(date, "yyyy-MM-dd");
+                                                        const isDateInChartRange = selectedDutyChartInfo &&
+                                                            dateStr >= selectedDutyChartInfo.effective_date &&
+                                                            (!selectedDutyChartInfo.end_date || dateStr <= selectedDutyChartInfo.end_date);
 
-                                                                // --- Validate Date ---
-                                                                const dateStr = format(date, "yyyy-MM-dd");
-                                                                if (dateStr < todayStr) {
-                                                                    toast.error("Backdated assignment not allowed", {
-                                                                        description: "Employee assignment in the past is not allowed."
-                                                                    });
-                                                                    return;
-                                                                }
-
-                                                                // --- Validate if date is within chart range ---
-                                                                if (selectedDutyChartInfo) {
-                                                                    const eff = selectedDutyChartInfo.effective_date;
-                                                                    const end = selectedDutyChartInfo.end_date;
-
-                                                                    if (dateStr < eff || (end && dateStr > end)) {
-                                                                        toast.error("Outside Chart Range", {
-                                                                            description: "The selected date is outside the duty chart's effective range."
-                                                                        });
-                                                                        return;
-                                                                    }
-                                                                }
-
-                                                                setCreateDutyContext({ dateISO: format(date, "yyyy-MM-dd") });
-                                                                setShowCreateDuty(true);
-                                                            }}
-                                                        >
-                                                            <Plus className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    )}
+                                                        if (canAssignDuties && dateStr >= todayStr && isDateInChartRange) {
+                                                            return (
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    size="icon"
+                                                                    className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setCreateDutyContext({ dateISO: dateStr });
+                                                                        setShowCreateDuty(true);
+                                                                    }}
+                                                                >
+                                                                    <Plus className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                             );
                                         })}
