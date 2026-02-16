@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { getDutyCharts, getDutyChartById, patchDutyChart, downloadImportTemplate, importDutyChartExcel, DutyChart as DutyChartDTO } from "@/services/dutichart";
+import { getDutyCharts, getDutyChartById, patchDutyChart, deleteDutyChart, downloadImportTemplate, importDutyChartExcel, DutyChart as DutyChartDTO } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import { useAuth } from "@/context/AuthContext";
@@ -81,6 +81,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
 
   // Confirmation for manual update (no excel)
   const [showManualConfirm, setShowManualConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!importFile && fileInputRef.current) {
@@ -144,6 +146,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       setPreviewData([]);
       setPreviewStats({ total: 0 });
       setShowManualConfirm(false);
+      setShowDeleteConfirm(false);
+      setIsDeleting(false);
     }
   }, [open, initialOfficeId, initialChartId]);
 
@@ -376,6 +380,24 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     }
   };
 
+  const handleDeleteChart = async () => {
+    if (!selectedChartId) return;
+    setIsDeleting(true);
+    try {
+      await deleteDutyChart(parseInt(selectedChartId));
+      toast.success("Duty Chart deleted successfully");
+      setShowDeleteConfirm(false);
+      onOpenChange(false);
+      onUpdateSuccess?.();
+    } catch (error: any) {
+      console.error("Failed to delete chart:", error);
+      const msg = error.response?.data?.detail || "Failed to delete duty chart. Ensure no employees are assigned.";
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const processManualUpdate = async () => {
     if (!selectedChartId) return;
     setIsSubmitting(true);
@@ -481,7 +503,11 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                             <CommandEmpty>No office found.</CommandEmpty>
                             <CommandGroup>
                               {offices
-                                .filter(office => (user?.office_id && (!hasPermission('duties.view_any_office_chart') && !hasPermission('duties.create_any_office_chart'))) ? office.id === user.office_id : true)
+                                .filter(office => {
+                                  if (hasPermission('duties.create_any_office_chart')) return true;
+                                  const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
+                                  return allowedIds.includes(Number(office.id));
+                                })
                                 .map((office) => (
                                   <CommandItem
                                     key={office.id}
@@ -688,21 +714,45 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           </div >
 
           <DialogFooter className="p-6 pt-0 gap-2">
-            <button
-              type="submit"
-              form="edit-duty-chart-form"
-              disabled={isSubmitting}
-              className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {isSubmitting ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Updating...
-                </div>
-              ) : (
-                "Update"
-              )}
-            </button>
+            <div className="flex w-full items-center justify-between gap-2">
+              <div>
+                {selectedChartId && hasPermission("duties.delete_chart") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (initialChart && initialChart.duties_count && initialChart.duties_count > 0) {
+                        toast.error(`Cannot delete duty chart. There are ${initialChart.duties_count} employee assignments.`, {
+                          description: "Please remove all assignments before deleting the chart."
+                        });
+                        return;
+                      }
+                      setShowDeleteConfirm(true);
+                    }}
+                    disabled={isSubmitting || isDeleting}
+                    className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-50 transition-all"
+                  >
+                    Delete Chart
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  form="edit-duty-chart-form"
+                  disabled={isSubmitting || isDeleting}
+                  className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {isSubmitting ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Updating...
+                    </div>
+                  ) : (
+                    "Update"
+                  )}
+                </button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent >
       </Dialog >
@@ -880,6 +930,30 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog >
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the duty chart <strong>{formData.name}</strong>.
+              This action cannot be undone and will only succeed if no employees are assigned.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteChart(); }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete PERMANENTLY
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

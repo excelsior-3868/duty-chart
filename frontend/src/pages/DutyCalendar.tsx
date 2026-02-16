@@ -100,6 +100,7 @@ const DutyCalendar = () => {
     const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
     const [selectedDutyChartId, setSelectedDutyChartId] = useState<string>("");
     const [officeOpen, setOfficeOpen] = useState(false);
+    const [dutyChartOpen, setDutyChartOpen] = useState(false);
 
     // --- State: Data Loading ---
     const [duties, setDuties] = useState<Duty[]>([]);
@@ -247,8 +248,33 @@ const DutyCalendar = () => {
         const loadSchedules = async () => {
             try {
                 const res = await getSchedules(undefined, parseInt(selectedDutyChartId));
-                setSchedules(res || []);
-                setSelectedScheduleId("all");
+                const fetchedSchedules = res || [];
+                setSchedules(fetchedSchedules);
+
+                // --- Find shift of current time as default ---
+                const now = new Date();
+                const nowH = now.getHours();
+                const nowM = now.getMinutes();
+                const nMin = nowH * 60 + nowM;
+
+                const activeShift = fetchedSchedules.find(s => {
+                    if (!s.start_time || !s.end_time) return false;
+                    const [sh, sm] = s.start_time.split(':').map(Number);
+                    const [eh, em] = s.end_time.split(':').map(Number);
+                    const sMin = sh * 60 + sm;
+                    const eMin = eh * 60 + em;
+
+                    if (eMin < sMin) { // Crosses midnight (e.g., 22:00 to 06:00)
+                        return nMin >= sMin || nMin < eMin;
+                    }
+                    return nMin >= sMin && nMin < eMin;
+                });
+
+                if (activeShift) {
+                    setSelectedScheduleId(String(activeShift.id));
+                } else {
+                    setSelectedScheduleId("all");
+                }
             } catch (e) {
                 console.error("Failed to load schedules", e);
             }
@@ -600,16 +626,69 @@ const DutyCalendar = () => {
                         </Popover>
 
                         {/* Duty Chart Selector */}
-                        <Select value={selectedDutyChartId} onValueChange={setSelectedDutyChartId} disabled={!selectedOfficeId}>
-                            <SelectTrigger className="flex-1 min-w-0 h-9 text-xs">
-                                <SelectValue placeholder="Select Chart" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {dutyCharts.map((c) => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <Popover open={dutyChartOpen} onOpenChange={setDutyChartOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={dutyChartOpen}
+                                    disabled={!selectedOfficeId}
+                                    className="flex-1 min-w-0 justify-between h-9 text-xs bg-primary text-white hover:bg-primary-hover hover:text-white border-2 border-primary transition-colors"
+                                >
+                                    <span className="truncate">
+                                        {selectedDutyChartId
+                                            ? dutyCharts.find((c) => c.id === selectedDutyChartId)?.name
+                                            : "Select Chart"}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Search chart..." className="h-9" />
+                                    <CommandList className="max-h-[300px] overflow-y-auto">
+                                        <CommandEmpty>No chart found.</CommandEmpty>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="Select Chart"
+                                                onSelect={() => {
+                                                    setSelectedDutyChartId("");
+                                                    setDutyChartOpen(false);
+                                                }}
+                                                className={cn(
+                                                    "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                                    !selectedDutyChartId
+                                                        ? "bg-primary text-white"
+                                                        : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
+                                                )}
+                                            >
+                                                <Check className={cn("mr-2 h-4 w-4", !selectedDutyChartId ? "opacity-100" : "opacity-0")} />
+                                                Select Chart
+                                            </CommandItem>
+                                            {dutyCharts.map((chart) => (
+                                                <CommandItem
+                                                    key={chart.id}
+                                                    value={chart.name}
+                                                    onSelect={() => {
+                                                        setSelectedDutyChartId(chart.id);
+                                                        setDutyChartOpen(false);
+                                                    }}
+                                                    className={cn(
+                                                        "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                                        selectedDutyChartId === chart.id
+                                                            ? "bg-primary text-white"
+                                                            : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
+                                                    )}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedDutyChartId === chart.id ? "opacity-100" : "opacity-0")} />
+                                                    {chart.name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
 
                         {/* Shift Filter - Only in Calendar Tab */}
                         {activeTab === "calendar" && (
@@ -760,7 +839,10 @@ const DutyCalendar = () => {
                                                     return nMin >= sMin && nMin < eMin;
                                                 })();
                                                 return { ...a, isOnShift };
-                                            }).sort((a, b) => (a.isOnShift === b.isOnShift ? 0 : a.isOnShift ? -1 : 1));
+                                            }).sort((a, b) => {
+                                                if (a.isOnShift !== b.isOnShift) return a.isOnShift ? -1 : 1;
+                                                return (a.start_time || "").localeCompare(b.start_time || "");
+                                            });
                                             const isSaturday = date.getDay() === 6;
 
                                             return (
@@ -975,7 +1057,7 @@ const DutyCalendar = () => {
                             setSelectedOfficeId(String(updatedChart.office));
                         } else {
                             // Refresh current view
-                            fetchDutyCharts(selectedDutyChartId);
+                            fetchDutyCharts();
                             fetchDuties();
                         }
                     }}
@@ -1102,6 +1184,7 @@ const DutyCalendar = () => {
                         <div className="max-h-[60vh] overflow-y-auto space-y-3 py-4 pr-2 scrollbar-thin">
                             {selectedDateForDetail && assignments
                                 .filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId))
+                                .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""))
                                 .map((a) => {
                                     const shiftColor = getShiftColor(a.schedule_id);
                                     return (

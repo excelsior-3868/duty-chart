@@ -26,6 +26,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { reorderDashboardOffices } from "@/services/dashboardService";
 import {
@@ -55,6 +56,8 @@ interface SortableOfficeCardProps {
 }
 
 const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: SortableOfficeCardProps) => {
+  const [activeTab, setActiveTab] = useState<"Shift" | "Regular">("Shift");
+
   const {
     attributes,
     listeners,
@@ -70,9 +73,16 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const onDutyRows = group.rows.filter((r) => r.currently_available);
-  const visibleRows = expanded ? onDutyRows : onDutyRows.slice(0, 3);
-  const hasMore = onDutyRows.length > 3;
+  const filteredRows = group.rows.filter((r) => {
+    if (!r.currently_available) return false;
+    const type = (r.shift_type || "").toLowerCase();
+    if (activeTab.toLowerCase() === "shift") return type === "shift";
+    if (activeTab.toLowerCase() === "regular") return type === "regular";
+    return true;
+  });
+
+  const visibleRows = expanded ? filteredRows : filteredRows.slice(0, 3);
+  const hasMore = filteredRows.length > 3;
 
   return (
     <div
@@ -101,14 +111,33 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
         </button>
 
         <CardHeader className="p-4 pb-2 pr-10 cursor-grab active:cursor-grabbing">
-          <CardTitle className="text-base whitespace-normal leading-tight">{group.officeName}</CardTitle>
-          <CardDescription className="text-[11px] mt-0.5">
-            {onDutyRows.length > 0 ? (
-              <span className="text-emerald-600 font-semibold">{onDutyRows.length} active</span>
-            ) : (
-              "No active duty"
-            )}
-          </CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle className="text-base whitespace-normal leading-tight">{group.officeName}</CardTitle>
+              <CardDescription className="text-[11px] mt-0.5">
+                {filteredRows.length > 0 ? (
+                  <span className="text-emerald-600 font-semibold">{filteredRows.length} active</span>
+                ) : (
+                  "No active duty"
+                )}
+              </CardDescription>
+            </div>
+          </div>
+
+          <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg mt-3 w-fit" onPointerDown={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setActiveTab("Shift")}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "Shift" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Shift
+            </button>
+            <button
+              onClick={() => setActiveTab("Regular")}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "Regular" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Regular
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <div className="space-y-3">
@@ -137,7 +166,7 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
                 </div>
               </div>
             ))}
-            {onDutyRows.length === 0 && (
+            {filteredRows.length === 0 && (
               <div className="py-4 text-center border rounded-lg bg-slate-50/50">
                 <p className="text-xs text-muted-foreground">No personnel currently active</p>
               </div>
@@ -184,12 +213,22 @@ const Dashboard = () => {
     })
   );
 
-  const todayLocalISODate = useMemo(() => {
+  const { todayLocalISODate, yesterdayLocalISODate } = useMemo(() => {
     const dt = new Date();
     const year = dt.getFullYear();
     const month = String(dt.getMonth() + 1).padStart(2, "0");
     const day = String(dt.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+
+    const ydt = new Date(dt);
+    ydt.setDate(dt.getDate() - 1);
+    const yYear = ydt.getFullYear();
+    const yMonth = String(ydt.getMonth() + 1).padStart(2, "0");
+    const yDay = String(ydt.getDate()).padStart(2, "0");
+
+    return {
+      todayLocalISODate: `${year}-${month}-${day}`,
+      yesterdayLocalISODate: `${yYear}-${yMonth}-${yDay}`
+    };
   }, []);
 
   const formattedDates = useMemo(() => {
@@ -206,12 +245,40 @@ const Dashboard = () => {
     document.title = "Dashboard - NT Duty Chart Managment System";
   }, []);
 
+  const checkIsActive = (d: Duty) => {
+    if (d.start_time && d.end_time && d.date) {
+      const [sH, sM] = d.start_time.split(":").map(Number);
+      const [eH, eM] = d.end_time.split(":").map(Number);
+
+      const now = new Date();
+      const shiftStartDate = new Date(d.date);
+      shiftStartDate.setHours(sH, sM, 0, 0);
+
+      let shiftEndDate = new Date(d.date);
+      if (eH < sH || (eH === sH && eM < sM)) {
+        // Ends next day
+        shiftEndDate.setDate(shiftEndDate.getDate() + 1);
+      }
+      shiftEndDate.setHours(eH, eM, 0, 0);
+
+      return now >= shiftStartDate && now <= shiftEndDate;
+    }
+    return false;
+  };
+
   /* ==================== QUERIES ==================== */
   // Stale time of 5 minutes to avoid refetching on every navigation
 
   const { data: duties = [], isLoading: dutiesLoading } = useQuery({
-    queryKey: ['duties', 'today', todayLocalISODate],
-    queryFn: () => getDutiesFiltered({ date: todayLocalISODate }),
+    queryKey: ['duties', 'dashboard-board', todayLocalISODate],
+    queryFn: async () => {
+      // Fetch both today and yesterday to handle night shifts
+      const [todayResult, yesterdayResult] = await Promise.all([
+        getDutiesFiltered({ date: todayLocalISODate }),
+        getDutiesFiltered({ date: yesterdayLocalISODate })
+      ]);
+      return [...todayResult, ...yesterdayResult];
+    },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -291,6 +358,7 @@ const Dashboard = () => {
     start_time?: string | null;
     end_time?: string | null;
     currently_available: boolean;
+    shift_type?: string | null;
   };
 
   const groupedByOffice = useMemo(() => {
@@ -317,26 +385,7 @@ const Dashboard = () => {
       const phone = userObj?.phone_number || d.phone_number || null;
 
       // --- Time Check Logic ---
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-      let isActive = false;
-      if (d.start_time && d.end_time) {
-        const parseTime = (t: string) => {
-          const [h, m] = t.split(":").map(Number);
-          return h * 60 + m;
-        };
-        const start = parseTime(d.start_time);
-        const end = parseTime(d.end_time);
-
-        if (start <= end) {
-          // Normal shift (e.g., 09:00 to 17:00)
-          isActive = currentMinutes >= start && currentMinutes <= end;
-        } else {
-          // Night shift crossing midnight (e.g., 22:00 to 06:00)
-          isActive = currentMinutes >= start || currentMinutes <= end;
-        }
-      }
+      const isActive = checkIsActive(d);
 
       const row: NowRow = {
         id: d.id,
@@ -346,6 +395,7 @@ const Dashboard = () => {
         start_time: d.start_time || null,
         end_time: d.end_time || null,
         currently_available: isActive,
+        shift_type: d.shift_type || "Regular",
       };
 
       if (!groups.has(officeId)) {
@@ -357,6 +407,7 @@ const Dashboard = () => {
 
     return Array.from(groups.values());
   }, [duties, userById, selectedOfficeIds, offices]);
+
 
   const chartData = useMemo(() => {
     return groupedByOffice.map(group => {
@@ -374,31 +425,8 @@ const Dashboard = () => {
 
   const myCurrentDuty = useMemo(() => {
     if (!myDuties || myDuties.length === 0) return null;
-
-    // Filter duties for today
-    const todaysDuties = myDuties.filter((d: Duty) => d.date === todayLocalISODate);
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    return todaysDuties.find((d: Duty) => {
-      if (d.start_time && d.end_time) {
-        const parseTime = (t: string) => {
-          const [h, m] = t.split(":").map(Number);
-          return h * 60 + m;
-        };
-        const start = parseTime(d.start_time);
-        const end = parseTime(d.end_time);
-
-        if (start <= end) {
-          return currentMinutes >= start && currentMinutes <= end;
-        } else {
-          return currentMinutes >= start || currentMinutes <= end;
-        }
-      }
-      return false;
-    });
-  }, [myDuties, todayLocalISODate]);
+    return myDuties.find((d: Duty) => checkIsActive(d));
+  }, [myDuties]);
 
   const myNextDuty = useMemo(() => {
     if (!myDuties || myDuties.length === 0) return null;
@@ -414,12 +442,13 @@ const Dashboard = () => {
       return h * 60 + m;
     };
 
-    // Filter duties that are either:
-    // 1. Future date
-    // 2. Today, but start time is in the future
+    // 1. Future date (strictly after today)
+    // 2. Today, but start time is in the future AND it is NOT the current active duty
     const futureDuties = myDuties.filter((d: Duty) => {
-      if (d.date > todayStr) return true;
-      if (d.date === todayStr && d.start_time) {
+      if (myCurrentDuty && d.id === myCurrentDuty.id) return false;
+
+      if (d.date > todayLocalISODate) return true;
+      if (d.date === todayLocalISODate && d.start_time) {
         const start = parseTime(d.start_time);
         return start > currentMinutes;
       }
@@ -475,7 +504,8 @@ const Dashboard = () => {
   }, [officeDuties, currentBSMonthInfo]);
 
   const officeDutiesTodayCount = useMemo(() => {
-    return officeDuties.filter((d: Duty) => d.date === todayLocalISODate).length;
+    // Count duties that are either active right now OR scheduled for today
+    return officeDuties.filter((d: Duty) => d.date === todayLocalISODate || checkIsActive(d)).length;
   }, [officeDuties, todayLocalISODate]);
 
   const stats = [
@@ -654,101 +684,104 @@ const Dashboard = () => {
             <p className="text-sm text-muted-foreground">Current on-duty personnel in your selected offices</p>
           </div>
 
-          <Dialog open={isAddCardOpen} onOpenChange={setIsAddCardOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors">
-                <Plus className="h-4 w-4" />
-                Add Office Card
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add Office Card</DialogTitle>
-                <DialogDescription>
-                  Select one or more offices to monitor on your dashboard.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="mt-4 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search offices..."
-                  className="pl-9"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <ScrollArea className="mt-4 h-[300px] pr-4">
-                <div className="space-y-2">
-                  {offices
-                    .filter((o: Office) => !selectedOfficeIds.includes(o.id))
-                    .filter((o: Office) =>
-                      o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (o.directorate_name && o.directorate_name.toLowerCase().includes(searchTerm.toLowerCase()))
-                    )
-                    .sort((a: Office, b: Office) => a.name.localeCompare(b.name))
-                    .map((office: Office) => (
-                      <div
-                        key={office.id}
-                        className={`w-full text-left p-3 rounded-lg border transition-all flex items-center justify-between group cursor-pointer ${selectedForAdd.includes(office.id)
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "hover:bg-slate-50 border-slate-100"
-                          }`}
-                        onClick={() => {
-                          const isSelecting = !selectedForAdd.includes(office.id);
-                          setSelectedForAdd(prev =>
-                            isSelecting
-                              ? [...prev, office.id]
-                              : prev.filter(id => id !== office.id)
-                          );
-                          if (isSelecting) {
-                            setSearchTerm("");
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedForAdd.includes(office.id)
-                            ? "bg-primary border-primary text-white"
-                            : "border-slate-300 bg-white"
-                            }`}>
-                            {selectedForAdd.includes(office.id) && <Plus className="h-3.5 w-3.5 stroke-[3]" />}
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm text-slate-900">{office.name}</p>
-                            <p className="text-[10px] text-slate-500">{office.directorate_name}</p>
+          <div className="flex items-center gap-4">
+
+            <Dialog open={isAddCardOpen} onOpenChange={setIsAddCardOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors">
+                  <Plus className="h-4 w-4" />
+                  Add Office Card
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Add Office Card</DialogTitle>
+                  <DialogDescription>
+                    Select one or more offices to monitor on your dashboard.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search offices..."
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <ScrollArea className="mt-4 h-[300px] pr-4">
+                  <div className="space-y-2">
+                    {offices
+                      .filter((o: Office) => !selectedOfficeIds.includes(o.id))
+                      .filter((o: Office) =>
+                        o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (o.directorate_name && o.directorate_name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      )
+                      .sort((a: Office, b: Office) => a.name.localeCompare(b.name))
+                      .map((office: Office) => (
+                        <div
+                          key={office.id}
+                          className={`w-full text-left p-3 rounded-lg border transition-all flex items-center justify-between group cursor-pointer ${selectedForAdd.includes(office.id)
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "hover:bg-slate-50 border-slate-100"
+                            }`}
+                          onClick={() => {
+                            const isSelecting = !selectedForAdd.includes(office.id);
+                            setSelectedForAdd(prev =>
+                              isSelecting
+                                ? [...prev, office.id]
+                                : prev.filter(id => id !== office.id)
+                            );
+                            if (isSelecting) {
+                              setSearchTerm("");
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedForAdd.includes(office.id)
+                              ? "bg-primary border-primary text-white"
+                              : "border-slate-300 bg-white"
+                              }`}>
+                              {selectedForAdd.includes(office.id) && <Plus className="h-3.5 w-3.5 stroke-[3]" />}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm text-slate-900">{office.name}</p>
+                              <p className="text-[10px] text-slate-500">{office.directorate_name}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  {offices.filter((o: Office) => !selectedOfficeIds.includes(o.id)).length === 0 && (
-                    <p className="text-center py-8 text-sm text-muted-foreground">All offices are already on your board.</p>
-                  )}
-                </div>
-              </ScrollArea>
+                      ))}
+                    {offices.filter((o: Office) => !selectedOfficeIds.includes(o.id)).length === 0 && (
+                      <p className="text-center py-8 text-sm text-muted-foreground">All offices are already on your board.</p>
+                    )}
+                  </div>
+                </ScrollArea>
 
-              <div className="mt-6 flex justify-between items-center bg-slate-50 -mx-6 -mb-6 p-4 border-t">
-                <span className="text-xs text-slate-500 font-medium">
-                  {selectedForAdd.length > 0 ? `${selectedForAdd.length} selected` : "Select offices to add"}
-                </span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setIsAddCardOpen(false);
-                    setSelectedForAdd([]);
-                    setSearchTerm("");
-                  }}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    disabled={selectedForAdd.length === 0 || actionLoading}
-                    onClick={handleAddMultipleOffices}
-                  >
-                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                    Add Selected
-                  </Button>
+                <div className="mt-6 flex justify-between items-center bg-slate-50 -mx-6 -mb-6 p-4 border-t">
+                  <span className="text-xs text-slate-500 font-medium">
+                    {selectedForAdd.length > 0 ? `${selectedForAdd.length} selected` : "Select offices to add"}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setIsAddCardOpen(false);
+                      setSelectedForAdd([]);
+                      setSearchTerm("");
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={selectedForAdd.length === 0 || actionLoading}
+                      onClick={handleAddMultipleOffices}
+                    >
+                      {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                      Add Selected
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {loading && (

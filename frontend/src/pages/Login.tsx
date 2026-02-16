@@ -141,9 +141,9 @@ const Login = () => {
         }
     };
 
-    const handleVerify2FA = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (submitting) return;
+    const handleVerify2FA = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (submitting || otp.length < 4) return;
         setSubmitting(true);
         try {
             const res = await publicApi.post("/token/verify-2fa/", {
@@ -178,6 +178,13 @@ const Login = () => {
             setSubmitting(false);
         }
     };
+
+    // Auto verify when all digits are entered
+    useEffect(() => {
+        if (otp.length === 4 && !submitting && showOTP) {
+            handleVerify2FA();
+        }
+    }, [otp, showOTP]);
 
     return (
         <div className="min-h-screen flex items-center justify-center font-sans gradient-background p-4 py-12">
@@ -341,7 +348,7 @@ const Login = () => {
                                     value={otp}
                                     onChange={(e) => setOtp(e.target.value)}
                                     className="text-center text-3xl tracking-[1em] h-16 w-full max-w-[240px] border-2 border-gray-100 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:text-gray-200"
-                                    maxLength={6}
+                                    maxLength={4}
                                     required
                                     autoFocus
                                     autoComplete="one-time-code"

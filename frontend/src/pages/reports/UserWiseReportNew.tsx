@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
 import NepaliDate from "nepali-date-converter";
+import { useAuth } from "@/context/AuthContext";
 import {
     Table,
     TableBody,
@@ -60,6 +61,7 @@ interface DutyRow {
 interface User {
     id: number;
     full_name: string;
+    employee_id?: string;
 }
 
 interface DutyOption {
@@ -99,9 +101,12 @@ function UserWiseReportNew() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    const { user: authUser, hasPermission } = useAuth();
+
     const [dutyOptions, setDutyOptions] = useState<DutyOption[]>([]);
     const [selectedDuty, setSelectedDuty] = useState<string>("");
     const [searchTerm, setSearchTerm] = useState("");
+    const [dutyChartOpen, setDutyChartOpen] = useState(false);
 
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [selectedSchedule, setSelectedSchedule] = useState<string>("all");
@@ -131,9 +136,8 @@ function UserWiseReportNew() {
             try {
                 const res = await api.get("/auth/me/");
                 setMe(res.data);
-                if (!res.data.is_staff) {
-                    setSelectedUsers([res.data.id]);
-                }
+                // No longer defaulting regular users to only themselves, 
+                // as the backend now allows them to see their office report by default.
             } catch (err) {
                 console.error("Failed to fetch /me/", err);
             }
@@ -187,6 +191,15 @@ function UserWiseReportNew() {
 
     useEffect(() => {
         if (selectedDuty && selectedDuty !== "none") {
+            // Update dates based on selected duty chart
+            const selected = dutyOptions.find(d => d.id.toString() === selectedDuty);
+            if (selected) {
+                setDateFrom(selected.effective_date);
+                if (selected.end_date) {
+                    setDateTo(selected.end_date);
+                }
+            }
+
             async function fetchSchedules() {
                 try {
                     const res = await api.get("/schedule/", {
@@ -202,8 +215,13 @@ function UserWiseReportNew() {
         } else {
             setSchedules([]);
             setSelectedSchedule("all");
+            // Reset to current month if "none" is selected
+            if (selectedDuty === "none" || selectedDuty === "") {
+                setDateFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+                setDateTo(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+            }
         }
-    }, [selectedDuty]);
+    }, [selectedDuty, dutyOptions]);
 
     /* ================= Handle Duty Change ================= */
 
@@ -213,7 +231,9 @@ function UserWiseReportNew() {
             const selected = dutyOptions.find(d => d.id.toString() === val);
             if (selected) {
                 setDateFrom(selected.effective_date);
-                setDateTo(selected.end_date);
+                if (selected.end_date) {
+                    setDateTo(selected.end_date);
+                }
             }
         } else {
             // Reset to current month if "none" is selected
@@ -412,7 +432,7 @@ function UserWiseReportNew() {
                 </CardHeader>
                 <CardContent className="p-6">
 
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[240px_240px_minmax(210px,0.8fr)_1.2fr] items-end">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[350px_220px_minmax(160px,0.5fr)_1fr] items-end">
 
                         {/* 1. Duty Selection */}
                         <div className="space-y-2">
@@ -420,19 +440,79 @@ function UserWiseReportNew() {
                                 <Calendar className="h-3 w-3" />
                                 Duty Chart
                             </Label>
-                            <Select value={selectedDuty} onValueChange={setSelectedDuty}>
-                                <SelectTrigger className="w-full bg-white h-10 text-sm font-medium border-slate-200">
-                                    <SelectValue placeholder="Select Duty Chart" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none" className="text-sm">-- Select Chart --</SelectItem>
-                                    {dutyOptions.map((opt) => (
-                                        <SelectItem key={opt.id} value={opt.id.toString()} className="text-sm">
-                                            {opt.name} ({opt.office_name})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Popover open={dutyChartOpen} onOpenChange={setDutyChartOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={dutyChartOpen}
+                                        className="w-full bg-primary text-white hover:bg-primary-hover hover:text-white border-2 border-primary h-10 text-sm font-bold justify-between transition-colors shadow-sm"
+                                    >
+                                        <span className="truncate">
+                                            {selectedDuty && selectedDuty !== "none" ? (
+                                                <>
+                                                    {dutyOptions.find(d => d.id.toString() === selectedDuty)?.name}
+                                                    <span className="ml-2 opacity-60 font-normal text-[10px]">
+                                                        ({dutyOptions.find(d => d.id.toString() === selectedDuty)?.office_name})
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                "Select Duty Chart"
+                                            )}
+                                        </span>
+                                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                    <Command>
+                                        <CommandInput placeholder="Search chart..." className="h-9" />
+                                        <CommandList className="max-h-[300px] overflow-y-auto">
+                                            <CommandEmpty>No chart found.</CommandEmpty>
+                                            <CommandGroup>
+                                                <CommandItem
+                                                    value="Select Chart"
+                                                    onSelect={() => {
+                                                        handleDutyChange("none");
+                                                        setDutyChartOpen(false);
+                                                    }}
+                                                    className={cn(
+                                                        "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                                                        !selectedDuty || selectedDuty === "none" ? "font-medium" : ""
+                                                    )}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4 text-primary", !selectedDuty || selectedDuty === "none" ? "opacity-100" : "opacity-0")} />
+                                                    Select Chart
+                                                </CommandItem>
+                                                {dutyOptions
+                                                    .filter(opt => {
+                                                        if (hasPermission("duties.create_any_office_chart")) return true;
+                                                        return Number(opt.office_id) === Number(authUser?.office_id);
+                                                    })
+                                                    .map((opt) => (
+                                                        <CommandItem
+                                                            key={opt.id}
+                                                            value={`${opt.name} ${opt.office_name} ${opt.id}`}
+                                                            onSelect={() => {
+                                                                handleDutyChange(opt.id.toString());
+                                                                setDutyChartOpen(false);
+                                                            }}
+                                                            className={cn(
+                                                                "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                                                                selectedDuty === opt.id.toString() ? "font-medium bg-slate-50" : ""
+                                                            )}
+                                                        >
+                                                            <Check className={cn("mr-2 h-4 w-4 text-primary", selectedDuty === opt.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                            <div className="flex flex-col">
+                                                                <span>{opt.name}</span>
+                                                                <span className="text-[10px] opacity-70 text-muted-foreground">{opt.office_name}</span>
+                                                            </div>
+                                                        </CommandItem>
+                                                    ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
                         </div>
 
                         {/* 2. Shift (Schedule) Selection */}
@@ -449,7 +529,7 @@ function UserWiseReportNew() {
                                     <SelectItem value="all" className="text-sm">-- All Shifts --</SelectItem>
                                     {schedules.map((s) => (
                                         <SelectItem key={s.id} value={s.id.toString()} className="text-sm">
-                                            {s.name} ({s.start_time.slice(0, 5)})
+                                            {s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -534,19 +614,35 @@ function UserWiseReportNew() {
                                             disabled={selectAllUsers || !selectedDuty || selectedDuty === "none"}
                                             className="w-full h-10 justify-between bg-white text-sm font-medium border-slate-200 hover:bg-slate-50/50"
                                         >
-                                            <div className="flex items-center gap-2 truncate">
-                                                <Users className="h-4 w-4 text-slate-400 shrink-0" />
-                                                <span className="truncate">
-                                                    {selectedUsers.length > 0
-                                                        ? `${selectedUsers.length} selected`
-                                                        : "Select Employee"}
+                                            <div className="flex items-center gap-2 truncate flex-1">
+                                                <Users className={cn("h-4 w-4 shrink-0 transition-colors", selectedUsers.length > 0 ? "text-primary" : "text-slate-400")} />
+                                                <span className={cn("truncate font-semibold", selectedUsers.length > 0 ? "text-primary" : "text-slate-600")}>
+                                                    {selectedUsers.length > 0 ? (
+                                                        <span className="flex items-center gap-1.5">
+                                                            {selectedUsers.length}
+                                                            <span className="text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Employees</span>
+                                                        </span>
+                                                    ) : (
+                                                        "Select Employee"
+                                                    )}
                                                 </span>
                                             </div>
-                                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            <ChevronDown className={cn("ml-2 h-4 w-4 shrink-0 transition-transform duration-200", dropdownOpen && "rotate-180 opacity-100", selectedUsers.length > 0 ? "text-primary opacity-100" : "opacity-50")} />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                                        <Command>
+                                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 shadow-2xl border-primary/20" align="start">
+                                        <Command className="border-none">
+                                            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/50">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selection</span>
+                                                {selectedUsers.length > 0 && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setSelectedUsers([]); }}
+                                                        className="text-[10px] font-bold text-primary hover:underline"
+                                                    >
+                                                        Clear All
+                                                    </button>
+                                                )}
+                                            </div>
                                             <CommandInput
                                                 placeholder="Search..."
                                                 className="h-8 text-[11px]"
@@ -563,7 +659,7 @@ function UserWiseReportNew() {
                                                         return (
                                                             <CommandItem
                                                                 key={u.id}
-                                                                value={u.full_name}
+                                                                value={`${u.full_name} ${u.employee_id || ""}`}
                                                                 onSelect={() => {
                                                                     setSelectedUsers(prev =>
                                                                         isSelected
@@ -571,16 +667,33 @@ function UserWiseReportNew() {
                                                                             : [...prev, u.id]
                                                                     );
                                                                 }}
-                                                                className="text-sm cursor-pointer"
+                                                                className={cn(
+                                                                    "text-sm cursor-pointer flex items-center px-3 py-2 rounded-sm transition-all duration-200",
+                                                                    isSelected
+                                                                        ? "bg-primary/10 text-primary font-bold shadow-sm"
+                                                                        : "text-slate-700 hover:bg-slate-50"
+                                                                )}
                                                             >
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className={cn(
-                                                                        "w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors",
-                                                                        isSelected ? "bg-primary border-primary" : "border-slate-300 bg-white"
-                                                                    )}>
-                                                                        {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                                                                <div className="flex items-center justify-between w-full">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className={cn(
+                                                                            "w-4 h-4 rounded border flex items-center justify-center transition-all duration-300",
+                                                                            isSelected ? "bg-primary border-primary scale-110 shadow-md" : "border-slate-300 bg-white"
+                                                                        )}>
+                                                                            {isSelected && <Check className="h-3 w-3 text-white stroke-[3px]" />}
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <span className="truncate">{u.full_name}</span>
+                                                                            <span className={cn("text-[9px] font-normal", isSelected ? "text-primary/70" : "text-slate-400")}>
+                                                                                ID: {u.employee_id || "N/A"}
+                                                                            </span>
+                                                                        </div>
                                                                     </div>
-                                                                    <span>{u.full_name}</span>
+                                                                    {isSelected && (
+                                                                        <div className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest">
+                                                                            Added
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </CommandItem>
                                                         );

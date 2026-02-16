@@ -11,6 +11,7 @@ export interface DutyChart {
   office_name?: string;
   department_name?: string;
   directorate_name?: string;
+  duties_count?: number;
 }
 
 // GET all duty charts

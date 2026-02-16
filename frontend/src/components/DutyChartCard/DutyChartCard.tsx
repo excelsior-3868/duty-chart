@@ -279,6 +279,19 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       return;
     }
 
+    // Validation: Effective date must be today or future
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Parse the ISO date string (yyyy-MM-dd) manually to ensure local date comparison
+    const [y, m, d] = formData.effective_date.split('-').map(Number);
+    const effectiveDate = new Date(y, m - 1, d);
+
+    if (effectiveDate < today) {
+      toast.error("Effective date cannot be in the past.");
+      return;
+    }
+
     setIsDownloadingTemplate(true);
     try {
       await downloadImportTemplate({
@@ -391,7 +404,11 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                     <CommandEmpty>No office found.</CommandEmpty>
                     <CommandGroup>
                       {offices
-                        .filter(office => (user?.office_id && (!hasPermission('duties.view_any_office_chart') && !hasPermission('duties.create_any_office_chart'))) ? office.id === user.office_id : true)
+                        .filter(office => {
+                          if (hasPermission('duties.create_any_office_chart')) return true;
+                          const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
+                          return allowedIds.includes(Number(office.id));
+                        })
                         .map((office) => (
                           <CommandItem
                             key={office.id}
