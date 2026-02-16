@@ -322,10 +322,15 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             return
 
         with transaction.atomic():
-            allowed = get_allowed_office_ids(user)
             office_id = self.request.data.get("office")
-            if not office_id or int(office_id) not in allowed:
-                raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
+            if not office_id:
+                raise serializers.ValidationError({"detail": "Office is required."})
+            
+            allowed = get_allowed_office_ids(user)
+            if int(office_id) not in allowed:
+                if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
+                    raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
+            
             serializer.save()
 
     def perform_update(self, serializer):
@@ -335,11 +340,36 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             return
         
         with transaction.atomic():
-            allowed = get_allowed_office_ids(user)
             office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
-            if not office_id or int(office_id) not in allowed:
-                raise serializers.ValidationError({"detail": "Not allowed to update duty chart for this office."})
+            if not office_id:
+                raise serializers.ValidationError({"detail": "Office identification failed."})
+            
+            allowed = get_allowed_office_ids(user)
+            if int(office_id) not in allowed:
+                if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
+                    raise serializers.ValidationError({"detail": "Not allowed to update duty chart for this office."})
+            
             serializer.save()
+
+    def perform_destroy(self, instance):
+        # Restriction: Cannot delete if employees are assigned to any shift
+        if instance.duties.exists():
+            raise serializers.ValidationError({
+                "detail": "Cannot delete duty chart because employees are assigned to its shifts. Please remove all assignments first."
+            })
+        
+        # Permission check: duties.delete_chart
+        user = self.request.user
+        if not IsSuperAdmin().has_permission(self.request, self):
+            if not user_has_permission_slug(user, 'duties.delete_chart'):
+                raise serializers.ValidationError({"detail": "You do not have permission to delete duty charts."})
+            
+            # Additional check: restrict to owned offices
+            allowed = get_allowed_office_ids(user)
+            if instance.office_id not in allowed:
+                raise serializers.ValidationError({"detail": "Not allowed to delete duty chart for this office."})
+
+        instance.delete()
 
 
 class DutyViewSet(viewsets.ModelViewSet):
@@ -1432,7 +1462,7 @@ class DutyChartImportTemplateView(APIView):
         ws = wb.active
         ws.title = "Duty Import Template"
 
-        headers = ["Date (BS)", "Employee ID", "Employee Name", "Phone", "Office", "Schedule", "Start Time", "End Time", "Position"]
+        headers = ["Date (BS)", "Search Employee", "Employee ID", "Employee Name", "Phone", "Office", "Schedule", "Start Time", "End Time", "Position"]
         ws.append(headers)
 
         days = (end_date - start_date).days + 1
@@ -1443,15 +1473,17 @@ class DutyChartImportTemplateView(APIView):
                 # Duplicate rows (2 per date/schedule)
                 for _ in range(2):
                     # Formulas for lookup from Reference sheet
-                    # Ref Sheet Col Order: Full Name (A), ID (B), Phone (C), Dir (D), Dept (E), Pos (F), Combined (G)
-                    match_val = f"MATCH(B{row_idx}, 'Reference - Office Users'!$G$2:$G$1000, 0)"
+                    # Ref Sheet Col Order: Full Name (A/1), Employee ID (B/2), Phone (C/3), Dir (D/4), Dept (E/5), Pos (F/6), Office (G/7), Search String (H/8)
+                    match_val = f"MATCH(B{row_idx}, 'Reference - Office Users'!$H$2:$H$1000, 0)"
                     
                     def get_f(col_idx):
                         ref_col = f"'Reference - Office Users'!${chr(64+col_idx)}2:${chr(64+col_idx)}1000"
                         return f'=IF(B{row_idx}<>"", IFERROR(INDEX({ref_col}, {match_val}), ""), "")'
 
+                    f_id = get_f(2)   # Employee ID
                     f_name = get_f(1) # Full Name
                     f_phone = get_f(3)
+                    f_office = get_f(7) # Office
                     f_pos = get_f(6)
 
                     if nepali_datetime:
@@ -1461,10 +1493,11 @@ class DutyChartImportTemplateView(APIView):
 
                     ws.append([
                         bs_date_str,
-                        "",       # Employee ID (Dropdown: ID - Name)
+                        "",       # Search Employee (Dropdown)
+                        f_id,     # Employee ID (Auto-populated)
                         f_name,   # Employee Name (Auto-populated)
                         f_phone,
-                        office.name,
+                        f_office, # Office (Auto-populated)
                         sch.name,
                         sch.start_time.strftime("%H:%M"),
                         sch.end_time.strftime("%H:%M"),
@@ -1474,19 +1507,29 @@ class DutyChartImportTemplateView(APIView):
 
         # Add Data Validation (Combined ID - Name Dropdown)
         from openpyxl.worksheet.datavalidation import DataValidation
-        dv = DataValidation(type="list", formula1="'Reference - Office Users'!$G$2:$G$1000", allow_blank=True)
+        dv = DataValidation(type="list", formula1="'Reference - Office Users'!$H$2:$H$1000", allow_blank=True)
         dv.add(f"B2:B{row_idx}")
         ws.add_data_validation(dv)
         
-        # Auto-adjust column width for Column B (Employee ID)
-        ws.column_dimensions['B'].width = 30
+        # Auto-adjust column width for Column B (Search Employee)
+        ws.column_dimensions['B'].width = 40
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 25
 
-        # Add a sheet for reference users from this office
+        # Add a sheet for reference users
+        # If user has 'assign_any_office_employee' permission, show all users; else only office users.
+        can_assign_all = IsSuperAdmin().has_permission(request, self) or \
+                         user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
+
         ws_users = wb.create_sheet("Reference - Office Users")
-        # Column Order: Full Name, Employee ID, Phone, Directorate, Department, Position, ID - Name
-        ws_users.append(["Full Name", "Employee ID", "Phone", "Directorate", "Department", "Position", "ID - Name"])
+        # Column Order: Full Name, Employee ID, Phone, Directorate, Department, Position, Office, ID - Name
+        ws_users.append(["Full Name", "Employee ID", "Phone", "Directorate", "Department", "Position", "Office", "ID - Name"])
         from users.models import User
-        users = User.objects.filter(office=office, is_activated=True)
+        if can_assign_all:
+            users = User.objects.filter(is_activated=True).select_related('directorate', 'department', 'position', 'office')
+        else:
+            users = User.objects.filter(office=office, is_activated=True).select_related('directorate', 'department', 'position', 'office')
+        
         for u in users:
             ws_users.append([
                 u.full_name,
@@ -1495,7 +1538,8 @@ class DutyChartImportTemplateView(APIView):
                 getattr(u.directorate, 'name', ''),
                 getattr(u.department, 'name', ''),
                 getattr(u.position, 'name', ''),
-                f"{u.employee_id} - {u.full_name}"
+                getattr(u.office, 'name', ''),
+                f"{u.employee_id} - {u.full_name} ({getattr(u.office, 'name', 'N/A')})"
             ])
 
         bio = BytesIO()
@@ -1559,6 +1603,16 @@ class DutyChartImportView(APIView):
 
         office = get_object_or_404(Office, pk=int(office_id))
         
+        # Permission Check: Check if user can import for this office
+        user = request.user
+        if not IsSuperAdmin().has_permission(request, self):
+            allowed = get_allowed_office_ids(user)
+            if int(office_id) not in allowed:
+                if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
+                    return Response({
+                        "detail": f"You do not have permission to import duty charts for {office.name}."
+                    }, status=status.HTTP_403_FORBIDDEN)
+
         from django.db import transaction
         from users.models import User
 
@@ -1637,9 +1691,11 @@ class DutyChartImportView(APIView):
 
                     try:
                         # --- A. Office Validation ---
-                        if pd.isna(off_name) or str(off_name).strip().lower() != office.name.lower():
-                            errors.append(f"Row {row_num}: Office mismatch. Expected '{office.name}', found '{off_name}'.")
-                            continue
+                        # Relaxed: Only warn if office mismatch but allow if permission exists later
+                        if not pd.isna(off_name) and str(off_name).strip().lower() != office.name.lower():
+                            if not user_has_permission_slug(request.user, 'duties.assign_any_office_employee'):
+                                errors.append(f"Row {row_num}: Office mismatch. Expected '{office.name}', found '{off_name}'. You do not have permission to assign employees from other offices.")
+                                continue
 
                         # --- B. Date Validation ---
                         if isinstance(row_date_val, (datetime.datetime, datetime.date)):

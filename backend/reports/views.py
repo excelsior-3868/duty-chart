@@ -17,6 +17,7 @@ from openpyxl.styles import Font, Alignment, Border, Side
 
 from duties.models import Duty, DutyChart
 from .permissions import IsAdminOrSelf
+from users.permissions import user_has_permission_slug, get_allowed_office_ids
 import requests
 
 User = get_user_model()
@@ -105,16 +106,20 @@ class DutyReportPreviewView(APIView):
         schedule_id = request.GET.get("schedule_id")
         office_id = request.GET.get("office_id")
 
-        if not request.user.is_staff:
-            user_ids = [request.user.id]
+        can_see_any_office = request.user.is_staff or user_has_permission_slug(request.user, "duties.create_any_office_chart")
 
         qs = Duty.objects.select_related("user", "schedule", "office").filter(
             date__range=[date_from, date_to]
         )
 
+        if not can_see_any_office:
+            allowed_offices = get_allowed_office_ids(request.user)
+            qs = qs.filter(office_id__in=allowed_offices)
+
         if user_ids:
             qs = qs.filter(user_id__in=user_ids)
-        elif duty_id:
+        
+        if duty_id:
             qs = qs.filter(duty_chart_id=duty_id)
 
         if schedule_id and schedule_id != "all":
@@ -127,6 +132,8 @@ class DutyReportPreviewView(APIView):
 
         groups = {}
         for d in qs:
+            if not d.user:
+                continue
             uid = d.user.id
             groups.setdefault(uid, {
                 "user_id": uid,
@@ -193,8 +200,10 @@ class DutyReportFileView(APIView):
         if duty_id:
             qs = qs.filter(duty_chart_id=duty_id)
 
-        if not request.user.is_staff:
-            qs = qs.filter(user=request.user)
+        can_see_any_office = request.user.is_staff or user_has_permission_slug(request.user, "duties.create_any_office_chart")
+        if not can_see_any_office:
+            allowed_offices = get_allowed_office_ids(request.user)
+            qs = qs.filter(office_id__in=allowed_offices)
 
         qs = qs.order_by("date", "schedule__start_time")
 
@@ -499,7 +508,7 @@ class DutyReportNewFileView(APIView):
         qs = Duty.objects.select_related("user", "schedule", "office").filter(date__range=[date_from, date_to])
         if not all_users and user_ids:
             qs = qs.filter(user_id__in=user_ids)
-        elif duty_id:
+        if duty_id:
             qs = qs.filter(duty_chart_id=duty_id)
         
         if schedule_id and schedule_id != "all":
@@ -507,8 +516,12 @@ class DutyReportNewFileView(APIView):
             
         if office_id and office_id != "all":
             qs = qs.filter(office_id=office_id)
-        if not request.user.is_staff:
-            qs = qs.filter(user=request.user)
+        
+        can_see_any_office = request.user.is_staff or user_has_permission_slug(request.user, "duties.create_any_office_chart")
+        if not can_see_any_office:
+            allowed_offices = get_allowed_office_ids(request.user)
+            qs = qs.filter(office_id__in=allowed_offices)
+
         qs = qs.order_by("date", "schedule__start_time")
 
         doc = Document()
