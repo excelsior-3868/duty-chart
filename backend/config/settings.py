@@ -28,12 +28,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-devel
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0,dutychart.ntc.net.np").split(",")
+ALLOWED_HOSTS = ['*']
 
 # CORS Configuration
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True 
+    CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOW_CREDENTIALS = True
+    CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
 else:
     cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://localhost:8083,https://dutychart.ntc.net.np")
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(",")]
@@ -193,6 +194,9 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 # NTC OTP Settings
 NTC_OTP_URL = os.environ.get('NTC_OTP_URL')
 
+# Mobile API Token
+MOBILE_API_TOKEN = os.environ.get('MOBILE_API_TOKEN')
+
 # REST Framework settings
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
@@ -208,6 +212,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+        "authentication.permissions.HasMobileAPIToken",
     ],
 }
 

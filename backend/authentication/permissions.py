@@ -1,18 +1,20 @@
 from rest_framework import permissions
+from django.conf import settings
 
-class IsSuperAdmin(permissions.BasePermission):
+class HasMobileAPIToken(permissions.BasePermission):
     """
-    Allocates access only to users with role 'SUPERADMIN'.
+    Allows access only if the request contains a valid Mobile API Token.
     """
+
     def has_permission(self, request, view):
-        # Debugging: Print user details to console
-        print(f"DEBUG: User: {request.user}, Auth: {request.user.is_authenticated}", flush=True)
-        if request.user.is_authenticated:
-            print(f"DEBUG: User Role: {getattr(request.user, 'role', 'No Role')}", flush=True)
+        # Check for the token in the headers
+        # Mobile app should send 'X-Mobile-Token' header
+        # Django converts headers to 'HTTP_X_MOBILE_TOKEN'
+        token = request.META.get('HTTP_X_MOBILE_TOKEN')
+        required_token = getattr(settings, 'MOBILE_API_TOKEN', None)
 
-        # Check if user is authenticated and has the role 'SUPERADMIN' or is a django superuser
-        return bool(
-            request.user and 
-            request.user.is_authenticated and 
-            (getattr(request.user, 'role', None) == 'SUPERADMIN' or request.user.is_superuser)
-        )
+        if not required_token:
+            # If token is not set in settings, deny access (security by default)
+            return False
+
+        return token == required_token
