@@ -10,7 +10,6 @@ from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from rest_framework import permissions
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
-from authentication.permissions import IsSuperAdmin
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,

@@ -30,6 +30,9 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
 
 def _handle_duty_assignment_notification(instance):
     try:
+        from .models import SMSLog
+        from django.db import IntegrityError
+        
         user = instance.user
         if not user: return
         
@@ -44,56 +47,44 @@ def _handle_duty_assignment_notification(instance):
             except Exception:
                 duty_date = str(instance.date)
 
-        # 1. Dashboard Notification (Disabled for now)
-        # title = "New Duty Assigned"
-        # message = f"You have been assigned to {duty_name} on {duty_date}."
-        
-        # Idempotency check with safe created_at access
-        # from .models import Notification
-        # created_at_date = None
-        # if hasattr(instance, 'created_at') and instance.created_at:
-        #     try:
-        #         created_at_date = instance.created_at.date()
-        #     except Exception:
-        #         pass
-        
-        # exists = Notification.objects.filter(
-        #     user=user,
-        #     notification_type='ASSIGNMENT',
-        #     created_at__date=created_at_date,
-        #     message__contains=f"on {duty_date}"
-        # ).exists()
-
-        # if not exists:
-        #     create_dashboard_notification(
-        #         user=user,
-        #         title=title,
-        #         message=message,
-        #         notification_type='ASSIGNMENT',
-        #         link='/duty-calendar'
-        #     )
+        # 1. SMS Notification logic
+        if getattr(user, 'phone_number', None):
+            full_name = getattr(user, 'full_name', user.username)
             
-            # 2. SMS Notification
-            if getattr(user, 'phone_number', None):
-                full_name = getattr(user, 'full_name', user.username)
+            chart_name = "Duty Chart"
+            if instance.duty_chart and instance.duty_chart.name:
+                chart_name = instance.duty_chart.name
+            
+            # Custom Message
+            office_name = instance.office.name if instance.office else "Unknown Office"
+            sms_message = f'Dear {full_name} , You have been assigned to "{chart_name}" for the "{duty_name}". Please visit dutychart.ntc.net.np for the detail.'
+            
+            # Idempotency: Try to create the SMSLog entry first
+            try:
+                log = SMSLog.objects.create(
+                    user=user,
+                    duty=instance,
+                    phone=user.phone_number,
+                    message=sms_message,
+                    reminder_type='ASSIGNMENT',
+                    status='pending'
+                )
                 
-                chart_name = "Duty Chart"
-                if instance.duty_chart and instance.duty_chart.name:
-                    chart_name = instance.duty_chart.name
-                
-                # Custom Message: Dear {Name} You have been assigned "{Chart}" for the "{Schedule}" at "{Office}". Visit https://dutychart.ntc.net.np for the detail
-                office_name = instance.office.name if instance.office else "Unknown Office"
-                sms_message = f'Dear {full_name} , You have been assigned to "{chart_name}" for the "{duty_name}". Please visit dutychart.ntc.net.np for the detail.'
-                
-                # Run Celery task dispatch in a separate thread to avoid blocking response if Redis is down
+                # If created, dispatch to Celery
                 def trigger_sms_task():
                     try:
-                        async_send_sms.delay(user.phone_number, sms_message, user_id=user.id)
+                        async_send_sms.delay(user.phone_number, sms_message, user_id=user.id, log_id=log.id)
                     except Exception as sms_err:
                         logger.error(f"Failed to queue SMS (threaded) for user {user.id}: {sms_err}")
 
                 threading.Thread(target=trigger_sms_task, daemon=True).start()
-            else:
-                logger.warning(f"User {user.username} has no phone number for SMS notification.")
+                logger.info(f"Queued assignment SMS for user {user.username}, duty {instance.id}")
+                
+            except IntegrityError:
+                # Already exists, skip sending again
+                logger.debug(f"Assignment SMS already sent/queued for user {user.username}, duty {instance.id}")
+                return
+        else:
+            logger.warning(f"User {user.username} has no phone number for SMS notification.")
     except Exception as e:
         logger.exception(f"Error in _handle_duty_assignment_notification for Duty {instance.id}")

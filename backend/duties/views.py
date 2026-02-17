@@ -427,6 +427,39 @@ class DutyViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def perform_destroy(self, instance):
+        user = self.request.user
+        
+        # We now rely strictly on permissions rather than role-based bypasses.
+        # SuperAdmins should have necessary permissions assigned via the RBAC system.
+
+        # 2. Base Permission Check (Can this user delete from charts at all?)
+        if not user_has_permission_slug(user, 'duties.delete'):
+            raise serializers.ValidationError("You do not have permission to remove employees from duty charts.")
+
+        # 3. Office Ownership Check (Manage the office the duty belongs to)
+        allowed_offices = get_allowed_office_ids(user)
+        duty_office_id = instance.office_id
+        
+        if not duty_office_id or int(duty_office_id) not in allowed_offices:
+             raise serializers.ValidationError("You do not have permission to manage duties for this office.")
+
+        # 4. Other Office Employee Check (Relative to Actor's Office)
+        target_user = instance.user
+        actor_office_id = getattr(user, 'office_id', None)
+        
+        if target_user:
+            target_user_office_id = getattr(target_user, 'office_id', None)
+            
+            # If target user belongs to a different office (or no office) than the Actor's office
+            if target_user_office_id is None or actor_office_id is None or int(target_user_office_id) != int(actor_office_id):
+                if not user_has_permission_slug(user, 'duties.remove_other_office_employee'):
+                    raise serializers.ValidationError(
+                        f"You cannot remove employee {target_user.full_name} as they belong to another office (or no office) and you lack the 'Remove Other Office Employee' permission."
+                    )
+
+        instance.delete()
+
     def perform_create(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
@@ -575,8 +608,10 @@ class DutyViewSet(viewsets.ModelViewSet):
                     # --- Restriction Check ---
                     if not can_assign_any:
                         t_user = users_map.get(user_id)
-                        if t_user and t_user.office_id and office_id and int(t_user.office_id) != office_id:
-                            raise serializers.ValidationError(f"Cannot assign employee {t_user.username} from different office without permission.")
+                        t_user_office_id = getattr(t_user, 'office_id', None)
+                        # If target user belongs to a different office (or no office) than the target office
+                        if t_user_office_id is None or int(t_user_office_id) != int(office_id):
+                            raise serializers.ValidationError(f"Cannot assign employee {t_user.full_name} from a different office (or no office) without the 'Assign Any Office Employee' permission.")
 
                     # Create or Update based on unique_together = ['user', 'duty_chart', 'date', 'schedule']
                     # We use update_or_create to merge with existing duties if same user/date/shift/chart
@@ -1762,9 +1797,10 @@ class DutyChartImportView(APIView):
                             continue
 
                         # --- Office check for User (unless assign_any_office_employee permission) ---
-                        if user.office_id and int(user.office_id) != int(office_id):
+                        user_office_id = getattr(user, 'office_id', None)
+                        if user_office_id is None or int(user_office_id) != int(office_id):
                              if not user_has_permission_slug(request.user, 'duties.assign_any_office_employee'):
-                                 errors.append(f"Row {row_num}: You cannot assign employee {user.username} from another office ({user.office.name}) to this chart.")
+                                 errors.append(f"Row {row_num}: You cannot assign employee {user.full_name} as they belong to another office (or no office) and you lack the 'Assign Any Office Employee' permission.")
                                  continue
 
                         # --- D. Schedule & Time Validation ---

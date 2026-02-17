@@ -52,6 +52,7 @@ class Command(BaseCommand):
             {"slug": "org.view_directorate", "name": "View Directorates", "description": "Can view and manage directorates"},
             {"slug": "org.view_accounting_office", "name": "View Accounting Offices", "description": "Can view and manage accounting offices"},
             {"slug": "org.view_cc_office", "name": "View CC Offices", "description": "Can view and manage CC offices"},
+            {"slug": "duties.remove_other_office_employee", "name": "Remove Other Office Employee", "description": "Can remove employees from other offices from a duty chart"},
             
         ]
 
@@ -113,7 +114,8 @@ class Command(BaseCommand):
                 "users.edit_employee", "org.view_office", "duties.create_duty", 
                 "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view",
                 "system.view_settings", "schedules.view_office_schedule", "duties.view_available_shifts",
-                "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee", "schedules.delete"
+                "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee", "schedules.delete",
+                "duties.delete"
             ],
 
 

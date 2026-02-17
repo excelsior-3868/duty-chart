@@ -12,7 +12,7 @@ export interface AuthUser {
   full_name: string;
   email: string;
   employee_id: string;
-  role: string; // "SUPERADMIN", "OFFICE_ADMIN", "USER"
+  role: string; // "SUPERADMIN", "NETWORK_ADMIN", "OFFICE_ADMIN", "USER"
   position_name?: string;
   department_name?: string;
   image: string | null;
@@ -122,7 +122,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const hasPermission = (permissionSlug: string): boolean => {
     if (!user) return false;
-    if (user.role === 'SUPERADMIN') return true;
     return user.permissions.includes(permissionSlug);
   };
 
@@ -134,10 +133,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const canManageOffice = (officeId: number): boolean => {
     if (!user) return false;
 
-    // Check if user is SuperAdmin - usually they can manage all
-    if (user.role === 'SUPERADMIN') return true;
+    // If user has 'view_any_office_chart' or 'create_any_office_chart', they can manage any office
+    if (user.permissions.includes('duties.view_any_office_chart') ||
+      user.permissions.includes('duties.create_any_office_chart')) {
+      return true;
+    }
 
-    // Strict check for Primary Office only (removed secondary office check as requested)
     if (user.office_id === null || user.office_id === undefined) return false;
 
     return Number(user.office_id) === Number(officeId);

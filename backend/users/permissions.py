@@ -2,11 +2,19 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 from .models import Permission, Role, RolePermission, UserPermission
 
 def get_allowed_office_ids(user):
+    # If user has global view/create permissions, they can manage all offices
+    # Note: we check 'view_any_office_chart' or 'create_any_office_chart'
+    from org.models import WorkingOffice
+    if user_has_permission_slug(user, 'duties.view_any_office_chart') or \
+       user_has_permission_slug(user, 'duties.create_any_office_chart'):
+        return set(WorkingOffice.objects.values_list('id', flat=True))
+
     ids = []
     if getattr(user, 'office_id', None):
         ids.append(user.office_id)
     try:
-        ids.extend(list(user.secondary_offices.values_list('id', flat=True)))
+        if hasattr(user, 'secondary_offices'):
+            ids.extend(list(user.secondary_offices.values_list('id', flat=True)))
     except Exception:
         pass
     return set(ids)
@@ -66,14 +74,16 @@ class SuperAdminOrReadOnly(BasePermission):
 def user_has_permission_slug(user, slug: str) -> bool:
     if not user or not getattr(user, 'is_authenticated', False):
         return False
-    if getattr(user, 'role', None) == 'SUPERADMIN':
-        return Permission.objects.filter(slug=slug, is_active=True).exists()
+    
     role_slug = getattr(user, 'role', None)
     role_obj = Role.objects.filter(slug=role_slug, is_active=True).first() if role_slug else None
+    
     role_has = False
     if role_obj:
         role_has = RolePermission.objects.filter(role=role_obj, permission__slug=slug, permission__is_active=True).exists()
+    
     direct_has = UserPermission.objects.filter(user=user, permission__slug=slug, permission__is_active=True).exists()
+    
     return bool(role_has or direct_has)
 
 class ManageRBACOrReadOnly(BasePermission):

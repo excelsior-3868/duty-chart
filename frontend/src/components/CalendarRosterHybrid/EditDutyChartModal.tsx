@@ -38,16 +38,12 @@ import { cn } from "@/lib/utils";
 interface EditDutyChartModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialOfficeId?: string;
-  initialChartId?: string;
   onUpdateSuccess?: (updatedChart?: Partial<DutyChartDTO>) => void;
 }
 
 export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   open,
   onOpenChange,
-  initialOfficeId,
-  initialChartId,
   onUpdateSuccess
 }) => {
   const { user, canManageOffice, hasPermission } = useAuth();
@@ -108,17 +104,9 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       load();
 
       // Set initial state based on props or default empty
-      if (initialOfficeId) {
-        setFormData((prev) => ({ ...prev, office: initialOfficeId }));
-      } else {
-        // Reset if no initial prop (though cleanup handles this, safety check)
-      }
-
-      if (initialChartId) {
-        setSelectedChartId(initialChartId);
-      } else {
-        setSelectedChartId("");
-      }
+      // Clear selections on open
+      setSelectedChartId("");
+      setFormData((prev) => ({ ...prev, office: "" }));
 
       // We also need to clear charts list initially until fetched by office selection
       setCharts([]);
@@ -149,7 +137,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       setShowDeleteConfirm(false);
       setIsDeleting(false);
     }
-  }, [open, initialOfficeId, initialChartId]);
+  }, [open]);
 
   useEffect(() => {
     const fetchDetails = async () => {

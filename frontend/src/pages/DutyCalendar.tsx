@@ -70,7 +70,7 @@ export interface DutyAssignment {
     avatar: string;
     schedule_id: number;
     alias?: string;
-    employee_id?: string;
+    employee_office_id?: number | null;
 }
 
 
@@ -354,6 +354,7 @@ const DutyCalendar = () => {
                 schedule_id: d.schedule,
                 alias: d.alias,
                 employee_id: userDetail?.employee_id || "",
+                employee_office_id: userDetail?.office ?? null,
             } as DutyAssignment;
         });
     }, [duties, usersCache, officesCache]);
@@ -460,12 +461,12 @@ const DutyCalendar = () => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.edit_dutychart')) return false;
 
-        // If user has 'view_any_office_chart' and 'editchart', they can edit charts from any office
-        if (hasPermission('duties.view_any_office_chart')) return true;
-
         const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
             ? Number((selectedDutyChartInfo.office as any)?.id)
             : Number(selectedDutyChartInfo.office);
+
+        // Allow if user manages this office OR has the global 'create_any_office_chart' permission
+        if (hasPermission('duties.create_any_office_chart')) return true;
 
         // Security: Restrict editing to owners of the office
         return canManageOffice(chartOfficeId);
@@ -475,16 +476,31 @@ const DutyCalendar = () => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.delete')) return false;
 
-        // If user has 'view_any_office_chart' and 'delete', they can delete from any office
-        if (hasPermission('duties.view_any_office_chart')) return true;
-
         const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
             ? Number((selectedDutyChartInfo.office as any)?.id)
             : Number(selectedDutyChartInfo.office);
 
-        // Security: Restrict deletion to owners of the office
-        return canManageOffice(chartOfficeId);
-    }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
+        // Must be authorized to manage duties in this office
+        if (!canManageOffice(chartOfficeId)) return false;
+
+        // If we are looking at a specific assignment, check if employee is from another office
+        if (selectedProfile) {
+            const empOfficeId = selectedProfile.employee_office_id;
+            const actorOfficeId = user?.office_id;
+
+            // If employee belongs to a different office (or no office) than the logged-in User's office
+            const isSameAsActorOffice = empOfficeId !== null && actorOfficeId !== undefined && actorOfficeId !== null && Number(empOfficeId) === Number(actorOfficeId);
+
+            if (!isSameAsActorOffice) {
+                // Strictly require specific permission for the cross-office employee deletion
+                if (!hasPermission('duties.remove_other_office_employee')) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }, [selectedDutyChartInfo, hasPermission, canManageOffice, selectedProfile, user]);
 
     const handleDeleteDuty = async () => {
         if (!selectedProfile?.id) return;
@@ -1037,8 +1053,6 @@ const DutyCalendar = () => {
                 <EditDutyChartModal
                     open={showEditDutyChart}
                     onOpenChange={setShowEditDutyChart}
-                    initialOfficeId={selectedOfficeId}
-                    initialChartId={selectedDutyChartId}
                     onUpdateSuccess={(updatedChart) => {
                         if (updatedChart?.office && String(updatedChart.office) !== selectedOfficeId) {
                             setSelectedOfficeId(String(updatedChart.office));

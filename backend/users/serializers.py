@@ -171,8 +171,15 @@ class DutySerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['user_name'] = instance.user.full_name
-        data['office_name'] = instance.duty_chart.office.name
+        data['user_name'] = instance.user.full_name if instance.user else 'Unassigned'
+        
+        office_name = None
+        if instance.office:
+            office_name = instance.office.name
+        elif instance.duty_chart and instance.duty_chart.office:
+            office_name = instance.duty_chart.office.name
+            
+        data['office_name'] = office_name or 'Unknown Office'
         return data
 
 

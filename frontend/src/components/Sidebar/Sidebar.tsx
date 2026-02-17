@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -27,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LogOut, UserCircle } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+import api from '@/services/api';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -133,6 +135,25 @@ const iconMap = {
 export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
   const { hasPermission, isLoading, user, logout } = useAuth();
   const navigate = useNavigate();
+  const [activatedUserCount, setActivatedUserCount] = useState<number | null>(null);
+  const [isCountLoading, setIsCountLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      if (user?.role === 'SUPERADMIN') {
+        setIsCountLoading(true);
+        try {
+          const response = await api.get('/users/', { params: { is_activated: 'true', page_size: 1 } });
+          setActivatedUserCount(response.data.count);
+        } catch (error) {
+          console.error('Error fetching activated user count:', error);
+        } finally {
+          setIsCountLoading(false);
+        }
+      }
+    };
+    fetchCount();
+  }, [user]);
 
   const initials = (name?: string) => {
     if (!name) return "U";
@@ -318,9 +339,27 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
             </Accordion>
           )}
 
+          {user?.role === 'SUPERADMIN' && (
+            <div className="mt-6 mb-2 p-4 bg-primary/5 rounded-xl border border-primary/10 shadow-sm transition-all hover:bg-primary/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Activated Users</p>
+                  {isCountLoading ? (
+                    <Skeleton className="h-6 w-12 mt-1" />
+                  ) : (
+                    <p className="text-2xl font-black text-primary tabular-nums">
+                      {activatedUserCount?.toLocaleString() ?? 0}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
         </nav>
-
-
       </ScrollArea>
 
 
@@ -344,9 +383,16 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                     {initials(user?.full_name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium truncate">{user?.full_name || "User"}</p>
-                  <p className={`text-xs truncate ${roleColor(user?.role)}`}>{roleLabel(user?.role)}</p>
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-sm font-medium leading-tight break-words">{user?.full_name || "User"}</p>
+                  <p className={`text-[10px] leading-tight mt-1 ${roleColor(user?.role)} font-semibold break-words`}>
+                    {roleLabel(user?.role)}
+                  </p>
+                  {user?.office_name && (
+                    <p className="text-[10px] leading-tight text-muted-foreground mt-1 break-words">
+                      {user.office_name}
+                    </p>
+                  )}
                 </div>
               </div>
             </DropdownMenuTrigger>

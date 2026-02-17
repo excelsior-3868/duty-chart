@@ -33,11 +33,11 @@ def send_sms(phone, message, user=None, log_id=None):
             log.status = 'sending'
             log.save()
         except SMSLog.DoesNotExist:
-            # Fallback if log not found (shouldn't happen with correct flow)
             log = SMSLog.objects.create(
                 user=user,
                 phone=phone,
                 message=message,
+                reminder_type='GENERAL',
                 status='sending'
             )
     else:
@@ -45,6 +45,7 @@ def send_sms(phone, message, user=None, log_id=None):
             user=user,
             phone=phone,
             message=message,
+            reminder_type='GENERAL',
             status='sending'
         )
     
