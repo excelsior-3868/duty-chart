@@ -346,7 +346,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                   <Users className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Activated Users</p>
+                  <p className="text-[10px]  tracking-wider text-muted-foreground font-bold">Activated Users</p>
                   {isCountLoading ? (
                     <Skeleton className="h-6 w-12 mt-1" />
                   ) : (

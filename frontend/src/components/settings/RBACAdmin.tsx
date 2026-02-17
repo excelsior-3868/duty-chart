@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, Shield, Users, Save, RefreshCw, Check } from 'lucide-react';
 import { toast } from "sonner";
 import api from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 
 interface Role {
   id: number;
@@ -34,7 +35,7 @@ interface User {
 
 export function RBACAdmin() {
   const [activeTab, setActiveTab] = useState("matrix");
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -76,6 +77,7 @@ function RolePermissionMatrix() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const { user, refreshUser } = useAuth();
 
   useEffect(() => {
     fetchRolesAndPermissions();
@@ -125,6 +127,11 @@ function RolePermissionMatrix() {
         permissions: rolePermissions
       });
       toast.success("Permissions updated successfully");
+
+      // If updating own role, refresh session to apply changes immediately
+      if (user?.role === selectedRole.slug) {
+        await refreshUser();
+      }
     } catch (error) {
       console.error("Failed to update permissions", error);
       toast.error("Failed to update permissions");
@@ -134,8 +141,8 @@ function RolePermissionMatrix() {
   }
 
   const togglePermission = (slug: string) => {
-    setRolePermissions(prev => 
-      prev.includes(slug) 
+    setRolePermissions(prev =>
+      prev.includes(slug)
         ? prev.filter(p => p !== slug)
         : [...prev, slug]
     );
@@ -156,10 +163,10 @@ function RolePermissionMatrix() {
     if (!searchQuery) return groupedPermissions;
     const lowerQ = searchQuery.toLowerCase();
     const result: Record<string, Permission[]> = {};
-    
+
     Object.entries(groupedPermissions).forEach(([prefix, perms]) => {
-      const filtered = perms.filter(p => 
-        p.slug.toLowerCase().includes(lowerQ) || 
+      const filtered = perms.filter(p =>
+        p.slug.toLowerCase().includes(lowerQ) ||
         p.name.toLowerCase().includes(lowerQ)
       );
       if (filtered.length > 0) {
@@ -181,11 +188,10 @@ function RolePermissionMatrix() {
             <div
               key={role.id}
               onClick={() => setSelectedRole(role)}
-              className={`p-3 rounded-lg cursor-pointer transition-colors flex items-center justify-between ${
-                selectedRole?.id === role.id 
-                  ? "bg-primary text-primary-foreground" 
+              className={`p-3 rounded-lg cursor-pointer transition-colors flex items-center justify-between ${selectedRole?.id === role.id
+                  ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted"
-              }`}
+                }`}
             >
               <span className="font-medium">{role.name}</span>
               {selectedRole?.id === role.id && <Check className="h-4 w-4" />}
@@ -223,7 +229,7 @@ function RolePermissionMatrix() {
               className="pl-8"
             />
           </div>
-          
+
           <ScrollArea className="flex-1 pr-4">
             <div className="space-y-6">
               {Object.entries(filteredGroups).map(([group, perms]) => (
@@ -236,17 +242,15 @@ function RolePermissionMatrix() {
                       <div
                         key={perm.id}
                         onClick={() => togglePermission(perm.slug)}
-                        className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-all ${
-                          rolePermissions.includes(perm.slug)
+                        className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-all ${rolePermissions.includes(perm.slug)
                             ? "border-primary bg-primary/5"
                             : "hover:bg-muted/50"
-                        }`}
+                          }`}
                       >
-                        <div className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center ${
-                          rolePermissions.includes(perm.slug)
+                        <div className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center ${rolePermissions.includes(perm.slug)
                             ? "bg-primary border-primary text-primary-foreground"
                             : "border-muted-foreground"
-                        }`}>
+                          }`}>
                           {rolePermissions.includes(perm.slug) && <Check className="h-3 w-3" />}
                         </div>
                         <div className="space-y-1">
@@ -300,9 +304,9 @@ function UserRoleAssignment() {
 
   async function handleRoleChange(userId: number, newRoleSlug: string) {
     const originalUsers = [...users];
-    
+
     // Optimistic update
-    setUsers(users.map(u => 
+    setUsers(users.map(u =>
       u.id === userId ? { ...u, role: newRoleSlug } : u
     ));
 
@@ -316,7 +320,7 @@ function UserRoleAssignment() {
     }
   }
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter(user =>
     user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -360,8 +364,8 @@ function UserRoleAssignment() {
                   </div>
                   <div className="text-sm truncate" title={user.email}>{user.email}</div>
                   <div>
-                    <Select 
-                      value={user.role} 
+                    <Select
+                      value={user.role}
                       onValueChange={(val) => handleRoleChange(user.id, val)}
                     >
                       <SelectTrigger className="h-8">

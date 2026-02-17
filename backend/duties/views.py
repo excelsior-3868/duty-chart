@@ -158,13 +158,15 @@ class ScheduleView(viewsets.ModelViewSet):
             serializer.save()
             return
 
+        can_create_any_office = user_has_permission_slug(self.request.user, 'schedules.create_any_office_schedule')
+
         if not user_has_permission_slug(self.request.user, 'duties.manage_schedule') and \
            not user_has_permission_slug(self.request.user, 'schedules.create') and \
-           not user_has_permission_slug(self.request.user, 'schedules.create_office_schedule'):
+           not can_create_any_office:
             raise serializers.ValidationError("You do not have permission to create schedules.")
 
         allowed = get_allowed_office_ids(self.request.user)
-        if not office_id or int(office_id) not in allowed:
+        if (not office_id or int(office_id) not in allowed) and not can_create_any_office:
             raise serializers.ValidationError("Not allowed to create schedule for this office.")
         serializer.save()
 

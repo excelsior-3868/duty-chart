@@ -41,6 +41,7 @@ interface AddScheduleCardProps {
   mode?: "create" | "edit";
   activeOfficeId?: number | null;
   userOfficeName?: string;
+  disableOfficeSelection?: boolean;
 }
 
 export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
@@ -50,6 +51,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
   mode = "create",
   activeOfficeId,
   userOfficeName,
+  disableOfficeSelection = false,
 }) => {
   const { user, canManageOffice } = useAuth();
   const [formData, setFormData] = useState({
@@ -348,6 +350,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                     <Button
                       variant="default"
                       role="combobox"
+                      itemType="button"
                       aria-expanded={openOffice}
                       className={cn(
                         "w-full justify-between font-normal bg-primary text-primary-foreground hover:bg-primary/90",
@@ -384,7 +387,14 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                             Select Office
                           </CommandItem>
                           {offices
-                            .filter(office => canManageOffice(office.id))
+                            .filter(office => {
+                              if (disableOfficeSelection) {
+                                // If selection is disabled (no 'create_any' permission), only show the active/assigned office
+                                return String(office.id) === String(activeOfficeId || user?.office_id);
+                              }
+                              // Otherwise show all offices they can manage
+                              return canManageOffice(office.id);
+                            })
                             .map((office) => (
                               <CommandItem
                                 key={office.id}

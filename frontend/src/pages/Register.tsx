@@ -130,8 +130,7 @@ const Register = () => {
   };
 
   // Step 3: Validate OTP
-  const handleValidateOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateOtpLogic = async () => {
     setIsLoading(true);
     try {
       await publicApi.post("/v1/otp/validate/", {
@@ -145,6 +144,19 @@ const Register = () => {
       setIsLoading(false);
     }
   };
+
+  const handleValidateOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    validateOtpLogic();
+  };
+
+  // Auto-verify when OTP is 4 digits
+  useEffect(() => {
+    if (step === "OTP" && otp.length === 4) {
+      validateOtpLogic();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otp, step]);
 
   // Step 4: Complete Signup
   const handleComplete = async (e: React.FormEvent) => {

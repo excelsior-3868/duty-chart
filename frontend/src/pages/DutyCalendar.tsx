@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -98,6 +99,11 @@ const DutyCalendar = () => {
     const [offices, setOffices] = useState<Office[]>([]);
     const [dutyCharts, setDutyCharts] = useState<DutyChart[]>([]);
     const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
+
+    // --- Bulk Delete State ---
+    const [selectedDutyIds, setSelectedDutyIds] = useState<Set<string>>(new Set());
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+    const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
     const [selectedDutyChartId, setSelectedDutyChartId] = useState<string>("");
     const [officeOpen, setOfficeOpen] = useState(false);
     const [dutyChartOpen, setDutyChartOpen] = useState(false);
@@ -406,7 +412,93 @@ const DutyCalendar = () => {
     }, [yearBS, monthBS]);
 
 
-    // --- Handlers ---
+    const canDeleteAssignment = useCallback((a: DutyAssignment) => {
+        if (!hasPermission('duties.delete')) return false;
+        // User with cross-office permission can delete anyone
+        if (hasPermission('duties.remove_other_office_employee')) return true;
+        // Otherwise, must match user's office
+        if (user?.office_id && a.employee_office_id && Number(user.office_id) === Number(a.employee_office_id)) return true;
+        return false;
+    }, [hasPermission, user]);
+
+    const modalAssignments = useMemo(() => {
+        if (!selectedDateForDetail) return [];
+        return assignments
+            .filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId))
+            .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
+    }, [assignments, selectedDateForDetail, selectedScheduleId]);
+
+    // Bulk Delete Logic
+    const toggleDutySelection = (id: string) => {
+        const newSelected = new Set(selectedDutyIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedDutyIds(newSelected);
+    };
+
+    const handleSelectAll = () => {
+        const selectable = modalAssignments.filter(canDeleteAssignment);
+        if (selectable.length === 0) return;
+
+        const allSelected = selectable.every(a => selectedDutyIds.has(a.id));
+
+        if (allSelected) {
+            // Deselect all visible
+            const newSet = new Set(selectedDutyIds);
+            selectable.forEach(a => newSet.delete(a.id));
+            setSelectedDutyIds(newSet);
+        } else {
+            // Select all visible
+            const newSet = new Set(selectedDutyIds);
+            selectable.forEach(a => newSet.add(a.id));
+            setSelectedDutyIds(newSet);
+        }
+    };
+
+    const handleBulkDeleteClick = () => {
+        if (selectedDutyIds.size === 0) return;
+        setShowBulkDeleteConfirm(true);
+    };
+
+    const confirmBulkDelete = async () => {
+        setShowBulkDeleteConfirm(false);
+        setIsBulkDeleting(true);
+        try {
+            // Convert to array and delete each
+            const idsToDelete = Array.from(selectedDutyIds);
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const idStr of idsToDelete) {
+                try {
+                    await deleteDuty(parseInt(idStr));
+                    successCount++;
+                } catch (error) {
+                    console.error(`Failed to delete duty ${idStr}`, error);
+                    failCount++;
+                }
+            }
+
+            if (successCount > 0) {
+                toast.success(`Successfully deleted ${successCount} assignment(s).`);
+                fetchDuties(); // Refresh list
+                setSelectedDutyIds(new Set()); // Clear selection
+            }
+
+            if (failCount > 0) {
+                toast.error(`Failed to delete ${failCount} assignment(s). Check console/permissions.`);
+            }
+
+        } catch (error) {
+            toast.error("An error occurred during bulk delete.");
+        } finally {
+            setIsBulkDeleting(false);
+        }
+    };
+
     const handlePrevMonth = () => {
         let newMonth = monthBS - 1;
         let newYear = yearBS;
@@ -836,29 +928,61 @@ const DutyCalendar = () => {
                                             const nd = new NepaliDate(date);
                                             const isCurrentMonth = nd.getMonth() === monthBS;
                                             const isTodayDate = isSameDay(date, new Date());
-                                            const dayAssignments = assignments.filter(a =>
-                                                isSameDay(a.date, date) &&
-                                                (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)
-                                            ).map(a => {
-                                                const now = new Date();
-                                                const isOnShift = (() => {
-                                                    if (!isSameDay(a.date, now)) return false;
-                                                    if (!a.start_time || !a.end_time) return false;
-                                                    const [sh, sm] = a.start_time.split(':').map(Number);
-                                                    const [eh, em] = a.end_time.split(':').map(Number);
-                                                    const nowH = now.getHours();
-                                                    const nowM = now.getMinutes();
-                                                    const sMin = sh * 60 + sm;
-                                                    const eMin = eh * 60 + em;
-                                                    const nMin = nowH * 60 + nowM;
-                                                    if (eMin < sMin) return nMin >= sMin || nMin < eMin;
-                                                    return nMin >= sMin && nMin < eMin;
-                                                })();
-                                                return { ...a, isOnShift };
-                                            }).sort((a, b) => {
-                                                if (a.isOnShift !== b.isOnShift) return a.isOnShift ? -1 : 1;
-                                                return (a.start_time || "").localeCompare(b.start_time || "");
-                                            });
+                                            // Updated Logic: Only assigned shifts, sorted by time status
+                                            const dayAssignments = assignments
+                                                .filter(a =>
+                                                    isSameDay(a.date, date) &&
+                                                    (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)
+                                                )
+                                                .map(a => {
+                                                    const now = new Date();
+                                                    // Calculate time status relative to NOW
+                                                    const isToday = isSameDay(a.date, now);
+
+                                                    let status: 'current' | 'upcoming' | 'past' = 'past';
+
+                                                    if (a.start_time && a.end_time) {
+                                                        const [sh, sm] = a.start_time.split(':').map(Number);
+                                                        const [eh, em] = a.end_time.split(':').map(Number);
+
+                                                        const nowH = now.getHours();
+                                                        const nowM = now.getMinutes();
+                                                        const currentMin = nowH * 60 + nowM;
+                                                        const startMin = sh * 60 + sm;
+                                                        const endMin = eh * 60 + em;
+
+                                                        // Handle overnight logic roughly if end < start
+                                                        const isOvernight = endMin < startMin;
+
+                                                        if (isToday) {
+                                                            if (isOvernight) {
+                                                                if (currentMin >= startMin || currentMin < endMin) status = 'current';
+                                                                else if (currentMin < startMin) status = 'upcoming'; // e.g. 10 AM, start 10 PM
+                                                                else status = 'past';
+                                                            } else {
+                                                                if (currentMin >= startMin && currentMin < endMin) status = 'current';
+                                                                else if (currentMin < startMin) status = 'upcoming';
+                                                                else status = 'past';
+                                                            }
+                                                        } else if (new Date(a.date) > now) {
+                                                            status = 'upcoming';
+                                                        } else {
+                                                            status = 'past';
+                                                        }
+                                                    }
+
+                                                    return { ...a, status };
+                                                })
+                                                .sort((a, b) => {
+                                                    // Sort Order: Current -> Upcoming -> Past
+                                                    const statusOrder = { current: 0, upcoming: 1, past: 2 };
+                                                    if (a.status !== b.status) {
+                                                        return statusOrder[a.status as keyof typeof statusOrder] - statusOrder[b.status as keyof typeof statusOrder];
+                                                    }
+                                                    // Secondary Sort: Start Time
+                                                    return (a.start_time || "").localeCompare(b.start_time || "");
+                                                });
+
                                             const isSaturday = date.getDay() === 6;
 
                                             return (
@@ -893,15 +1017,17 @@ const DutyCalendar = () => {
                                                     <div className="space-y-1 overflow-y-auto max-h-[90px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                                                         {dayAssignments.map((assignment: any) => {
                                                             const shiftColor = getShiftColor(assignment.schedule_id);
-                                                            const isOnShift = assignment.isOnShift;
+                                                            const isUnassigned = assignment.type === 'unassigned';
+                                                            const isOnShift = assignment.status === 'current';
 
                                                             return (
                                                                 <div
                                                                     key={assignment.id}
                                                                     className={cn(
                                                                         "flex items-center gap-1.5 p-1 rounded-md border shadow-sm transition-all hover:shadow-md",
-                                                                        shiftColor.border,
-                                                                        shiftColor.bg
+                                                                        isUnassigned
+                                                                            ? "bg-slate-50 border-dashed border-slate-300 opacity-70"
+                                                                            : cn(shiftColor.border, shiftColor.bg)
                                                                     )}
                                                                 >
                                                                     {isOnShift && (
@@ -911,11 +1037,17 @@ const DutyCalendar = () => {
                                                                         </span>
                                                                     )}
                                                                     <div className="flex items-center justify-between flex-1 min-w-0">
-                                                                        <span className={cn("text-[10px] font-bold truncate leading-tight", shiftColor.text)}>
+                                                                        <span className={cn(
+                                                                            "text-[10px] truncate leading-tight",
+                                                                            isUnassigned ? "font-normal italic text-slate-500" : cn("font-bold", shiftColor.text)
+                                                                        )}>
                                                                             {assignment.employee_name}
                                                                         </span>
                                                                         {assignment.alias && (
-                                                                            <span className={cn("text-[8px] font-black opacity-60 uppercase shrink-0 ml-1", shiftColor.text)}>
+                                                                            <span className={cn(
+                                                                                "text-[8px] font-black opacity-60 uppercase shrink-0 ml-1",
+                                                                                isUnassigned ? "text-slate-400" : shiftColor.text
+                                                                            )}>
                                                                                 {assignment.alias}
                                                                             </span>
                                                                         )}
@@ -1170,7 +1302,10 @@ const DutyCalendar = () => {
                 </Dialog>
 
                 {/* Day Detail Modal */}
-                <Dialog open={showDayDetailModal} onOpenChange={setShowDayDetailModal}>
+                <Dialog open={showDayDetailModal} onOpenChange={(open) => {
+                    setShowDayDetailModal(open);
+                    if (!open) setSelectedDutyIds(new Set());
+                }}>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
@@ -1182,16 +1317,35 @@ const DutyCalendar = () => {
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="max-h-[60vh] overflow-y-auto space-y-3 py-4 pr-2 scrollbar-thin">
-                            {selectedDateForDetail && assignments
-                                .filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId))
-                                .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""))
-                                .map((a) => {
-                                    const shiftColor = getShiftColor(a.schedule_id);
-                                    return (
+                        {modalAssignments.some(canDeleteAssignment) && (
+                            <div className="flex items-center gap-2 px-1 pb-0 border-b">
+                                <Checkbox
+                                    checked={modalAssignments.length > 0 && modalAssignments.filter(canDeleteAssignment).length > 0 && modalAssignments.filter(canDeleteAssignment).every(a => selectedDutyIds.has(a.id))}
+                                    onCheckedChange={handleSelectAll}
+                                    disabled={modalAssignments.filter(canDeleteAssignment).length === 0}
+                                />
+                                <span className="text-sm font-medium">Select All</span>
+                            </div>
+                        )}
+
+                        <div className="max-h-[60vh] overflow-y-auto space-y-3 pt-0 pb-4 pr-2 scrollbar-thin">
+                            {modalAssignments.map((a) => {
+                                const shiftColor = getShiftColor(a.schedule_id);
+                                return (
+                                    <div
+                                        key={a.id}
+                                        className="flex items-center gap-3 p-3 bg-white border rounded-lg shadow-sm hover:border-blue-400 decoration-slate-900 transition-all group"
+                                    >
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            {canDeleteAssignment(a) && (
+                                                <Checkbox
+                                                    checked={selectedDutyIds.has(a.id)}
+                                                    onCheckedChange={() => toggleDutySelection(a.id)}
+                                                />
+                                            )}
+                                        </div>
                                         <div
-                                            key={a.id}
-                                            className="flex items-center gap-3 p-3 bg-white border rounded-lg shadow-sm hover:border-blue-400 cursor-pointer transition-all"
+                                            className="flex-1 min-w-0 flex items-center gap-3 cursor-pointer"
                                             onClick={() => {
                                                 handleAssignmentClick(a);
                                                 setShowDayDetailModal(false);
@@ -1211,12 +1365,46 @@ const DutyCalendar = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                    </div>
+                                );
+                            })}
                         </div>
 
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowDayDetailModal(false)}>Close</Button>
+                        <DialogFooter className="flex items-center justify-between sm:justify-between">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                {selectedDutyIds.size > 0 && <span>{selectedDutyIds.size} selected</span>}
+                            </div>
+                            <div className="flex gap-2">
+                                {selectedDutyIds.size > 0 && (
+                                    <>
+                                        <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={handleBulkDeleteClick}
+                                            disabled={isBulkDeleting}
+                                        >
+                                            {isBulkDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                                            Delete Selected
+                                        </Button>
+
+                                        <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirm Bulk Delete</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to delete {selectedDutyIds.size} selected assignment(s)? This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={confirmBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </>
+                                )}
+                                <Button variant="outline" onClick={() => setShowDayDetailModal(false)}>Close</Button>
+                            </div>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

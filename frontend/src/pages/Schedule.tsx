@@ -79,7 +79,8 @@ const Schedule = () => {
 
   const loading = authLoading || officesLoading || (!!activeOffice && schedulesLoading);
 
-  const canCreateAtAll = hasPermission("duties.manage_schedule") || hasPermission("schedules.create");
+  const canCreateAnyOffice = hasPermission("schedules.create_any_office_schedule");
+  const canCreateAtAll = hasPermission("duties.manage_schedule") || hasPermission("schedules.create") || canCreateAnyOffice;
   const canViewSchedules = hasPermission("duties.view_schedule") || hasPermission("schedules.view") || hasPermission("schedules.view_office_schedule");
 
   const canManageSelectedOffice =
@@ -136,8 +137,9 @@ const Schedule = () => {
             <DutyHoursCard
               mode={editingSchedule ? "edit" : "create"}
               initialSchedule={editingSchedule}
-              activeOfficeId={user?.office_id} // FIXED: Always default to user's home office, ignoring filter changes
+              activeOfficeId={canCreateAnyOffice && activeOffice ? activeOffice : user?.office_id}
               userOfficeName={user?.office_name}
+              disableOfficeSelection={!canCreateAnyOffice}
               onCancelEdit={() => setEditingSchedule(null)}
               onScheduleAdded={() => {
                 if (editingSchedule) {
