@@ -8,6 +8,8 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "@/routes"; // Main app routes
 import { AuthProvider } from "@/context/AuthContext";
 
+import { NotificationProvider } from "@/context/NotificationContext";
+
 // Create one QueryClient for React Query
 const queryClient = new QueryClient();
 
@@ -15,14 +17,16 @@ const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          {/* Toast notifications */}
-          <Toaster />
-          <Sonner />
+        <NotificationProvider>
+          <TooltipProvider>
+            {/* Toast notifications */}
+            <Toaster />
+            <Sonner />
 
-          {/* Application routes */}
-          <RouterProvider router={router} />
-        </TooltipProvider>
+            {/* Application routes */}
+            <RouterProvider router={router} />
+          </TooltipProvider>
+        </NotificationProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

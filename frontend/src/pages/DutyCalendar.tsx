@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2 } from "lucide-react";
@@ -137,16 +137,24 @@ const DutyCalendar = () => {
 
     const { user, hasPermission, canManageOffice } = useAuth();
     const location = useLocation();
+    const [searchParams] = useSearchParams();
     const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
-    // --- 0. Handle Preselection from Navigation State ---
+    // --- 0. Handle Preselection: from navigation state OR from URL query params ---
     useEffect(() => {
+        // Priority 1: React Router state (e.g. from programmatic navigation)
         const state = location.state as { preselect?: { officeId: string; dutyChartId: string } };
         if (state?.preselect) {
             setSelectedOfficeId(state.preselect.officeId);
             setSelectedDutyChartId(state.preselect.dutyChartId);
+            return;
         }
-    }, [location.state]);
+        // Priority 2: URL query params (e.g. from notification links)
+        const officeParam = searchParams.get('office');
+        const chartParam = searchParams.get('chart');
+        if (officeParam) setSelectedOfficeId(officeParam);
+        if (chartParam) setSelectedDutyChartId(chartParam);
+    }, [location.state, searchParams]);
 
 
     // --- 1. Load Offices ---

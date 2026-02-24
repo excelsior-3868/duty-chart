@@ -18,12 +18,19 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
     try:
         logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
         
-        if instance.user and instance.schedule and getattr(instance.schedule, 'shift_type', None) == 'Shift':
-            logger.info(f"Triggering assignment notification for Duty {instance.id} (Created: {created})")
+        NOTIFY_SHIFT_TYPES = ['Shift', 'Regular', 'OnCall']
+        shift_type = getattr(instance.schedule, 'shift_type', None) if instance.schedule else None
+        if instance.user and instance.schedule and shift_type in NOTIFY_SHIFT_TYPES:
+            logger.info(f"Triggering assignment notification for Duty {instance.id} (Created: {created}, shift_type: {shift_type})")
             # Transactional Safety: Wait for the Duty save to be committed
             transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
         else:
-            reason = "No user" if not instance.user else "Not a 'Shift' type"
+            if not instance.user:
+                reason = "No user assigned"
+            elif not instance.schedule:
+                reason = "No schedule assigned"
+            else:
+                reason = f"shift_type '{shift_type}' is not in notify list {NOTIFY_SHIFT_TYPES}"
             logger.debug(f"Skipping notification for Duty {instance.id} ({reason})")
     except Exception as e:
         logger.error(f"Error in notify_duty_assignment signal: {e}")
@@ -77,8 +84,25 @@ def _handle_duty_assignment_notification(instance):
                     except Exception as sms_err:
                         logger.error(f"Failed to queue SMS (threaded) for user {user.id}: {sms_err}")
 
+                # Build link to duty calendar pre-selecting the office and chart
+                office_id = instance.duty_chart.office_id if instance.duty_chart else (instance.office_id if instance.office else None)
+                chart_id = instance.duty_chart_id if instance.duty_chart else None
+                if office_id and chart_id:
+                    calendar_link = f'/duty-calendar?office={office_id}&chart={chart_id}'
+                else:
+                    calendar_link = '/duty-calendar'
+
+                # 2. Dashboard Notification logic
+                create_dashboard_notification(
+                    user=user,
+                    title="New Duty Assignment",
+                    message=f'You have been assigned to "{chart_name}" for the "{duty_name}" on {duty_date}.',
+                    notification_type='ASSIGNMENT',
+                    link=calendar_link
+                )
+
                 threading.Thread(target=trigger_sms_task, daemon=True).start()
-                logger.info(f"Queued assignment SMS for user {user.username}, duty {instance.id}")
+                logger.info(f"Queued assignment SMS and dashboard notification for user {user.username}, duty {instance.id}")
                 
             except IntegrityError:
                 # Already exists, skip sending again
