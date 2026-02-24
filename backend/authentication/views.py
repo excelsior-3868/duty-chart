@@ -64,10 +64,11 @@ class MeView(APIView):
             "employee_id": getattr(user, "employee_id", None),
             "role": role,
             "position_name": user.position.name if user.position else None,
-            "department_name": user.department.name if user.department else None,
             "office_name": user.office.name if user.office else None,
             "image": image_url,
             "office_id": getattr(user, "office_id", None),
+            "position_id": getattr(user, "position_id", None),
+            "phone_number": user.phone_number,
             "secondary_offices": list(user.secondary_offices.values_list('id', flat=True)) if hasattr(user, 'secondary_offices') else [],
             "permissions": permissions,
         })
