@@ -38,7 +38,21 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
             
         # If we are here, password is correct. Check global 2FA setting.
         system_setting = SystemSetting.objects.first()
-        if not system_setting or not system_setting.is_2fa_enabled:
+        
+        # Bypass 2FA for mobile app if valid mobile token is provided
+        from django.conf import settings
+        request = self.context.get('request')
+        
+        # Check both headers and META for the mobile token
+        mobile_token = None
+        if request:
+            mobile_token = request.headers.get('X-Mobile-Token') or request.META.get('HTTP_X_MOBILE_TOKEN')
+        
+        is_mobile_request = False
+        if mobile_token and settings.MOBILE_API_TOKEN:
+            is_mobile_request = mobile_token == settings.MOBILE_API_TOKEN
+        
+        if not system_setting or not system_setting.is_2fa_enabled or is_mobile_request:
             return data
             
         # Ensure self.user is set (SimpleJWT should do this, but being safe)

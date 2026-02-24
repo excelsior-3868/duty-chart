@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from users.permissions import SuperAdminOrReadOnly
+from authentication.permissions import HasMobileAPIToken
 from .models import Directorate, Department, Office, SystemSetting, AccountingOffice, CCOffice, WorkingOffice
 from .serializers import (
     DirectorateSerializer, DepartmentSerializer, 
@@ -22,7 +23,7 @@ class StandardResultsSetPagination(PageNumberPagination):
 class DirectorateViewSet(viewsets.ModelViewSet):
     queryset = Directorate.objects.all().order_by('id')
     serializer_class = DirectorateSerializer
-    permission_classes = [SuperAdminOrReadOnly]
+    permission_classes = [HasMobileAPIToken, SuperAdminOrReadOnly]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
@@ -58,7 +59,7 @@ class DirectorateViewSet(viewsets.ModelViewSet):
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
-    permission_classes = [SuperAdminOrReadOnly]
+    permission_classes = [HasMobileAPIToken, SuperAdminOrReadOnly]
 
     def get_queryset(self):
         queryset = Department.objects.all()
@@ -70,18 +71,17 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class OfficeViewSet(viewsets.ModelViewSet):
     queryset = WorkingOffice.objects.all()
     serializer_class = WorkingOfficeSerializer
-    permission_classes = [SuperAdminOrReadOnly]
+    permission_classes = [HasMobileAPIToken, SuperAdminOrReadOnly]
 
     def get_queryset(self):
+        print(f"[DEBUG] OfficeViewSet.get_queryset() head: {self.request.headers.get('Authorization')[:15] if self.request.headers.get('Authorization') else 'None'}")
         queryset = WorkingOffice.objects.all()
-        # Keep filter logic but maybe adapt to directorate if needed
-        # For now, searching by name is usually enough if filtered in frontend
         return queryset
 
 class AccountingOfficeViewSet(viewsets.ModelViewSet):
     queryset = AccountingOffice.objects.all().order_by('id')
     serializer_class = AccountingOfficeSerializer
-    permission_classes = [SuperAdminOrReadOnly]
+    permission_classes = [HasMobileAPIToken, SuperAdminOrReadOnly]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
@@ -100,7 +100,7 @@ class AccountingOfficeViewSet(viewsets.ModelViewSet):
 class CCOfficeViewSet(viewsets.ModelViewSet):
     queryset = CCOffice.objects.all().order_by('id')
     serializer_class = CCOfficeSerializer
-    permission_classes = [SuperAdminOrReadOnly]
+    permission_classes = [HasMobileAPIToken, SuperAdminOrReadOnly]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):

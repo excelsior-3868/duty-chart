@@ -103,7 +103,15 @@ class DutySerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         user = instance.user
         data['user_name'] = getattr(user, 'full_name', None)
-        data['office_name'] = getattr(instance.office, 'name', None)
+        
+        # Fallback to duty_chart office if instance.office is null
+        office = instance.office
+        if not office and instance.duty_chart:
+            office = instance.duty_chart.office
+            
+        data['office'] = office.id if office else None
+        data['office_name'] = office.name if office else None
+        
         data['schedule_name'] = instance.schedule.name if instance.schedule else None
         data['shift_type'] = instance.schedule.shift_type if instance.schedule else None
         data['alias'] = instance.schedule.alias if instance.schedule else None
