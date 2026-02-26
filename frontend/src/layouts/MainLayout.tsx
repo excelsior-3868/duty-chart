@@ -26,33 +26,59 @@ export const MainLayout = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    let idleTimer: any;
+    // Track activity events
+    const handleActivity = () => {
+      // Throttle updates to localStorage by only writing once per second
+      const now = Date.now();
+      const lastActivityStr = localStorage.getItem('last_activity');
+      const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : 0;
 
-    const startIdleTimer = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-
-      const idleEnabled = localStorage.getItem('auto_logout_idle') !== 'false'; // Default to true if not set
-      const timeoutMinutes = parseInt(localStorage.getItem('session_timeout') || '60');
-
-      if (idleEnabled && timeoutMinutes > 0) {
-        idleTimer = setTimeout(() => {
-          handleSessionExpiration("Logged out due to inactivity.");
-        }, timeoutMinutes * 60 * 1000);
+      if (now - lastActivity > 1000) {
+        localStorage.setItem('last_activity', String(now));
       }
     };
 
-    // Set up activity listeners for idle logout
     const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    const handleActivity = () => startIdleTimer();
+    activityEvents.forEach(event => document.addEventListener(event, handleActivity, { passive: true }));
 
-    activityEvents.forEach(event => document.addEventListener(event, handleActivity));
+    const checkSession = () => {
+      const timeoutMinutesStr = localStorage.getItem('session_timeout') || '60';
+      const timeoutMinutes = parseInt(timeoutMinutesStr, 10);
 
-    // Initialize timer
-    startIdleTimer();
+      const autoLogoutIdleStr = localStorage.getItem('auto_logout_idle');
+      const autoLogoutIdle = autoLogoutIdleStr !== 'false';
+
+      if (timeoutMinutes <= 0) return;
+
+      const now = Date.now();
+      const timeoutMs = timeoutMinutes * 60 * 1000;
+
+      if (autoLogoutIdle) {
+        // Idle timeout logic: Compare current time with `last_activity`
+        const lastActivityStr = localStorage.getItem('last_activity');
+        const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : now;
+        if (now - lastActivity >= timeoutMs) {
+          handleSessionExpiration("Logged out due to inactivity.");
+        }
+      } else {
+        // Absolute timeout logic: Compare current time with `session_start_time`
+        const startTimeStr = localStorage.getItem('session_start_time');
+        const startTime = startTimeStr ? parseInt(startTimeStr, 10) : now;
+        if (now - startTime >= timeoutMs) {
+          handleSessionExpiration("Session has expired. Please log in again.");
+        }
+      }
+    };
+
+    // Check immediately on load in case returning after sleeping/closing browser
+    checkSession();
+
+    // Poll for session expiration
+    const pollInterval = window.setInterval(checkSession, 10000); // Check every 10 seconds
 
     return () => {
       activityEvents.forEach(event => document.removeEventListener(event, handleActivity));
-      if (idleTimer) clearTimeout(idleTimer);
+      clearInterval(pollInterval);
     };
   }, [isAuthenticated, handleSessionExpiration]);
 
@@ -60,8 +86,19 @@ export const MainLayout = () => {
   useEffect(() => {
     if (isAuthenticated) {
       api.get("system-settings/").then(res => {
-        localStorage.setItem('session_timeout', String(res.data.session_timeout));
-        localStorage.setItem('auto_logout_idle', String(res.data.auto_logout_idle));
+        const timeout = res.data.session_timeout || 60;
+        const autoIdle = res.data.auto_logout_idle ?? true;
+
+        localStorage.setItem('session_timeout', String(timeout));
+        localStorage.setItem('auto_logout_idle', String(autoIdle));
+
+        // If session start time doesn't exist, hydrate it to prevent immediate absolute logouts
+        if (!localStorage.getItem('session_start_time')) {
+          localStorage.setItem('session_start_time', String(Date.now()));
+        }
+        if (!localStorage.getItem('last_activity')) {
+          localStorage.setItem('last_activity', String(Date.now()));
+        }
       }).catch(err => console.error("Failed to sync security settings", err));
     }
   }, [isAuthenticated]);

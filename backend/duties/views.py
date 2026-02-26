@@ -1530,7 +1530,7 @@ class DutyChartImportTemplateView(APIView):
 
                     ws.append([
                         bs_date_str,
-                        "",       # Search Employee (Dropdown)
+                        "",       # Search Employee (Dropdown Box)
                         f_id,     # Employee ID (Auto-populated)
                         f_name,   # Employee Name (Auto-populated)
                         f_phone,
@@ -1542,13 +1542,13 @@ class DutyChartImportTemplateView(APIView):
                     ])
                     row_idx += 1
 
-        # Add Data Validation (Combined ID - Name Dropdown)
+        # Add Data Validation (Combined ID - Name Dropdown for Search Box)
         from openpyxl.worksheet.datavalidation import DataValidation
-        dv = DataValidation(type="list", formula1="'Reference - Office Users'!$H$2:$H$1000", allow_blank=True)
+        dv = DataValidation(type="list", formula1="'Reference - Office Users'!$H$2:$H$1000", allow_blank=True, showErrorMessage=False)
         dv.add(f"B2:B{row_idx}")
         ws.add_data_validation(dv)
         
-        # Auto-adjust column width for Column B (Search Employee)
+        # Auto-adjust column width for Search Combobox
         ws.column_dimensions['B'].width = 40
         ws.column_dimensions['C'].width = 15
         ws.column_dimensions['D'].width = 25

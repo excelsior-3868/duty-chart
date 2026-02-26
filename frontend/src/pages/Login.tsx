@@ -23,7 +23,7 @@ import { Loader2 } from "lucide-react";
 
 const Login = () => {
     const navigate = useNavigate();
-    const { refreshUser } = useAuth();
+    const { refreshUser, isAuthenticated } = useAuth();
     const [showPassword, setShowPassword] = useState(false);
     const [resetOpen, setResetOpen] = useState(false);
     const [formData, setFormData] = useState({ username: "", password: "" });
@@ -77,7 +77,12 @@ const Login = () => {
 
     useEffect(() => {
         document.title = "Login - Duty Chart";
-    }, []);
+        // If the user is already authenticated (e.g. they refreshed the page on the login route but have valid tokens),
+        // redirect them automatically to the dashboard so they don't have to log in again.
+        if (isAuthenticated) {
+            navigate(ROUTES.DASHBOARD);
+        }
+    }, [isAuthenticated, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -103,6 +108,8 @@ const Login = () => {
             // ... (lines 61-111) ...
             localStorage.setItem("access", access);
             localStorage.setItem("refresh", refresh);
+            localStorage.setItem("session_start_time", String(Date.now()));
+            localStorage.setItem("last_activity", String(Date.now()));
 
             if (first_login !== undefined) {
                 localStorage.setItem("first_login", String(first_login));
@@ -154,6 +161,8 @@ const Login = () => {
             const { access, refresh } = res.data;
             localStorage.setItem("access", access);
             localStorage.setItem("refresh", refresh);
+            localStorage.setItem("session_start_time", String(Date.now()));
+            localStorage.setItem("last_activity", String(Date.now()));
 
             await refreshUser();
             toast.success("Login successful");

@@ -56,7 +56,10 @@ interface SortableOfficeCardProps {
 }
 
 const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: SortableOfficeCardProps) => {
-  const [activeTab, setActiveTab] = useState<"Shift" | "Regular">("Shift");
+  const [activeTab, setActiveTab] = useState<"Shift" | "Regular">(() => {
+    const hasActiveShifts = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "shift");
+    return hasActiveShifts ? "Shift" : "Regular";
+  });
 
   const {
     attributes,

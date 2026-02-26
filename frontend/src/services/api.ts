@@ -42,7 +42,7 @@ api.interceptors.response.use(
     const url: string = originalConfig?.url || "";
 
     const isAuthEndpoint =
-      url.includes("/token/") || url.includes("/token/refresh/") || url.includes("/auth/me/");
+      url.includes("/token/") && !url.includes("/token/refresh/");
 
     const refreshToken = localStorage.getItem("refresh");
 
