@@ -62,6 +62,7 @@ interface User {
     id: number;
     full_name: string;
     employee_id?: string;
+    office_name?: string;
 }
 
 interface DutyOption {
@@ -685,7 +686,7 @@ function UserWiseReportNew() {
                                                                         <div className="flex flex-col">
                                                                             <span className="truncate">{u.full_name}</span>
                                                                             <span className={cn("text-[9px] font-normal", isSelected ? "text-primary/70" : "text-slate-400")}>
-                                                                                ID: {u.employee_id || "N/A"}
+                                                                                ID: {u.employee_id || "N/A"} {u.office_name && <span className="opacity-70 mx-1">• {u.office_name}</span>}
                                                                             </span>
                                                                         </div>
                                                                     </div>

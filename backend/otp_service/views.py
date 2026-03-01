@@ -6,6 +6,8 @@ from django.db.models import Q
 from .models import OTPRequest
 from org.models import Office, WorkingOffice
 from org.serializers import OfficeSerializer, WorkingOfficeSerializer
+from users.models import Position
+from users.serializers import PositionSerializer
 from .serializers import (
     RequestOTPSerializer, ValidateOTPSerializer, ResetPasswordSerializer, 
     UserLookupSerializer, SignupCompleteSerializer
@@ -422,6 +424,15 @@ class SignupOfficeListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class SignupPositionListView(APIView):
+    permission_classes = []
+
+    def get(self, request):
+        positions = Position.objects.all().order_by('-level', 'name')
+        serializer = PositionSerializer(positions, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class SignupCompleteView(APIView):
     permission_classes = []
 
@@ -433,11 +444,17 @@ class SignupCompleteView(APIView):
         request_id = serializer.validated_data['request_id']
         password = serializer.validated_data['password']
         office_id = serializer.validated_data['office_id']
+        position_id = serializer.validated_data['position_id']
         
         try:
             office = WorkingOffice.objects.get(id=office_id)
         except WorkingOffice.DoesNotExist:
             return Response({"message": "Invalid Working Office ID selected."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            position = Position.objects.get(id=position_id)
+        except Position.DoesNotExist:
+            return Response({"message": "Invalid Position ID selected."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # We want an OTP Request that was validated and for signup purpose
@@ -457,9 +474,7 @@ class SignupCompleteView(APIView):
         user.is_active = True
         user.is_activated = True
         user.office = office
-        # WorkingOffice does not have department/directorate relations necessarily?
-        # If user model expects direct assignment, we just did user.office = office (which is now WorkingOffice instance)
-        # We removed the department/directorate sync logic as WorkingOffice is flat list?
+        user.position = position
         user.save()
         
         # Mark request as completed

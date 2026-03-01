@@ -172,6 +172,9 @@ class DutySerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['user_name'] = instance.user.full_name if instance.user else 'Unassigned'
+        data['phone_number'] = instance.user.phone_number if instance.user else None
+        data['user_working_office'] = instance.user.office.name if instance.user and instance.user.office else None
+        data['position_name'] = instance.user.position.name if instance.user and instance.user.position else None
         
         office_name = None
         if instance.office:

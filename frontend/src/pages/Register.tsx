@@ -48,6 +48,10 @@ const Register = () => {
   const [selectedOffice, setSelectedOffice] = useState<string>("");
   const [officeSearch, setOfficeSearch] = useState("");
   const [officePopoverOpen, setOfficePopoverOpen] = useState(false);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [selectedPosition, setSelectedPosition] = useState<string>("");
+  const [positionSearch, setPositionSearch] = useState("");
+  const [positionPopoverOpen, setPositionPopoverOpen] = useState(false);
   const [timer, setTimer] = useState(300); // 5 minutes
   const [canResend, setCanResend] = useState(false);
 
@@ -74,6 +78,7 @@ const Register = () => {
   useEffect(() => {
     if (step === "PASSWORD") {
       fetchOffices();
+      fetchPositions();
     }
   }, [step]);
 
@@ -87,8 +92,22 @@ const Register = () => {
     }
   };
 
+  const fetchPositions = async () => {
+    try {
+      const { data } = await publicApi.get("/v1/otp/signup/positions/");
+      setPositions(data);
+    } catch (err) {
+      console.error("Failed to fetch positions", err);
+      toast.error("Failed to load positions.");
+    }
+  };
+
   const filteredOffices = offices.filter((office) =>
     office.name.toLowerCase().includes(officeSearch.toLowerCase())
+  );
+
+  const filteredPositions = positions.filter((pos) =>
+    pos.name.toLowerCase().includes(positionSearch.toLowerCase())
   );
 
   // Step 1: Lookup Employee
@@ -169,13 +188,18 @@ const Register = () => {
       toast.error("Please select a working office.");
       return;
     }
+    if (!selectedPosition) {
+      toast.error("Please select a designation/position.");
+      return;
+    }
     setIsLoading(true);
     try {
       await publicApi.post("/v1/otp/signup/complete/", {
         request_id: requestId,
         password: passwordData.password,
         confirm_password: passwordData.confirmPassword,
-        office_id: selectedOffice
+        office_id: selectedOffice,
+        position_id: selectedPosition
       });
       toast.success("Account activated successfully!");
       navigate(ROUTES.LOGIN);
@@ -372,6 +396,65 @@ const Register = () => {
                                 }}
                               >
                                 {office.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-gray-700">Designation / Position</Label>
+                  <Popover open={positionPopoverOpen} onOpenChange={setPositionPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={positionPopoverOpen}
+                        className="h-11 w-full justify-between font-normal"
+                      >
+                        {selectedPosition
+                          ? positions.find((p) => String(p.id) === selectedPosition)?.name
+                          : "Select Working Position"}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="ml-2 h-4 w-4 shrink-0 opacity-50"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search position..."
+                          value={positionSearch}
+                          onValueChange={setPositionSearch}
+                        />
+                        <CommandList className="max-h-[250px] overflow-y-auto">
+                          <CommandEmpty>No position found.</CommandEmpty>
+                          <CommandGroup>
+                            {filteredPositions.map((pos) => (
+                              <CommandItem
+                                key={pos.id}
+                                value={pos.name}
+                                onSelect={() => {
+                                  setSelectedPosition(String(pos.id));
+                                  setPositionPopoverOpen(false);
+                                  setPositionSearch("");
+                                }}
+                              >
+                                {pos.name}
                               </CommandItem>
                             ))}
                           </CommandGroup>

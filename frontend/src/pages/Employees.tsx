@@ -32,6 +32,7 @@ import { getDepartments, type Department } from "@/services/departments";
 import { getOffices, type Office } from "@/services/offices";
 import api from "@/services/api";
 import { Protect } from "@/components/auth/Protect";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -73,6 +74,7 @@ const Employees = () => {
   const [selectedOffice, setSelectedOffice] = useState<number | null>(null);
   const [selectedSecondaryOffice, setSelectedSecondaryOffice] = useState<number | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("USER");
+  const [isActivated, setIsActivated] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState(false);
   const [openOfficeCombobox, setOpenOfficeCombobox] = useState(false);
 
@@ -80,6 +82,8 @@ const Employees = () => {
   const [generatedPassword, setGeneratedPassword] = useState<string>("");
   const [revealedOnce, setRevealedOnce] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [openPositionCombobox, setOpenPositionCombobox] = useState(false);
+  const [openEditPositionCombobox, setOpenEditPositionCombobox] = useState(false);
 
   // -------- Professional Table State --------
   // const [employeesList, setEmployeesList] = useState<any[]>([]);
@@ -221,6 +225,7 @@ const Employees = () => {
       position: getIdFromField(emp.position),
       role: emp.role || "USER",
       is_active: emp.is_active ?? true,
+      is_activated: emp.is_activated ?? true,
     });
     setEditModalOpen(true);
     // Lazy load roles and preview perms
@@ -265,6 +270,7 @@ const Employees = () => {
         position: selectedEmployee.position || undefined,
         role: selectedEmployee.role || undefined,
         is_active: selectedEmployee.is_active,
+        is_activated: selectedEmployee.is_activated,
       };
       console.log("Submit payload:", payload);
       const res = await api.put(`/users/${selectedEmployee.id}/`, payload);
@@ -306,6 +312,10 @@ const Employees = () => {
   }
 
   // Load org hierarchy lists and positions in parallel
+  // Use useMemo to sort positions by level descending
+  const sortedPositions = useMemo(() => {
+    return [...positions].sort((a, b) => (b.level || 0) - (a.level || 0));
+  }, [positions]);
   useEffect(() => {
     document.title = "Employees - NT Duty Chart Management";
   }, []);
@@ -440,11 +450,11 @@ const Employees = () => {
         email,
         username: employeeId, // keep username populated; login is via email
         phone_number: phoneNumber || undefined,
-        // directorate and department removed
         office: selectedOffice,
         position: selectedPosition,
         role: selectedRole,
         is_active: true,
+        is_activated: isActivated,
         password: autoPassword,
       };
 
@@ -461,6 +471,7 @@ const Employees = () => {
       setSelectedOffice(null);
       setSelectedSecondaryOffice(null);
       setSelectedRole("USER");
+      setIsActivated(false);
       setGeneratedPassword("");
       setShowPassword(false);
       setRevealedOnce(false);
@@ -469,7 +480,20 @@ const Employees = () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     } catch (err: any) {
       console.error(err);
-      const msg = err?.response?.data?.detail || "Failed to create employee.";
+      let msg = "Failed to create employee.";
+      if (err?.response?.data) {
+        if (typeof err.response.data === 'string') {
+          msg = err.response.data;
+        } else if (err.response.data.detail) {
+          msg = err.response.data.detail;
+        } else if (typeof err.response.data === 'object') {
+          // Combine all error array messages into a single string
+          const errors = Object.values(err.response.data).flat();
+          if (errors.length > 0) {
+            msg = errors.join(' ');
+          }
+        }
+      }
       toast.error(String(msg));
     } finally {
       setSubmitting(false);
@@ -525,20 +549,49 @@ const Employees = () => {
               </div>
               <div className="space-y-2">
                 <Label>Designation / Position</Label>
-                <Select value={selectedPosition ? String(selectedPosition) : undefined} onValueChange={(v) => setSelectedPosition(Number(v))}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions.length === 0 ? (
-                      <SelectItem value="no-positions" disabled>No positions found</SelectItem>
-                    ) : (
-                      positions.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <Popover open={openPositionCombobox} onOpenChange={setOpenPositionCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openPositionCombobox}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedPosition
+                        ? sortedPositions.find((p) => p.id === selectedPosition)?.name
+                        : "Select position"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search position..." />
+                      <CommandList className="max-h-[300px] overflow-y-auto">
+                        <CommandEmpty>No position found.</CommandEmpty>
+                        <CommandGroup>
+                          {sortedPositions.map((p) => (
+                            <CommandItem
+                              key={p.id}
+                              value={p.name}
+                              onSelect={() => {
+                                setSelectedPosition(p.id === selectedPosition ? null : p.id);
+                                setOpenPositionCombobox(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedPosition === p.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {p.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -606,6 +659,16 @@ const Employees = () => {
                     <SelectItem value="USER">User</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Registered</Label>
+                <div className="flex items-center space-x-2 pt-1">
+                  <Switch id="is_activated" checked={isActivated} onCheckedChange={setIsActivated} />
+                  <Label htmlFor="is_activated" className="font-normal cursor-pointer">
+                    {isActivated ? "Yes" : "No"}
+                  </Label>
+                </div>
               </div>
             </div>
           </div>
@@ -708,6 +771,7 @@ const Employees = () => {
                 <TableHead className="py-3 text-white font-bold text-sm">Email</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Office</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Status</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Registered</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -748,6 +812,9 @@ const Employees = () => {
                       <Badge variant={emp.is_active ? "default" : "secondary"} className="text-[10px] font-bold px-2 py-0.5 h-5 w-fit">
                         {emp.is_active ? "Active" : "Inactive"}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-slate-700 font-medium text-sm font-semibold">
+                      {emp.is_activated ? "Yes" : "No"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -936,7 +1003,7 @@ const Employees = () => {
                     <PopoverContent className="w-[400px] p-0">
                       <Command>
                         <CommandInput placeholder="Search office..." />
-                        <CommandList>
+                        <CommandList className="max-h-[300px] overflow-y-auto">
                           <CommandEmpty>No office found.</CommandEmpty>
                           <CommandGroup>
                             {offices.map((o) => (
@@ -966,20 +1033,64 @@ const Employees = () => {
 
                 <div>
                   <Label>Position</Label>
-                  <Select value={selectedEmployee.position ? String(selectedEmployee.position) : ""} onValueChange={(v) => setSelectedEmployee({ ...selectedEmployee, position: Number(v) })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {positions.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={openEditPositionCombobox} onOpenChange={setOpenEditPositionCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openEditPositionCombobox}
+                        className="w-full justify-between font-normal"
+                      >
+                        {selectedEmployee.position
+                          ? sortedPositions.find((p) => p.id === selectedEmployee.position)?.name
+                          : "Select position"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search position..." />
+                        <CommandList className="max-h-[300px] overflow-y-auto">
+                          <CommandEmpty>No position found.</CommandEmpty>
+                          <CommandGroup>
+                            {sortedPositions.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => {
+                                  setSelectedEmployee({
+                                    ...selectedEmployee,
+                                    position: p.id === selectedEmployee.position ? null : p.id,
+                                  });
+                                  setOpenEditPositionCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedEmployee.position === p.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {p.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 {(hasPermission('users.edit_employee') || hasPermission('users.create_any_office_employee')) && (
-                  <div className="flex items-center gap-2">
-                    <Label>Active</Label>
-                    <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4" />
+                  <div className="flex items-center gap-6 mt-4">
+                    <div className="flex items-center gap-2">
+                      <Label>Active</Label>
+                      <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4 cursor-pointer" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label>Registered</Label>
+                      <input type="checkbox" checked={!!selectedEmployee.is_activated} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_activated: e.target.checked })} className="w-4 h-4 cursor-pointer" />
+                    </div>
                   </div>
                 )}
               </div>

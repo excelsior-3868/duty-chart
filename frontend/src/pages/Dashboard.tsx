@@ -144,31 +144,41 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <div className="space-y-3">
-            {visibleRows.map((row: any) => (
-              <div
-                key={row.id}
-                className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/50 border border-emerald-100/50 px-2.5 py-1.5"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-bold text-emerald-900 leading-tight">{row.full_name}</p>
-                  <p className="text-[10px] text-emerald-700/70">{row.phone_number || "No contact"}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex flex-col items-end leading-none">
-                    <span className="text-[10px] text-emerald-800 font-semibold">{row.schedule_name || "—"}</span>
-                    {row.start_time && row.end_time && (
-                      <span className="text-[9px] text-emerald-600/60 font-medium">
-                        {row.start_time.substring(0, 5)}-{row.end_time.substring(0, 5)}
-                      </span>
+            {visibleRows.map((row: any) => {
+              return (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/50 border border-emerald-100/50 px-2.5 py-1.5"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-emerald-900 leading-tight">
+                      {row.full_name}
+                      {group.officeName.includes("INOC") && row.working_office ? ` (${row.working_office})` : ""}
+                    </p>
+                    {row.position_name && (
+                      <p className="text-[10.5px] font-medium text-emerald-800 leading-tight mt-0.5">
+                        {row.position_name}
+                      </p>
                     )}
+                    <p className="text-[10px] text-emerald-700/70 mt-0.5">{row.phone_number || "No contact"}</p>
                   </div>
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                    title="On duty"
-                  />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col items-end leading-none">
+                      <span className="text-[10px] text-emerald-800 font-semibold">{row.schedule_name || "—"}</span>
+                      {row.start_time && row.end_time && (
+                        <span className="text-[9px] text-emerald-600/60 font-medium">
+                          {row.start_time.substring(0, 5)}-{row.end_time.substring(0, 5)}
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                      title="On duty"
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {filteredRows.length === 0 && (
               <div className="py-4 text-center border rounded-lg bg-slate-50/50">
                 <p className="text-xs text-muted-foreground">No personnel currently active</p>
@@ -362,6 +372,8 @@ const Dashboard = () => {
     end_time?: string | null;
     currently_available: boolean;
     shift_type?: string | null;
+    working_office?: string | null;
+    position_name?: string | null;
   };
 
   const groupedByOffice = useMemo(() => {
@@ -399,6 +411,8 @@ const Dashboard = () => {
         end_time: d.end_time || null,
         currently_available: isActive,
         shift_type: d.shift_type || "Regular",
+        working_office: d.user_office_name || (d as any).user_working_office || userObj?.office_name || null,
+        position_name: (d as any).position_name || userObj?.position_name || null,
       };
 
       if (!groups.has(officeId)) {
