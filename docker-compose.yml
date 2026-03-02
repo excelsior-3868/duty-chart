@@ -7,6 +7,7 @@ services:
     container_name: duty-chart-backend
     volumes:
       - ./backend:/app
+      - ./mobileApp:/app/mobileApp
       - static_volume:/app/static
       - media_volume:/app/media
     ports:
@@ -32,6 +33,7 @@ services:
     command: celery -A config worker --loglevel=info
     volumes:
       - ./backend:/app
+      - ./mobileApp:/app/mobileApp
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:
@@ -49,6 +51,7 @@ services:
     command: celery -A config beat --loglevel=info
     volumes:
       - ./backend:/app
+      - ./mobileApp:/app/mobileApp
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:
@@ -65,6 +68,8 @@ services:
     container_name: duty-chart-frontend
     ports:
       - "80:80"
+    volumes:
+      - ./mobileApp:/usr/share/nginx/html/mobileApp:ro
     depends_on:
       - duty-chart-backend
 

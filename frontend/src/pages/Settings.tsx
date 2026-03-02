@@ -5,22 +5,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock, Loader2, Smartphone, Upload, CheckCircle2 } from 'lucide-react';
 import { RBACAdmin } from "@/components/settings/RBACAdmin";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 
 const Settings = () => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState({
     id: null,
     is_2fa_enabled: false,
     session_timeout: 60,
-    auto_logout_idle: true
+    auto_logout_idle: true,
+    latest_app_version: "1.0.0",
+    old_app_version: "1.0.0",
+    app_update_url: ""
   });
 
   useEffect(() => {
@@ -56,6 +61,42 @@ const Settings = () => {
       toast.error("Failed to update settings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.apk')) {
+      toast.error("Please select a valid .apk file");
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('apk', file);
+
+    try {
+      const { data } = await api.post("system-settings/upload_apk/", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      toast.success("APK uploaded successfully");
+
+      // Update form state with the new relative URL
+      setSettings(prev => ({
+        ...prev,
+        app_update_url: data.url,
+        latest_app_version: data.version || prev.latest_app_version
+      }));
+    } catch (err: any) {
+      console.error("Upload failed:", err);
+      toast.error(err.response?.data?.error || "Failed to upload APK");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -166,6 +207,75 @@ const Settings = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Mobile App Updates - Super Admin Only */}
+            {hasRole('SUPERADMIN') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5" />
+                    Mobile App Updates
+                  </CardTitle>
+                  <CardDescription>Manage app versions and update notifications</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="latest-version">Latest Version</Label>
+                      <Input
+                        id="latest-version"
+                        placeholder="e.g., 1.0.1"
+                        value={settings.latest_app_version}
+                        onChange={(e) => setSettings({ ...settings, latest_app_version: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="old-version">Old Version</Label>
+                      <Input
+                        id="old-version"
+                        placeholder="e.g., 1.0.0"
+                        value={settings.old_app_version}
+                        onChange={(e) => setSettings({ ...settings, old_app_version: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4 pt-2">
+                    <Label>Upload New APK</Label>
+                    <div
+                      className="border-2 border-dashed border-muted rounded-lg p-6 flex flex-col items-center justify-center gap-3 hover:border-primary/50 transition-colors cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept=".apk"
+                        onChange={handleFileUpload}
+                      />
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="text-sm font-medium">Uploading APK...</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bg-primary/10 p-3 rounded-full">
+                            <Upload className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-medium">Click to upload .apk file</p>
+                            <p className="text-xs text-muted-foreground mt-1">File will be saved to mobileApp folder</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* System Information */}
             <Card className="lg:col-span-2">

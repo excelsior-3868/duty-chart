@@ -61,6 +61,9 @@ class SystemSetting(AuditableMixin, models.Model):
     is_2fa_enabled = models.BooleanField(default=False)
     session_timeout = models.IntegerField(default=60) # minutes
     auto_logout_idle = models.BooleanField(default=True)
+    latest_app_version = models.CharField(max_length=20, default="1.0.0")
+    old_app_version = models.CharField(max_length=20, default="1.0.0")
+    app_update_url = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return "Global System Settings"

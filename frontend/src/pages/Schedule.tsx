@@ -43,7 +43,7 @@ import { toast } from "sonner";
 interface Schedule {
   id: number;
   name: string;
-  shift?: string;
+  shift_type?: string;
   start_time: string;
   end_time: string;
   office?: number;
@@ -246,7 +246,7 @@ const Schedule = () => {
                               variant={s.status === 'expired' ? 'destructive' : 'default'}
                               className="text-[10px] h-4"
                             >
-                              {s.status === 'expired' ? 'expired' : 'duty schedule'}
+                              {s.status === 'expired' ? 'expired' : (s.shift_type || 'duty schedule')}
                             </Badge>
                           )}
                         </div>

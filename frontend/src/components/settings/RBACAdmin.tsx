@@ -189,8 +189,8 @@ function RolePermissionMatrix() {
               key={role.id}
               onClick={() => setSelectedRole(role)}
               className={`p-3 rounded-lg cursor-pointer transition-colors flex items-center justify-between ${selectedRole?.id === role.id
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted"
                 }`}
             >
               <span className="font-medium">{role.name}</span>
@@ -243,13 +243,13 @@ function RolePermissionMatrix() {
                         key={perm.id}
                         onClick={() => togglePermission(perm.slug)}
                         className={`flex items-start gap-3 p-3 rounded border cursor-pointer transition-all ${rolePermissions.includes(perm.slug)
-                            ? "border-primary bg-primary/5"
-                            : "hover:bg-muted/50"
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
                           }`}
                       >
                         <div className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center ${rolePermissions.includes(perm.slug)
-                            ? "bg-primary border-primary text-primary-foreground"
-                            : "border-muted-foreground"
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "border-muted-foreground"
                           }`}>
                           {rolePermissions.includes(perm.slug) && <Check className="h-3 w-3" />}
                         </div>
