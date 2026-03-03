@@ -23,10 +23,17 @@ import requests
 User = get_user_model()
 
 
+_translation_cache = {}
+
 def translate_to_nepali(text):
-    """Google Translate free API for simple names/titles."""
+    """Google Translate free API for simple names/titles with simple memory cache."""
     if not text or text == "-":
         return text
+    
+    # Return from cache if available
+    if text in _translation_cache:
+        return _translation_cache[text]
+        
     try:
         url = "https://translate.googleapis.com/translate_a/single"
         params = {"client": "gtx", "sl": "en", "tl": "ne", "dt": "t", "q": text}
@@ -34,10 +41,59 @@ def translate_to_nepali(text):
         if response.status_code == 200:
             result = response.json()
             if result and result[0] and result[0][0]:
-                return result[0][0][0]
-    except:
+                translated = result[0][0][0]
+                _translation_cache[translated] = translated # double save for consistency
+                _translation_cache[text] = translated
+                return translated
+    except Exception as e:
+        print(f"Translation error for '{text}': {e}")
         pass
     return text
+
+
+def translate_to_nepali_batch(text_list):
+    """
+    Translates a list of strings in batches to minimize API calls.
+    Uses \n as a delimiter for the gtx free API.
+    """
+    if not text_list:
+        return {}
+    
+    # Filter out empty or already cached
+    to_translate = [t for t in text_list if t and isinstance(t, str) and str(t) not in _translation_cache]
+    if not to_translate:
+        return {t: _translation_cache.get(str(t), str(t)) for t in text_list}
+    
+    # Process in chunks of 50 to stay safe with URL length
+    chunk_size = 50
+    for i in range(0, len(to_translate), chunk_size):
+        chunk = to_translate[i:i + chunk_size]
+        combined = "\n".join(chunk)
+        
+        try:
+            url = "https://translate.googleapis.com/translate_a/single"
+            params = {
+                "client": "gtx",
+                "sl": "en",
+                "tl": "ne",
+                "dt": "t",
+                "q": combined
+            }
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                if result and result[0]:
+                    # result[0] is typically a list of [[translated_chunk, original_chunk, ...], ...]
+                    translated_combined = "".join([part[0] for part in result[0] if part[0]])
+                    translated_list = translated_combined.split("\n")
+                    
+                    # Map back to original strings
+                    for orig, trans in zip(chunk, translated_list):
+                        _translation_cache[str(orig)] = trans.strip()
+        except Exception as e:
+            print(f"Batch translation error: {e}")
+            
+    return {t: _translation_cache.get(str(t), str(t)) for t in text_list}
 
 
 # ---------------------------
@@ -385,6 +441,19 @@ class DutyReportFileView(APIView):
         set_cell_text(table.cell(1, 2), "नाम")
         set_cell_text(table.cell(1, 3), "सम्पर्क नं.")
 
+        # -----------------------
+        # BATCH TRANSLATION
+        # -----------------------
+        unique_texts = set()
+        for d in qs:
+            if d.user:
+                if d.user.full_name: unique_texts.add(d.user.full_name)
+                if d.user.position:
+                    if d.user.position.alias: unique_texts.add(d.user.position.alias)
+                    else: unique_texts.add(d.user.position.name)
+        
+        translate_to_nepali_batch(list(unique_texts))
+
         # Helper for Nepali digits
         NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
         def nep(txt):
@@ -399,10 +468,11 @@ class DutyReportFileView(APIView):
             
             # Position
             pos = d.user.position
-            cells[1].text = (pos.alias or pos.name) if pos else "-"
+            pos_nm = (pos.alias or pos.name) if pos else "-"
+            cells[1].text = translate_to_nepali(pos_nm)
             
             # Name + Employee ID (in brackets)
-            name_str = getattr(d.user, "full_name", "-")
+            name_str = translate_to_nepali(getattr(d.user, "full_name", "-"))
             emp_id = getattr(d.user, "employee_id", "")
             if emp_id:
                 name_str += f" ({nep(emp_id)})"
@@ -661,6 +731,19 @@ class DutyReportNewFileView(APIView):
         set_cell_text(table.cell(1, 2), "नाम")
         set_cell_text(table.cell(1, 3), "सम्पर्क नं.")
 
+        # -----------------------
+        # BATCH TRANSLATION
+        # -----------------------
+        unique_texts = set()
+        for d in qs:
+            if d.user:
+                if d.user.full_name: unique_texts.add(d.user.full_name)
+                if d.user.position:
+                    if d.user.position.alias: unique_texts.add(d.user.position.alias)
+                    else: unique_texts.add(d.user.position.name)
+        
+        translate_to_nepali_batch(list(unique_texts))
+
         NEP_DIGITS = str.maketrans("0123456789", "०१२३४५६७८९")
         def nep(txt): return str(txt).translate(NEP_DIGITS)
 
@@ -669,13 +752,14 @@ class DutyReportNewFileView(APIView):
             cells = table.add_row().cells
             cells[0].text = nep(f"{sn}.")
             
-            # Position (पद) Translated - Using alias if available
+            # Position (पद) - Use pre-translated alias/name
             pos = d.user.position
-            pos_name = (pos.alias or pos.name) if pos else "-"
-            cells[1].text = translate_to_nepali(pos_name)
+            pos_nm = (pos.alias or pos.name) if pos else "-"
+            cells[1].text = translate_to_nepali(pos_nm)
             
-            # Translated Name
-            name_str = translate_to_nepali(getattr(d.user, "full_name", "-"))
+            # Name - Use pre-translated full_name
+            raw_name = getattr(d.user, "full_name", "-")
+            name_str = translate_to_nepali(raw_name)
             emp_id = getattr(d.user, "employee_id", "")
             if emp_id: name_str += f" ({nep(emp_id)})"
             
@@ -700,11 +784,32 @@ class DutyReportNewFileView(APIView):
             sn += 1
 
         
-        doc.add_paragraph("\nकाम सम्पादन भएको प्रमाणित गर्ने पदाधिकारीको बिवरण:-")
-        doc.add_paragraph("नाम:-")
-        doc.add_paragraph("पद:-")
-        doc.add_paragraph("दस्तखत:-")
-        doc.add_paragraph("मिति:-")
+        doc.add_paragraph("")
+        doc.add_paragraph("काम सम्पादन भएको प्रमाणित गर्ने पदाधिकारीको विवरण :-")
+        
+        # Create a 2-column table for signatures
+        sig_table = doc.add_table(rows=5, cols=2)
+        sig_table.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        
+        # Column 1: पेश गर्ने
+        sig_table.cell(0, 0).paragraphs[0].add_run("पेश गर्ने:").underline = True
+        sig_table.cell(1, 0).text = "नाम :-"
+        sig_table.cell(2, 0).text = "पद :-"
+        sig_table.cell(3, 0).text = "दस्तखत:-"
+        sig_table.cell(4, 0).text = "मिति :-"
+
+        # Column 2: प्रमाणित गर्ने
+        sig_table.cell(0, 1).paragraphs[0].add_run("प्रमाणित गर्ने:").underline = True
+        sig_table.cell(1, 1).text = "नाम :-"
+        sig_table.cell(2, 1).text = "पद :-"
+        sig_table.cell(3, 1).text = "दस्तखत:-"
+        sig_table.cell(4, 1).text = "मिति :-"
+
+        # Set left indentation for signature fields within columns
+        for row in sig_table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    p.paragraph_format.left_indent = Inches(0.5)
 
         bio = io.BytesIO()
         doc.save(bio)
