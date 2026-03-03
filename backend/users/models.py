@@ -8,11 +8,18 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from auditlogs.mixins import AuditableMixin
 
+class UserResponsibility(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
 class User(AuditableMixin, AbstractUser):
     employee_id = models.CharField(max_length=50, unique=True)
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20)
+    responsibility = models.ForeignKey(UserResponsibility, null=True, blank=True, on_delete=models.SET_NULL)
     image = models.ImageField(upload_to='user_images/', null=True, blank=True)
     role = models.CharField(
         max_length=32,

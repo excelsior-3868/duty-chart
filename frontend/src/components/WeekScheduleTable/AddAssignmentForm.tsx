@@ -108,6 +108,8 @@ interface User {
   email: string;
   is_active: boolean;
   office?: number;
+  responsibility?: number | null;
+  responsibility_name?: string | null;
 }
 
 interface Office {
@@ -303,7 +305,7 @@ export const AddAssignmentForm: React.FC<AddAssignmentFormProps> = ({
                   .filter(user => !user.office || canManageOffice(user.office) || hasPermission("duties.assign_any_office_employee"))
                   .map((user) => (
                     <SelectItem key={user.id} value={String(user.id)}>
-                      {user.username} ({user.email})
+                      {user.username} {user.responsibility_name ? `(${user.responsibility_name})` : ""} - {user.email}
                     </SelectItem>
                   ))}
               </SelectContent>

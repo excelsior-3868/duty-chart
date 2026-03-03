@@ -288,8 +288,11 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
     const effectiveDate = new Date(y, m - 1, d);
 
     if (effectiveDate < today) {
-      toast.error("Effective date cannot be in the past.");
-      return;
+      const isSuperAdmin = user?.role === 'SUPERADMIN';
+      if (!isSuperAdmin) {
+        toast.error("Effective date cannot be in the past.");
+        return;
+      }
     }
 
     setIsDownloadingTemplate(true);

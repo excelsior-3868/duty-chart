@@ -51,12 +51,14 @@ def send_duty_reminders():
     candidate_dates = [window_start.date(), window_end.date()]
     candidate_dates = list(set(candidate_dates)) # unique
     
+    notifiable_types = ['Shift', 'Regular', 'On-Call', 'On call', 'shifted', 'regular', 'on-call', 'on call']
+    
     # Find all duties for these dates
     duties = Duty.objects.filter(
         date__in=candidate_dates,
         user__isnull=False,
         schedule__isnull=False,
-        schedule__shift_type='Shift'
+        schedule__shift_type__in=notifiable_types
     ).select_related('user', 'schedule', 'office')
 
     sent_count = 0
@@ -116,11 +118,13 @@ def send_daily_duty_reminders():
     
     today = timezone.localdate()
     
-    # Get all duties for today with a user assigned and of type 'Shift'
+    notifiable_types = ['Shift', 'Regular', 'On-Call', 'On call', 'shifted', 'regular', 'on-call', 'on call']
+    
+    # Get all duties for today with a user assigned and of matching types
     duties = Duty.objects.filter(
         date=today,
         user__isnull=False,
-        schedule__shift_type='Shift',
+        schedule__shift_type__in=notifiable_types,
         schedule__start_time__gte='18:00:00'  # Only for duties starting after 6 PM
     ).select_related('user', 'schedule', 'duty_chart', 'office')
     

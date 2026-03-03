@@ -4,8 +4,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Max, Case, When, Value, CharField
 from django.core.exceptions import ValidationError
-from .models import User, Position, Role, Permission, RolePermission, UserDashboardOffice
-from .serializers import UserSerializer, PositionSerializer, RoleSerializer, PermissionSerializer, UserDashboardOfficeSerializer
+from .models import User, Position, Role, Permission, RolePermission, UserDashboardOffice, UserResponsibility
+from .serializers import UserSerializer, PositionSerializer, RoleSerializer, PermissionSerializer, UserDashboardOfficeSerializer, UserResponsibilitySerializer
+
+class UserResponsibilityViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = UserResponsibility.objects.all().order_by('name')
+    serializer_class = UserResponsibilitySerializer
+    permission_classes = [permissions.IsAuthenticated]
 from users.permissions import AdminOrReadOnly, IsSuperAdmin, get_allowed_office_ids, ManageRBACOrReadOnly
 
 # Create your views here.

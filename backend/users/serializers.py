@@ -4,7 +4,13 @@ from django.core.exceptions import ValidationError
 
 from duties.models import DutyChart, Duty, Document, RosterAssignment, Schedule
 from org.models import WorkingOffice
-from .models import User, Position, Role, Permission, UserDashboardOffice
+from .models import User, Position, Role, Permission, UserDashboardOffice, UserResponsibility
+
+class UserResponsibilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserResponsibility
+        fields = ['id', 'name']
+
 class UserSerializer(serializers.ModelSerializer):
     # Explicitly expose secondary_offices for read/write via IDs
     secondary_offices = serializers.PrimaryKeyRelatedField(
@@ -42,6 +48,12 @@ class UserSerializer(serializers.ModelSerializer):
             data['department_name'] = instance.department.name if instance.department else None
         except Exception:
              data['department_name'] = None
+
+        # Responsibility Name
+        try:
+            data['responsibility_name'] = instance.responsibility.name if instance.responsibility else None
+        except Exception:
+            data['responsibility_name'] = None
 
         # IDs
         try:
@@ -175,6 +187,7 @@ class DutySerializer(serializers.ModelSerializer):
         data['phone_number'] = instance.user.phone_number if instance.user else None
         data['user_working_office'] = instance.user.office.name if instance.user and instance.user.office else None
         data['position_name'] = instance.user.position.name if instance.user and instance.user.position else None
+        data['responsibility_name'] = instance.user.responsibility.name if instance.user and instance.user.responsibility else None
         
         office_name = None
         if instance.office:

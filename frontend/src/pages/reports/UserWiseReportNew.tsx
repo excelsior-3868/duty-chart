@@ -63,6 +63,8 @@ interface User {
     full_name: string;
     employee_id?: string;
     office_name?: string;
+    responsibility?: number | null;
+    responsibility_name?: string | null;
 }
 
 interface DutyOption {
@@ -684,7 +686,7 @@ function UserWiseReportNew() {
                                                                             {isSelected && <Check className="h-3 w-3 text-white stroke-[3px]" />}
                                                                         </div>
                                                                         <div className="flex flex-col">
-                                                                            <span className="truncate">{u.full_name}</span>
+                                                                            <span className="truncate">{u.full_name} {u.responsibility_name && <span className="opacity-70 mx-1">({u.responsibility_name})</span>}</span>
                                                                             <span className={cn("text-[9px] font-normal", isSelected ? "text-primary/70" : "text-slate-400")}>
                                                                                 ID: {u.employee_id || "N/A"} {u.office_name && <span className="opacity-70 mx-1">• {u.office_name}</span>}
                                                                             </span>

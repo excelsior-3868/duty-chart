@@ -56,9 +56,17 @@ interface SortableOfficeCardProps {
 }
 
 const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: SortableOfficeCardProps) => {
-  const [activeTab, setActiveTab] = useState<"Shift" | "Regular">(() => {
+  const [activeTab, setActiveTab] = useState<"Shift" | "Regular" | "OnCall">(() => {
     const hasActiveShifts = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "shift");
-    return hasActiveShifts ? "Shift" : "Regular";
+    if (hasActiveShifts) return "Shift";
+
+    const hasActiveRegular = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "regular");
+    if (hasActiveRegular) return "Regular";
+
+    const hasActiveOnCall = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "on-call");
+    if (hasActiveOnCall) return "OnCall";
+
+    return "Shift";
   });
 
   const {
@@ -81,6 +89,7 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
     const type = (r.shift_type || "").toLowerCase();
     if (activeTab.toLowerCase() === "shift") return type === "shift";
     if (activeTab.toLowerCase() === "regular") return type === "regular";
+    if (activeTab.toLowerCase() === "oncall") return type === "on-call";
     return true;
   });
 
@@ -140,6 +149,12 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
             >
               Regular
             </button>
+            <button
+              onClick={() => setActiveTab("OnCall")}
+              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "OnCall" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              OnCall
+            </button>
           </div>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -155,9 +170,9 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
                       {row.full_name}
                       {group.officeName.includes("INOC") && row.working_office ? ` (${row.working_office})` : ""}
                     </p>
-                    {row.position_name && (
+                    {(row.position_name || row.responsibility_name) && (
                       <p className="text-[10.5px] font-medium text-emerald-800 leading-tight mt-0.5">
-                        {row.position_name}
+                        {row.position_name || "N/A"}{row.responsibility_name ? ` - ${row.responsibility_name}` : ""}
                       </p>
                     )}
                     <p className="text-[10px] text-emerald-700/70 mt-0.5">{row.phone_number || "No contact"}</p>
@@ -353,6 +368,16 @@ const Dashboard = () => {
     });
   }, [dutyCharts, todayLocalISODate, selectedOfficeIds]);
 
+  const upcomingDutyCharts = useMemo(() => {
+    return dutyCharts.filter((dc: DutyChart) => {
+      // Must be one of the selected offices
+      if (!selectedOfficeIds.includes(dc.office)) return false;
+
+      const start = dc.effective_date;
+      return start > todayLocalISODate;
+    });
+  }, [dutyCharts, todayLocalISODate, selectedOfficeIds]);
+
   const userById = useMemo(() => {
     const map = new Map<number, AppUser>();
     users.forEach((u: AppUser) => {
@@ -374,6 +399,7 @@ const Dashboard = () => {
     shift_type?: string | null;
     working_office?: string | null;
     position_name?: string | null;
+    responsibility_name?: string | null;
   };
 
   const groupedByOffice = useMemo(() => {
@@ -413,6 +439,7 @@ const Dashboard = () => {
         shift_type: d.shift_type || "Regular",
         working_office: d.user_office_name || (d as any).user_working_office || userObj?.office_name || null,
         position_name: (d as any).position_name || userObj?.position_name || null,
+        responsibility_name: (d as any).responsibility_name || userObj?.responsibility_name || null,
       };
 
       if (!groups.has(officeId)) {
@@ -852,25 +879,27 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="h-fit">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5 text-primary" />
               Active Duty Charts
             </CardTitle>
-            <CardDescription>Currently active schedules of your selected offices</CardDescription>
+            <CardDescription className="text-xs">Currently active schedules of your selected offices</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 no-scrollbar">
               {activeDutyCharts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No active duty charts found.</p>
+                <div className="py-8 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
+                  <p className="text-sm text-muted-foreground">No active duty charts found.</p>
+                </div>
               ) : (
                 activeDutyCharts.map((chart: DutyChart) => (
                   <button
                     key={chart.id}
                     type="button"
-                    className="w-full flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-primary hover:text-white hover:border-primary transition-all text-left group"
+                    className="w-full flex items-center justify-between p-3 border rounded-xl bg-card hover:bg-primary hover:text-white hover:border-primary transition-all text-left group shadow-sm hover:shadow-md"
                     onClick={() =>
                       navigate(ROUTES.DUTY_CALENDAR, {
                         state: {
@@ -883,10 +912,10 @@ const Dashboard = () => {
                     }
                   >
                     <div>
-                      <p className="font-medium text-sm">{chart.name}</p>
-                      <p className="text-xs text-muted-foreground group-hover:text-blue-100 transition-colors">{chart.office_name || `Office ${chart.office}`}</p>
+                      <p className="font-bold text-xs tracking-tight">{chart.name}</p>
+                      <p className="text-[10px] text-muted-foreground group-hover:text-primary-foreground/80 transition-colors uppercase tracking-wider font-semibold">{chart.office_name || `Office ${chart.office}`}</p>
                     </div>
-                    <Badge variant="outline" className="text-[10px] group-hover:border-white/30 group-hover:text-white transition-colors">
+                    <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 group-hover:bg-primary-foreground/20 group-hover:text-white group-hover:border-white/30 transition-all font-bold px-1.5 py-0">
                       {chart.end_date ? `Ends ${new NepaliDate(new Date(chart.end_date)).format("YYYY-MM-DD")}` : 'Ongoing'}
                     </Badge>
                   </button>
@@ -896,16 +925,61 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="col-span-4">
+        <Card className="h-fit">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CalendarDays className="h-5 w-5 text-orange-500" />
+              Upcoming Duty Charts
+            </CardTitle>
+            <CardDescription className="text-xs">Scheduled charts starting in the future</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 no-scrollbar">
+              {upcomingDutyCharts.length === 0 ? (
+                <div className="py-8 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
+                  <p className="text-sm text-muted-foreground">No upcoming duty charts.</p>
+                </div>
+              ) : (
+                upcomingDutyCharts.map((chart: DutyChart) => (
+                  <button
+                    key={chart.id}
+                    type="button"
+                    className="w-full flex items-center justify-between p-3 border rounded-xl bg-card hover:bg-primary hover:text-white hover:border-primary transition-all text-left group shadow-sm hover:shadow-md"
+                    onClick={() =>
+                      navigate(ROUTES.DUTY_CALENDAR, {
+                        state: {
+                          preselect: {
+                            officeId: String(chart.office),
+                            dutyChartId: String(chart.id),
+                          },
+                        },
+                      })
+                    }
+                  >
+                    <div>
+                      <p className="font-bold text-xs tracking-tight">{chart.name}</p>
+                      <p className="text-[10px] text-muted-foreground group-hover:text-primary-foreground/80 transition-colors uppercase tracking-wider font-semibold">{chart.office_name || `Office ${chart.office}`}</p>
+                    </div>
+                    <Badge variant="outline" className="text-[9px] bg-orange-50 text-orange-700 border-orange-200 group-hover:bg-primary-foreground/20 group-hover:text-white group-hover:border-white/30 transition-all font-bold px-1.5 py-0">
+                      Starts {new NepaliDate(new Date(chart.effective_date)).format("YYYY-MM-DD")}
+                    </Badge>
+                  </button>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
               Office-wise Active Shifts
             </CardTitle>
-            <CardDescription>Today's active shift distribution of your selected offices</CardDescription>
+            <CardDescription>Today's active shift distribution</CardDescription>
           </CardHeader>
           <CardContent className="pl-0">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={350}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis

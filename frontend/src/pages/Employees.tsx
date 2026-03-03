@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { createUser } from "@/services/users";
+import { createUser, getResponsibilities } from "@/services/users";
 import { getPositions, type Position as PositionType } from "@/services/positions";
 import { getDirectorates, type Directorate } from "@/services/directorates";
 import { getDepartments, type Department } from "@/services/departments";
@@ -61,6 +61,9 @@ const Employees = () => {
   const [employeeId, setEmployeeId] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [responsibility, setResponsibility] = useState<number | null>(null);
+  const [openResponsibilityCombobox, setOpenResponsibilityCombobox] = useState(false);
+  const [openEditResponsibilityCombobox, setOpenEditResponsibilityCombobox] = useState(false);
   // Metadata is now fetched via React Query
   // const [positions, setPositions] = useState<PositionType[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
@@ -170,6 +173,12 @@ const Employees = () => {
     staleTime: 15 * 60 * 1000,
   });
 
+  const { data: responsibilities = [] } = useQuery({
+    queryKey: ['responsibilities', 'all'],
+    queryFn: () => getResponsibilities(),
+    staleTime: 15 * 60 * 1000,
+  });
+
   const metaLoading = !directorates.length && !departments.length && !offices.length && !positions.length;
 
 
@@ -226,6 +235,7 @@ const Employees = () => {
       role: emp.role || "USER",
       is_active: emp.is_active ?? true,
       is_activated: emp.is_activated ?? true,
+      responsibility: getIdFromField(emp.responsibility),
     });
     setEditModalOpen(true);
     // Lazy load roles and preview perms
@@ -268,6 +278,7 @@ const Employees = () => {
         // directorate and department removed as per new requirements
         office: selectedEmployee.office || undefined,
         position: selectedEmployee.position || undefined,
+        responsibility: selectedEmployee.responsibility || undefined,
         role: selectedEmployee.role || undefined,
         is_active: selectedEmployee.is_active,
         is_activated: selectedEmployee.is_activated,
@@ -443,13 +454,14 @@ const Employees = () => {
         autoPassword += chars[Math.floor(Math.random() * chars.length)];
       }
 
-      // Backend model labels: full_name, employee_id, phone_number, directorate, department, office, position (optional)
+      // Backend model labels: full_name, employee_id, phone_number, directorate, department, office, position (optional), responsibility
       const payload: any = {
         full_name: fullName,
         employee_id: employeeId,
         email,
         username: employeeId, // keep username populated; login is via email
         phone_number: phoneNumber || undefined,
+        responsibility: responsibility || undefined,
         office: selectedOffice,
         position: selectedPosition,
         role: selectedRole,
@@ -465,6 +477,7 @@ const Employees = () => {
       setEmployeeId("");
       setEmail("");
       setPhoneNumber("");
+      setResponsibility(null);
       setSelectedPosition(null);
       setSelectedDirectorate(null);
       setSelectedDepartment(null);
@@ -546,6 +559,52 @@ const Employees = () => {
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input id="phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="98XXXXXXXX" />
+              </div>
+              <div className="space-y-2">
+                <Label>Responsibility</Label>
+                <Popover open={openResponsibilityCombobox} onOpenChange={setOpenResponsibilityCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openResponsibilityCombobox}
+                      className="w-full justify-between font-normal"
+                    >
+                      {responsibility
+                        ? responsibilities.find((r: any) => r.id === responsibility)?.name
+                        : "Select responsibility"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search responsibility..." />
+                      <CommandList className="max-h-[300px] overflow-y-auto">
+                        <CommandEmpty>No responsibility found.</CommandEmpty>
+                        <CommandGroup>
+                          {responsibilities.map((r: any) => (
+                            <CommandItem
+                              key={r.id}
+                              value={r.name}
+                              onSelect={() => {
+                                setResponsibility(r.id === responsibility ? null : r.id);
+                                setOpenResponsibilityCombobox(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  responsibility === r.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {r.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label>Designation / Position</Label>
@@ -768,6 +827,7 @@ const Employees = () => {
                 <TableHead className="w-[100px] py-3 text-white font-bold text-sm">ID</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Full Name</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Mobile</TableHead>
+                <TableHead className="py-3 text-white font-bold text-sm">Responsibility</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Email</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Office</TableHead>
                 <TableHead className="py-3 text-white font-bold text-sm">Status</TableHead>
@@ -801,6 +861,9 @@ const Employees = () => {
                     </TableCell>
                     <TableCell className="text-slate-600 text-sm">
                       {emp.phone_number || "-"}
+                    </TableCell>
+                    <TableCell className="text-slate-600 text-sm">
+                      {emp.responsibility_name || "-"}
                     </TableCell>
                     <TableCell className="text-slate-600 text-sm">
                       {emp.email || "-"}
@@ -928,6 +991,10 @@ const Employees = () => {
                 <div className="font-medium">{selectedEmployee.phone_number || "-"}</div>
               </div>
               <div>
+                <Label className="text-muted-foreground">Responsibility</Label>
+                <div className="font-medium">{selectedEmployee.responsibility_name || "-"}</div>
+              </div>
+              <div>
                 <Label className="text-muted-foreground">Position</Label>
                 <div className="font-medium">{getPositionName(selectedEmployee.position)}</div>
               </div>
@@ -982,6 +1049,55 @@ const Employees = () => {
                 <div>
                   <Label>Phone</Label>
                   <Input value={selectedEmployee.phone_number} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, phone_number: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Responsibility</Label>
+                  <Popover open={openEditResponsibilityCombobox} onOpenChange={setOpenEditResponsibilityCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openEditResponsibilityCombobox}
+                        className="w-full justify-between font-normal"
+                      >
+                        {selectedEmployee.responsibility
+                          ? responsibilities.find((r: any) => r.id === selectedEmployee.responsibility)?.name
+                          : "Select responsibility"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search responsibility..." />
+                        <CommandList className="max-h-[300px] overflow-y-auto">
+                          <CommandEmpty>No responsibility found.</CommandEmpty>
+                          <CommandGroup>
+                            {responsibilities.map((r: any) => (
+                              <CommandItem
+                                key={r.id}
+                                value={r.name}
+                                onSelect={() => {
+                                  setSelectedEmployee({
+                                    ...selectedEmployee,
+                                    responsibility: r.id === selectedEmployee.responsibility ? null : r.id,
+                                  });
+                                  setOpenEditResponsibilityCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedEmployee.responsibility === r.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {r.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div>

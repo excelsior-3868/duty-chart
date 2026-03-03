@@ -17,6 +17,8 @@ export interface UserData {
   location?: string;
   avatar?: string;
   joinDate?: string;
+  responsibility?: number | null;
+  responsibility_name?: string | null;
 }
 
 interface UserCardProps {
@@ -62,7 +64,7 @@ export const UserCard: React.FC<UserCardProps> = ({
               </AvatarFallback>
             )}
           </Avatar>
-          
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-medium truncate">{user.name}</h3>
@@ -70,34 +72,37 @@ export const UserCard: React.FC<UserCardProps> = ({
                 {user.status.replace('_', ' ')}
               </Badge>
             </div>
-            
+
             <p className="text-sm text-muted-foreground mb-1">{user.position}</p>
+            {user.responsibility_name && (
+              <p className="text-sm text-slate-500 font-medium mb-1">{user.responsibility_name}</p>
+            )}
             <p className="text-xs text-muted-foreground mb-2">{user.department}</p>
-            
+
             <div className="space-y-1 mb-3">
               <p className="text-xs text-muted-foreground">ID: {user.employeeId}</p>
-              
+
               {user.phone && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Phone className="h-3 w-3" />
                   {user.phone}
                 </div>
               )}
-              
+
               {user.email && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Mail className="h-3 w-3" />
                   <span className="truncate">{user.email}</span>
                 </div>
               )}
-              
+
               {user.location && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <MapPin className="h-3 w-3" />
                   {user.location}
                 </div>
               )}
-              
+
               {user.joinDate && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Calendar className="h-3 w-3" />
@@ -105,7 +110,7 @@ export const UserCard: React.FC<UserCardProps> = ({
                 </div>
               )}
             </div>
-            
+
             {showActions && (
               <div className="flex gap-1">
                 {onView && (

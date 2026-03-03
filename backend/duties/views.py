@@ -1768,8 +1768,10 @@ class DutyChartImportView(APIView):
                             continue
                         
                         if duty_date < today:
-                            errors.append(f"Row {row_num}: Date {duty_date} is in the past. Only today or future dates allowed.")
-                            continue
+                            # Allow Super Admins to bypass the "past date" restriction
+                            if not IsSuperAdmin().has_permission(request, self):
+                                errors.append(f"Row {row_num}: Date {duty_date} is in the past. Only today or future dates allowed.")
+                                continue
                         
                         if duty_date < eff_date or (en_date and duty_date > en_date):
                             error_range = f"{eff_date} to {en_date or 'Open'}"

@@ -19,7 +19,7 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
 # Local imports
-from users.views import UserViewSet, PositionViewSet, RoleViewSet, PermissionViewSet, UserDashboardOfficeViewSet
+from users.views import UserViewSet, PositionViewSet, RoleViewSet, PermissionViewSet, UserDashboardOfficeViewSet, UserResponsibilityViewSet
 from org.views import DirectorateViewSet, DepartmentViewSet, OfficeViewSet, SystemSettingViewSet, AccountingOfficeViewSet, CCOfficeViewSet
 from authentication.views import TokenObtainPair2FAView, Verify2FAView
 from duties.views import (
@@ -82,6 +82,7 @@ router.register(r"positions", PositionViewSet)
 router.register(r"roles", RoleViewSet)
 router.register(r"permissions", PermissionViewSet)
 router.register(r"user-dashboard-offices", UserDashboardOfficeViewSet, basename="user-dashboard-offices")
+router.register(r"user-responsibilities", UserResponsibilityViewSet, basename="user-responsibilities")
 
 # Organization
 router.register(r"directorates", DirectorateViewSet)

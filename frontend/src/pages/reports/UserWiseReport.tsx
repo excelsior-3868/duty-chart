@@ -19,6 +19,8 @@ interface DutyRow {
 interface User {
   id: number;
   full_name: string;
+  responsibility?: number | null;
+  responsibility_name?: string | null;
 }
 
 interface DutyOption {
@@ -265,7 +267,7 @@ function UserWiseReport() {
                           )
                         }
                       />
-                      <span>{u.full_name}</span>
+                      <span>{u.full_name} {u.responsibility_name ? `(${u.responsibility_name})` : ""}</span>
                     </label>
                   ))}
                 </div>

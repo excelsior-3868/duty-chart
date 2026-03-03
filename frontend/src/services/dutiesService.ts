@@ -18,6 +18,7 @@ export interface Duty {
   start_time?: string;
   end_time?: string;
   position_name?: string;
+  responsibility_name?: string;
   phone_number?: string;
   user_office_name?: string;
   user_department_name?: string;

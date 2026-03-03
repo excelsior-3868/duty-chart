@@ -18,8 +18,11 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
     try:
         logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
         
-        if instance.user and instance.schedule and getattr(instance.schedule, 'shift_type', None) == 'Shift':
-            logger.info(f"Triggering assignment notification for Duty {instance.id} (Created: {created})")
+        shift_type = getattr(instance.schedule, 'shift_type', '') or ''
+        is_notifiable_type = shift_type.lower() in ['shift', 'regular', 'on-call', 'on call']
+        
+        if instance.user and instance.schedule and is_notifiable_type:
+            logger.info(f"Triggering assignment notification for Duty {instance.id} (Type: {shift_type}, Created: {created})")
             # Transactional Safety: Wait for the Duty save to be committed
             transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
         else:

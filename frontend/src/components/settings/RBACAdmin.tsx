@@ -31,6 +31,8 @@ interface User {
   email: string;
   role: string;
   position_name?: string;
+  responsibility?: number | null;
+  responsibility_name?: string | null;
 }
 
 export function RBACAdmin() {
@@ -359,7 +361,7 @@ function UserRoleAssignment() {
               {filteredUsers.map(user => (
                 <div key={user.id} className="grid grid-cols-[2fr_2fr_1.5fr] gap-4 p-4 items-center hover:bg-muted/5">
                   <div>
-                    <div className="font-medium">{user.full_name}</div>
+                    <div className="font-medium">{user.full_name} {user.responsibility_name && <span className="opacity-70 text-xs font-normal">({user.responsibility_name})</span>}</div>
                     <div className="text-xs text-muted-foreground">{user.position_name || "No Position"}</div>
                   </div>
                   <div className="text-sm truncate" title={user.email}>{user.email}</div>

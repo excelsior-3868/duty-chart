@@ -133,6 +133,7 @@ class DutySerializer(serializers.ModelSerializer):
             data['user_office_cc_office_name'] = None
 
         data['position_name'] = user.position.name if user and user.position else None
+        data['responsibility_name'] = user.responsibility.name if user and user.responsibility else None
         data['email'] = user.email if user else None
         return data
 

@@ -17,6 +17,8 @@ export interface User {
   position?: number | null;
   position_name?: string | null;
   is_activated?: boolean;
+  responsibility?: number | null;
+  responsibility_name?: string | null;
 }
 
 // GET all users (optionally filtered by office and activation status)
@@ -70,4 +72,21 @@ export const patchUser = async (
 // DELETE user
 export const deleteUser = async (id: number): Promise<void> => {
   await api.delete(`/users/${id}/`);
+};
+
+export interface UserResponsibility {
+  id: number;
+  name: string;
+}
+
+// GET all responsibilities
+export const getResponsibilities = async (): Promise<UserResponsibility[]> => {
+  const res = await api.get<any>("/user-responsibilities/?page_size=100");
+  if (res.data.results && Array.isArray(res.data.results)) {
+    return res.data.results;
+  }
+  if (Array.isArray(res.data)) {
+    return res.data;
+  }
+  return [];
 };
