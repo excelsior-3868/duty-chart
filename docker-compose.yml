@@ -13,7 +13,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./.env.docker
+      - .env
     depends_on:
       - duty-chart-redis
 
@@ -37,7 +37,7 @@ services:
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:
-      - ./.env.docker
+      - .env
     depends_on:
       - duty-chart-backend
       - duty-chart-redis
@@ -55,7 +55,7 @@ services:
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:
-      - ./.env.docker
+      - .env
     depends_on:
       - duty-chart-backend
       - duty-chart-redis
@@ -65,6 +65,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
     container_name: duty-chart-frontend
     ports:
       - "80:80"
