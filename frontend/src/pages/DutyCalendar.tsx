@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ROUTES } from "@/utils/constants";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2 } from "lucide-react";
@@ -72,6 +73,7 @@ export interface DutyAssignment {
     schedule_id: number;
     alias?: string;
     employee_office_id?: number | null;
+    responsibility?: string;
 }
 
 
@@ -91,6 +93,7 @@ const getShiftColor = (id: number) => {
 };
 
 const DutyCalendar = () => {
+    const navigate = useNavigate();
     // --- State: Calendar View ---
     const [currentDate, setCurrentDate] = useState(new Date()); // View navigation date
     const [dateMode, setDateMode] = useState<"BS" | "AD">("BS");
@@ -361,6 +364,7 @@ const DutyCalendar = () => {
                 alias: d.alias,
                 employee_id: userDetail?.employee_id || "",
                 employee_office_id: userDetail?.office ?? null,
+                responsibility: userDetail?.responsibility_name || d.responsibility_name || "",
             } as DutyAssignment;
         });
     }, [duties, usersCache, officesCache]);
@@ -412,14 +416,20 @@ const DutyCalendar = () => {
     }, [yearBS, monthBS]);
 
 
+    const isSuperAdmin = user?.role === 'SUPERADMIN';
+    // Is the current user the creator of the currently selected duty chart?
+    const isChartCreator = !!(
+        selectedDutyChartInfo &&
+        user?.id != null &&
+        selectedDutyChartInfo.created_by === user.id
+    );
+
     const canDeleteAssignment = useCallback((a: DutyAssignment) => {
+        if (isSuperAdmin) return true;
         if (!hasPermission('duties.delete')) return false;
-        // User with cross-office permission can delete anyone
-        if (hasPermission('duties.remove_other_office_employee')) return true;
-        // Otherwise, must match user's office
-        if (user?.office_id && a.employee_office_id && Number(user.office_id) === Number(a.employee_office_id)) return true;
-        return false;
-    }, [hasPermission, user]);
+        // Must be the creator of the parent duty chart
+        return isChartCreator;
+    }, [isSuperAdmin, hasPermission, isChartCreator]);
 
     const modalAssignments = useMemo(() => {
         if (!selectedDateForDetail) return [];
@@ -550,49 +560,17 @@ const DutyCalendar = () => {
     }, [selectedDutyChartId, selectedOfficeId, selectedDutyChartInfo, canManageOffice, hasPermission]);
 
     const canManageSelectedChart = useMemo(() => {
-        if (!selectedDutyChartInfo) return false;
-        if (!hasPermission('duties.edit_dutychart')) return false;
-
-        const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
-            ? Number((selectedDutyChartInfo.office as any)?.id)
-            : Number(selectedDutyChartInfo.office);
-
-        // Allow if user manages this office OR has the global 'create_any_office_chart' permission
-        if (hasPermission('duties.create_any_office_chart')) return true;
-
-        // Security: Restrict editing to owners of the office
-        return canManageOffice(chartOfficeId);
-    }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
+        return hasPermission('duties.edit_dutychart');
+    }, [hasPermission]);
 
     const canDeleteDuty = useMemo(() => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.delete')) return false;
-
-        const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
-            ? Number((selectedDutyChartInfo.office as any)?.id)
-            : Number(selectedDutyChartInfo.office);
-
-        // Must be authorized to manage duties in this office
-        if (!canManageOffice(chartOfficeId)) return false;
-
-        // If we are looking at a specific assignment, check if employee is from another office
-        if (selectedProfile) {
-            const empOfficeId = selectedProfile.employee_office_id;
-            const actorOfficeId = user?.office_id;
-
-            // If employee belongs to a different office (or no office) than the logged-in User's office
-            const isSameAsActorOffice = empOfficeId !== null && actorOfficeId !== undefined && actorOfficeId !== null && Number(empOfficeId) === Number(actorOfficeId);
-
-            if (!isSameAsActorOffice) {
-                // Strictly require specific permission for the cross-office employee deletion
-                if (!hasPermission('duties.remove_other_office_employee')) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }, [selectedDutyChartInfo, hasPermission, canManageOffice, selectedProfile, user]);
+        // SuperAdmin can always delete
+        if (isSuperAdmin) return true;
+        // Others must be the creator of the chart
+        return isChartCreator;
+    }, [selectedDutyChartInfo, hasPermission, isSuperAdmin, isChartCreator]);
 
     const handleDeleteDuty = async () => {
         if (!selectedProfile?.id) return;
@@ -655,17 +633,15 @@ const DutyCalendar = () => {
                             <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>BS</button>
                             <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>AD</button>
                         </div>
-                        {selectedDutyChartId && (
-                            <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowExportModal(true)}>
-                                <Download className="w-3.5 h-3.5" /> Export
-                            </Button>
-                        )}
+                        <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => navigate(ROUTES.ANNEX_I_REPORT)}>
+                            <Download className="w-3.5 h-3.5" /> Download अनुसूची -१
+                        </Button>
                         {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
                             <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
                         )}
-                        {hasPermission('duties.edit_dutychart') && (
+                        {canManageSelectedChart && (
                             <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
                                 <Pencil className="w-3.5 h-3.5" /> Edit Chart
                             </Button>
@@ -1232,9 +1208,12 @@ const DutyCalendar = () => {
                                     <AvatarFallback className="text-2xl">{selectedProfile?.employee_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                                 </Avatar>
                             </div>
-                            <DialogTitle className="text-2xl font-bold text-center mb-2">
+                            <DialogTitle className="text-2xl font-bold text-center mb-0.5">
                                 {selectedProfile?.employee_name}
                             </DialogTitle>
+                            <div className="text-sm text-slate-500 font-medium text-center mb-2">
+                                {selectedProfile?.position}{selectedProfile?.position && selectedProfile?.responsibility ? " — " : ""}{selectedProfile?.responsibility}
+                            </div>
                             {selectedProfile?.phone_number && (
                                 <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-1 rounded-full text-sm font-medium text-gray-700">
                                     <Phone className="h-3.5 w-3.5" />
@@ -1251,10 +1230,6 @@ const DutyCalendar = () => {
                             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
                                 <span className="md:text-right font-medium">Office:</span>
                                 <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.office}</span>
-                            </div>
-                            <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
-                                <span className="md:text-right font-medium">Position:</span>
-                                <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.position || '-'}</span>
                             </div>
                             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
                                 <span className="md:text-right font-medium">Phone:</span>
@@ -1359,7 +1334,10 @@ const DutyCalendar = () => {
                                                         {a.shift}
                                                     </Badge>
                                                 </div>
-                                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-3">
+                                                <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                                    {a.position}{a.position && a.responsibility ? " — " : ""}{a.responsibility}
+                                                </div>
+                                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-3">
                                                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {a.start_time.slice(0, 5)} - {a.end_time.slice(0, 5)}</span>
                                                     <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {a.phone_number}</span>
                                                 </div>

@@ -81,53 +81,79 @@ class UserViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         from rest_framework.exceptions import ValidationError as DRFValidationError
+        from users.permissions import user_has_permission_slug
+        from users.permissions import IsOfficeAdmin
+
+        # 1. SuperAdmin → unrestricted
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
 
-        from users.permissions import user_has_permission_slug
-        can_assign_any = user_has_permission_slug(self.request.user, 'users.create_any_office_employee')
+        can_create = user_has_permission_slug(self.request.user, 'users.create_employee')
+        can_create_any = user_has_permission_slug(self.request.user, 'users.create_any_office_employee')
 
+        if not can_create and not can_create_any:
+            raise DRFValidationError("You do not have permission to create employees.")
+
+        is_office_admin = IsOfficeAdmin().has_permission(self.request, self)
+
+        # 2. Network Admin (or any non-OfficeAdmin role) with permission → unrestricted
+        if not is_office_admin:
+            serializer.save()
+            return
+
+        # 3. Office Admin with permission → restricted to their own office(s)
         allowed = get_allowed_office_ids(self.request.user)
         data_office = self.request.data.get('office')
-        # secondary_offices may be list of IDs
         secondary_ids = self.request.data.get('secondary_offices') or []
         if isinstance(secondary_ids, str):
             try:
                 secondary_ids = [int(x) for x in secondary_ids.split(',') if x.strip()]
             except Exception:
                 secondary_ids = []
-        
-        if not can_assign_any:
+
+        if not can_create_any:
             if not data_office or int(data_office) not in allowed:
                 raise DRFValidationError("Not allowed to assign primary office outside your scope.")
             if any(int(sid) not in allowed for sid in secondary_ids):
                 raise DRFValidationError("Not allowed to assign secondary offices outside your scope.")
-        
+
         serializer.save()
     
     def perform_update(self, serializer):
         from rest_framework.exceptions import ValidationError as DRFValidationError
-        
-        # 1. SuperAdmins can do anything
+        from users.permissions import user_has_permission_slug
+        from users.permissions import IsOfficeAdmin
+
+        # 1. SuperAdmin → unrestricted
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save()
             return
 
-        # 2. Users can always edit their own profile
+        # 2. User editing their own profile → always allowed
         if self.request.user == serializer.instance:
             serializer.save()
             return
-        
-        # 3. Otherwise, check office scope permissions
-        from users.permissions import user_has_permission_slug
-        can_assign_any = user_has_permission_slug(self.request.user, 'users.create_any_office_employee')
 
+        can_edit = user_has_permission_slug(self.request.user, 'users.edit_employee')
+        can_edit_any = user_has_permission_slug(self.request.user, 'users.create_any_office_employee')
+
+        if not can_edit and not can_edit_any:
+            raise DRFValidationError("You do not have permission to edit employees.")
+
+        is_office_admin = IsOfficeAdmin().has_permission(self.request, self)
+
+        # 3. Network Admin (or any non-OfficeAdmin role) with permission → unrestricted
+        if not is_office_admin:
+            serializer.save()
+            return
+
+        # 4. Office Admin with permission → restricted to their own office(s)
         allowed = get_allowed_office_ids(self.request.user)
         data_office = self.request.data.get('office')
         current_office = getattr(serializer.instance, 'office_id', None)
         target_office = int(data_office) if data_office is not None else current_office
-        
+
         secondary_ids = self.request.data.get('secondary_offices')
         if isinstance(secondary_ids, str):
             try:
@@ -135,12 +161,12 @@ class UserViewSet(viewsets.ModelViewSet):
             except Exception:
                 secondary_ids = None
 
-        if not can_assign_any:
+        if not can_edit_any:
             if target_office is None or int(target_office) not in allowed:
                 raise DRFValidationError("Not allowed to set primary office outside your scope.")
             if secondary_ids is not None and any(int(sid) not in allowed for sid in secondary_ids):
                 raise DRFValidationError("Not allowed to set secondary offices outside your scope.")
-        
+
         serializer.save()
 
 

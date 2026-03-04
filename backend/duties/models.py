@@ -62,6 +62,22 @@ class DutyChart(AuditableMixin, models.Model):
         blank=True,
         help_text="Schedules (shifts) covered by this duty chart."
     )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='created_duty_charts',
+        help_text="User who created this duty chart."
+    )
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='edited_duty_charts',
+        help_text="User who last edited this duty chart."
+    )
+    edited_at = models.DateTimeField(auto_now=True, null=True)
     def clean(self):
         super().clean()
         if self.end_date and self.end_date < self.effective_date:

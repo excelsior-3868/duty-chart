@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { ROUTES } from "@/utils/constants";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Search, Plus, Phone, Mail, Download, Pencil, Check, ChevronsUpDown, Building2, User as UserIcon, Loader2 } from "lucide-react";
 import NepaliDate from "nepali-date-converter";
@@ -61,6 +63,7 @@ export interface DutyAssignment {
   office: string;
   avatar: string;
   employee_id?: string;
+  responsibility?: string;
 }
 
 export interface Shift {
@@ -119,6 +122,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
   onDutyChartChange,
   onDutyChartCreated
 }) => {
+  const navigate = useNavigate();
   // State - use props as source of truth
   const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
   const [dateMode, setDateMode] = useState<"AD" | "BS">("BS");
@@ -238,20 +242,18 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
     fetchDuties();
   }, [fetchDuties]);
 
-  // Calculate if user can manage the currently selected chart
+  // SuperAdmin = always; other roles = must have edit permission AND be the chart creator
+  const isSuperAdmin = user?.role === 'SUPERADMIN';
+  const isChartCreator = !!(
+    selectedDutyChartInfo &&
+    user?.id != null &&
+    selectedDutyChartInfo.created_by === user.id
+  );
+
   const canManageSelectedChart = useMemo(() => {
-    if (!selectedDutyChartInfo) return false;
+    return hasPermission('duties.edit_dutychart');
+  }, [hasPermission]);
 
-    // 1. Must have general permission to edit charts
-    if (!hasPermission('duties.edit_dutychart')) return false;
-
-    // 2. Must have scope for this specific chart's office
-    const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
-      ? Number((selectedDutyChartInfo.office as any)?.id)
-      : Number(selectedDutyChartInfo.office);
-
-    return canManageOffice(chartOfficeId) || hasPermission("duties.assign_any_office_employee");
-  }, [selectedDutyChartInfo, hasPermission, canManageOffice]);
 
   // Calculate if user can create duties for the currently selected chart
   const canCreateDutyForSelectedChart = useMemo(() => {
@@ -371,6 +373,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
         office: d.user_office_name || (userDetail as any)?.office_name || d.office_name || "",
         avatar: resolveAvatar(userDetail?.image),
         employee_id: userDetail?.employee_id || "",
+        responsibility: userDetail?.responsibility_name || d.responsibility_name || "",
       } as DutyAssignment;
     });
   }, [duties, usersCache, officesCache]);
@@ -640,12 +643,12 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
               <Pencil className="mr-2 h-4 w-4" /> Edit Duty Chart
             </Button>
           )}
-          {selectedDutyChartId && hasPermission('duties.export_chart') && (
+          {hasPermission('duties.export_chart') && (
             <Button
               variant="outline"
-              onClick={() => setShowExportModal(true)}
+              onClick={() => navigate(ROUTES.ANNEX_I_REPORT)}
             >
-              <Download className="mr-2 h-4 w-4" /> Export
+              <Download className="mr-2 h-4 w-4" /> Download अनुसूची -१
             </Button>
           )}
         </div>
@@ -846,9 +849,12 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
                 <AvatarFallback className="text-2xl">{selectedProfile?.employee_name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
               </Avatar>
             </div>
-            <DialogTitle className="text-2xl font-bold text-center mb-2">
+            <DialogTitle className="text-2xl font-bold text-center mb-0.5">
               {selectedProfile?.employee_name}
             </DialogTitle>
+            <div className="text-sm text-slate-500 font-medium text-center mb-2">
+              {selectedProfile?.position}{selectedProfile?.position && selectedProfile?.responsibility ? " — " : ""}{selectedProfile?.responsibility}
+            </div>
             {selectedProfile?.phone_number && (
               <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-1 rounded-full text-sm font-medium text-gray-700">
                 <Phone className="h-3.5 w-3.5" />
@@ -865,10 +871,6 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
               <span className="md:text-right font-medium">Office:</span>
               <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.office}</span>
-            </div>
-            <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
-              <span className="md:text-right font-medium">Position:</span>
-              <span className="col-span-2 md:col-span-3 break-words">{selectedProfile?.position || '-'}</span>
             </div>
             <div className="grid grid-cols-3 md:grid-cols-4 items-center gap-2">
               <span className="md:text-right font-medium">Phone:</span>

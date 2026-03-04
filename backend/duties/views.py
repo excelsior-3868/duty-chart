@@ -320,7 +320,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
-            serializer.save()
+            serializer.save(created_by=user)
             return
 
         with transaction.atomic():
@@ -333,43 +333,46 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
                     raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
             
-            serializer.save()
+            serializer.save(created_by=user)
 
     def perform_update(self, serializer):
         user = self.request.user
+
+        # 1. SuperAdmin → unrestricted
         if IsSuperAdmin().has_permission(self.request, self):
-            serializer.save()
+            serializer.save(edited_by=user)
             return
-        
-        with transaction.atomic():
-            office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
-            if not office_id:
-                raise serializers.ValidationError({"detail": "Office identification failed."})
-            
-            allowed = get_allowed_office_ids(user)
-            if int(office_id) not in allowed:
-                if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
-                    raise serializers.ValidationError({"detail": "Not allowed to update duty chart for this office."})
-            
-            serializer.save()
+
+        # 2. Other roles → must have edit permission AND must be the creator
+        if not user_has_permission_slug(user, 'duties.edit_dutychart'):
+            raise serializers.ValidationError({"detail": "You do not have permission to edit duty charts."})
+
+        chart = serializer.instance
+        if chart.created_by_id != user.pk:
+            raise serializers.ValidationError({"detail": "You can only edit duty charts that you created."})
+
+        serializer.save(edited_by=user)
 
     def perform_destroy(self, instance):
-        # Restriction: Cannot delete if employees are assigned to any shift
+        user = self.request.user
+
+        # 1. SuperAdmin → unrestricted
+        if IsSuperAdmin().has_permission(self.request, self):
+            instance.delete()
+            return
+
+        # 2. Other roles → must have delete permission AND must be the creator
+        if not user_has_permission_slug(user, 'duties.delete_chart'):
+            raise serializers.ValidationError({"detail": "You do not have permission to delete duty charts."})
+
+        if instance.created_by_id != user.pk:
+            raise serializers.ValidationError({"detail": "You can only delete duty charts that you created."})
+
+        # Safety: cannot delete if employees are still assigned
         if instance.duties.exists():
             raise serializers.ValidationError({
                 "detail": "Cannot delete duty chart because employees are assigned to its shifts. Please remove all assignments first."
             })
-        
-        # Permission check: duties.delete_chart
-        user = self.request.user
-        if not IsSuperAdmin().has_permission(self.request, self):
-            if not user_has_permission_slug(user, 'duties.delete_chart'):
-                raise serializers.ValidationError({"detail": "You do not have permission to delete duty charts."})
-            
-            # Additional check: restrict to owned offices
-            allowed = get_allowed_office_ids(user)
-            if instance.office_id not in allowed:
-                raise serializers.ValidationError({"detail": "Not allowed to delete duty chart for this office."})
 
         instance.delete()
 
@@ -431,34 +434,22 @@ class DutyViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         user = self.request.user
-        
-        # We now rely strictly on permissions rather than role-based bypasses.
-        # SuperAdmins should have necessary permissions assigned via the RBAC system.
 
-        # 2. Base Permission Check (Can this user delete from charts at all?)
+        # 1. SuperAdmin → unrestricted
+        if IsSuperAdmin().has_permission(self.request, self):
+            instance.delete()
+            return
+
+        # 2. Must have the base permission to remove employees from duty charts
         if not user_has_permission_slug(user, 'duties.delete'):
             raise serializers.ValidationError("You do not have permission to remove employees from duty charts.")
 
-        # 3. Office Ownership Check (Manage the office the duty belongs to)
-        allowed_offices = get_allowed_office_ids(user)
-        duty_office_id = instance.office_id
-        
-        if not duty_office_id or int(duty_office_id) not in allowed_offices:
-             raise serializers.ValidationError("You do not have permission to manage duties for this office.")
-
-        # 4. Other Office Employee Check (Relative to Actor's Office)
-        target_user = instance.user
-        actor_office_id = getattr(user, 'office_id', None)
-        
-        if target_user:
-            target_user_office_id = getattr(target_user, 'office_id', None)
-            
-            # If target user belongs to a different office (or no office) than the Actor's office
-            if target_user_office_id is None or actor_office_id is None or int(target_user_office_id) != int(actor_office_id):
-                if not user_has_permission_slug(user, 'duties.remove_other_office_employee'):
-                    raise serializers.ValidationError(
-                        f"You cannot remove employee {target_user.full_name} as they belong to another office (or no office) and you lack the 'Remove Other Office Employee' permission."
-                    )
+        # 3. Must be the creator of the duty chart this duty belongs to
+        duty_chart = instance.duty_chart
+        if not duty_chart or duty_chart.created_by_id != user.pk:
+            raise serializers.ValidationError(
+                "You can only remove employees from duty charts that you created."
+            )
 
         instance.delete()
 

@@ -90,13 +90,18 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     if (open) {
       const load = async () => {
         try {
-          const officesRes = await getOffices();
-          setOffices(officesRes);
-          // Only reset these if not provided by props (though usually they are handled by logic below)
-          // Actually, we should allow the prop-setting logic to govern these. 
-          // But to be safe and match previous behavior (which cleared them AFTER fetch), 
-          // we can leave them or trust the initial prop overrides. 
-          // Given the structure, let's keep it clean.
+          const isSuperAdmin = user?.role === 'SUPERADMIN';
+          const [officesRes, allCharts] = await Promise.all([getOffices(), getDutyCharts()]);
+
+          if (isSuperAdmin) {
+            // SuperAdmin sees all offices
+            setOffices(officesRes);
+          } else {
+            // Find office IDs where this user has created charts
+            const myCharts = allCharts.filter(c => c.created_by === user?.id);
+            const myOfficeIds = new Set(myCharts.map(c => c.office));
+            setOffices(officesRes.filter(o => myOfficeIds.has(o.id)));
+          }
         } catch (e) {
           console.error("Failed to load offices:", e);
         }
@@ -168,8 +173,15 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         if (formData.office) {
           const officeId = parseInt(formData.office);
           const chartsRes = await getDutyCharts(officeId);
-          setCharts(chartsRes);
-          if (!chartsRes.find(c => String(c.id) === selectedChartId)) {
+
+          // SuperAdmin sees all charts; everyone else only sees charts they created
+          const isSuperAdmin = user?.role === 'SUPERADMIN';
+          const visibleCharts = isSuperAdmin
+            ? chartsRes
+            : chartsRes.filter(c => c.created_by === user?.id);
+
+          setCharts(visibleCharts);
+          if (!visibleCharts.find(c => String(c.id) === selectedChartId)) {
             setSelectedChartId("");
           }
           const filtered = await getSchedules(officeId);
@@ -185,6 +197,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     };
     if (open) fetchByOffice();
   }, [formData.office, open]);
+
 
   const availableSchedules = useMemo(() => {
     const uniqueMap = new Map<string, Schedule>();
@@ -487,16 +500,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <Command>
                           <CommandInput placeholder="Search office..." />
-                          <CommandList className="max-h-[300px] overflow-y-auto">
-                            <CommandEmpty>No office found.</CommandEmpty>
-                            <CommandGroup>
-                              {offices
-                                .filter(office => {
-                                  if (hasPermission('duties.create_any_office_chart')) return true;
-                                  const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
-                                  return allowedIds.includes(Number(office.id));
-                                })
-                                .map((office) => (
+                          <CommandList>
+                            <div
+                              className="max-h-[300px] overflow-y-auto"
+                              onWheel={(e) => e.stopPropagation()}
+                            >
+                              <CommandEmpty>No office found.</CommandEmpty>
+                              <CommandGroup>
+                                {offices.map((office) => (
                                   <CommandItem
                                     key={office.id}
                                     value={office.name}
@@ -514,7 +525,9 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                                     {office.name}
                                   </CommandItem>
                                 ))}
-                            </CommandGroup>
+
+                              </CommandGroup>
+                            </div>
                           </CommandList>
                         </Command>
                       </PopoverContent>

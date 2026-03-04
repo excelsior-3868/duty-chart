@@ -61,8 +61,13 @@ class AdminOrReadOnly(BasePermission):
         if request.user == obj:
             return True
         if IsOfficeAdmin().has_permission(request, view):
-            # Check if user being edited is in same office
-            return IsOfficeScoped().has_object_permission(request, view, obj)
+            # Office Admin: must also have the RBAC permission, then restricted to own office
+            if user_has_permission_slug(request.user, 'users.edit_employee'):
+                return IsOfficeScoped().has_object_permission(request, view, obj)
+            return False
+        # Any other role (e.g. Network Admin) with users.edit_employee → full access, no office restriction
+        if user_has_permission_slug(request.user, 'users.edit_employee'):
+            return True
         return False
 
 class SuperAdminOrReadOnly(BasePermission):

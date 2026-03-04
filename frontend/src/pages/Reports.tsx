@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BarChart3 } from "lucide-react";
+import { ROUTES } from "@/utils/constants";
 
 function Reports() {
   const [reportStats, setReportStats] = useState({
@@ -62,37 +63,37 @@ function Reports() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Prominent User Wise Report card placed first */}
-        <Card className="md:col-span-2 shadow-md">
+        <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow border-primary/10">
           <CardHeader>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
-              <CardTitle>User Wise Report (Annex 1)</CardTitle>
+              <CardTitle>Duty Report (अनुसूची - १)</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Export duty schedule as per Annex 1 format (Shift, Date, Employee details).
+            </p>
+            <Button onClick={() => (window.location.href = ROUTES.ANNEX_I_REPORT)} className="w-full">
+              Open Anusuchi-1
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* New Reports New Card */}
+        <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow border-primary/10">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              <CardTitle>Duty Report (अनुसूची - २)</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col space-y-3">
             <p className="text-sm text-muted-foreground">
               Analyze duties by user across a selected period. View detailed schedules, availability, and completion status.
             </p>
-            <Button onClick={() => (window.location.href = "/reports/userwise")} className="w-full">
-              Open Annex 1
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* New Reports New Card */}
-        <Card className="md:col-span-2 shadow-md">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <CardTitle>Reports New (Annex 2)</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Export report for completed work details as per Annex 2 format (Work Description, Achievement, etc.).
-            </p>
-            <Button onClick={() => (window.location.href = "/reports/userwise-new")} variant="outline" className="w-full border-primary text-primary hover:bg-primary/5">
-              Open Annex 2
+            <Button onClick={() => (window.location.href = ROUTES.ANNEX_II_REPORT)} variant="outline" className="w-full border-primary text-primary hover:bg-primary/5">
+              Open Anusuchi-2
             </Button>
           </CardContent>
         </Card>

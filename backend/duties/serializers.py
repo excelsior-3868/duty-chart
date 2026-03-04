@@ -20,7 +20,12 @@ class DutyChartSerializer(serializers.ModelSerializer):
             'end_date',
             'name',
             'schedules',
+            'created_by',
+            'created_at',
+            'edited_by',
+            'edited_at',
         ]
+        read_only_fields = ['created_by', 'created_at', 'edited_by', 'edited_at']
 
     # ✅ CHANGE: Call full_clean() so model-level validations (Nepal phone number format, end_date > effective_date) run
     def create(self, validated_data):

@@ -96,6 +96,7 @@ import Attendance from "@/pages/Attendance";
 import Schedule from "@/pages/Schedule";
 import Reports from "@/pages/Reports";
 import UserWiseReport from "@/pages/reports/UserWiseReport";
+import DutyReportAnusuchi1 from "@/pages/reports/DutyReportAnusuchi1";
 import UserWiseReportNew from "@/pages/reports/UserWiseReportNew";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
@@ -112,6 +113,7 @@ import AccountingOfficesPage from "@/pages/AccountingOfficesPage";
 import CCOfficesPage from "@/pages/CCOfficesPage";
 import ApiDocsPage from "@/pages/ApiDocsPage";
 import ArchitecturePage from "@/pages/ArchitecturePage";
+import MyDuties from "@/pages/MyDuties";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Outlet } from "react-router-dom";
 
@@ -163,6 +165,14 @@ export const router = createBrowserRouter([
               </ProtectedRoute>
             ),
           },
+          {
+            path: ROUTES.MY_DUTIES,
+            element: (
+              <ProtectedRoute>
+                <MyDuties />
+              </ProtectedRoute>
+            ),
+          },
 
           {
             path: ROUTES.DUTY_CHART,
@@ -205,7 +215,16 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            // 👇 NEW USER WISE REPORT ROUTE
+            // 👇 New Anusuchi-1 Report Page
+            path: ROUTES.ANNEX_I_REPORT,
+            element: (
+              <ProtectedRoute>
+                <DutyReportAnusuchi1 />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            // 👇 User Wise Report (Optional)
             path: "/reports/userwise",
             element: (
               <ProtectedRoute>

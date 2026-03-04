@@ -138,7 +138,7 @@ const ExportPreviewModal: React.FC<ExportPreviewModalProps> = ({
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-start">
               <div>
-                <DialogTitle>Export Duty Chart</DialogTitle>
+                <DialogTitle>Download अनुसूची -१</DialogTitle>
                 <DialogDescription>
                   Preview data and export as Excel, PDF, or DOCX.
                 </DialogDescription>

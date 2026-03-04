@@ -125,7 +125,9 @@ class Command(BaseCommand):
                 "duties.view_available_shifts"
             ],
             "NETWORK_ADMIN": [
-                "duties.view_chart", "users.view_employee", "duties.view_schedule", 
+                "duties.view_chart", "duties.create_chart", "duties.edit_dutychart",
+                "duties.delete_chart", "duties.delete", "duties.assign_employee",
+                "users.view_employee", "duties.view_schedule",
                 "schedules.view", "schedules.view_office_schedule", "duties.view_available_shifts"
             ]
 

@@ -41,6 +41,11 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     href: ROUTES.DASHBOARD,
     icon: 'Home'
   },
+  {
+    title: 'My Duties',
+    href: ROUTES.MY_DUTIES,
+    icon: 'Clock',
+  },
   // {
   //   title: 'Duty Chart',
   //   href: ROUTES.DUTY_CHART,
@@ -104,6 +109,11 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     permission: 'duties.view_chart',
     children: [
 
+      {
+        title: 'Duty Report (अनुसूची-१)',
+        href: ROUTES.ANNEX_I_REPORT,
+        icon: 'FileText'
+      },
       {
         title: 'Duty Report (अनुसूची-२)',
         href: ROUTES.ANNEX_II_REPORT,

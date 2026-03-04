@@ -87,9 +87,9 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     const load = async () => {
       try {
         setLoading(true);
+        // Only users with duties.assign_any_office_employee can see employees from all offices.
+        // Everyone else is restricted to the duty chart's office.
         const canAssignAny = hasPermission("duties.assign_any_office_employee");
-        // If can assign any, fetch all users. Otherwise, fetch for this office.
-        // Also only fetch users whose status is_activated=true
         const res = await getUsers(canAssignAny ? undefined : officeId, true);
         setUsers(res);
       } catch (e) {
@@ -373,35 +373,40 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                   <Command>
                     <CommandInput placeholder="Search employee by name, ID or email..." />
-                    <CommandList className="max-h-[300px] overflow-y-auto">
-                      <CommandEmpty>No employee found.</CommandEmpty>
-                      <CommandGroup>
-                        {users.map((u) => (
-                          <CommandItem
-                            key={u.id}
-                            value={`${u.username} ${u.employee_id} ${u.full_name} ${u.office_name}`}
-                            onSelect={() => {
-                              setSelectedUserId(String(u.id));
-                              setEmployeeSearchOpen(false);
-                            }}
-                          >
-                            <div className="flex flex-col">
-                              <div className="flex items-center">
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedUserId === String(u.id) ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                <span className="font-medium">{u.employee_id || u.username} - {u.full_name || u.username}</span>
+                    <CommandList>
+                      <div
+                        className="max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent"
+                        onWheel={(e) => e.stopPropagation()}
+                      >
+                        <CommandEmpty>No employee found.</CommandEmpty>
+                        <CommandGroup>
+                          {users.map((u) => (
+                            <CommandItem
+                              key={u.id}
+                              value={`${u.username} ${u.employee_id} ${u.full_name} ${u.office_name}`}
+                              onSelect={() => {
+                                setSelectedUserId(String(u.id));
+                                setEmployeeSearchOpen(false);
+                              }}
+                            >
+                              <div className="flex flex-col">
+                                <div className="flex items-center">
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selectedUserId === String(u.id) ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <span className="font-medium">{u.employee_id || u.username} - {u.full_name || u.username}</span>
+                                </div>
+                                <div className="ml-6 flex items-center gap-2">
+                                  <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border text-slate-600 font-semibold text-[10px]">{u.office_name || "N/A"}</span>
+                                </div>
                               </div>
-                              <div className="ml-6 flex items-center gap-2">
-                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border text-slate-600 font-semibold text-[10px]">{u.office_name || "N/A"}</span>
-                              </div>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </div>
                     </CommandList>
                   </Command>
                 </PopoverContent>
@@ -523,8 +528,8 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                       <span className="text-slate-800 text-xs font-medium">{(selectedUserDetail as any)?.office_name || officeDetail?.name || "—"}</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-slate-600 font-bold text-[10px] mb-0.5">Department</span>
-                      <span className="text-slate-800 text-xs font-medium truncate">{(selectedUserDetail as any)?.department_name || officeDetail?.department_name || "—"}</span>
+                      <span className="text-slate-600 font-bold text-[10px] mb-0.5">Responsibility</span>
+                      <span className="text-slate-800 text-xs font-medium truncate">{(selectedUserDetail as any)?.responsibility_name || "—"}</span>
                     </div>
                   </div>
                 </div>

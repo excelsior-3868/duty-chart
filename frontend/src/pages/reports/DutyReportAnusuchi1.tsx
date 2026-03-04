@@ -1,10 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
-import api from "@/services/api";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
     Select,
     SelectContent,
@@ -25,7 +22,7 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
-import { Loader2, Download, FileText, Calendar, Users, Info, Search, Check, ChevronDown, Clock, Trash2 } from "lucide-react";
+import { Loader2, Download, FileText, Calendar, Info, Check, ChevronDown, Clock, Trash2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
@@ -33,6 +30,7 @@ import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
 import NepaliDate from "nepali-date-converter";
 import { useAuth } from "@/context/AuthContext";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Table,
     TableBody,
@@ -42,30 +40,10 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import api from "@/services/api";
+import { getDutyChartExportPreview, downloadDutyChartExportFile, type ExportPreviewResponse } from "@/services/exportService";
 
 /* ===================== TYPES ===================== */
-
-interface DutyRow {
-    id: number;
-    date: string;
-    weekday: string;
-    schedule: string;
-    start_time: string;
-    end_time: string;
-    is_completed: boolean;
-    currently_available: boolean;
-    employee_name: string;
-    employee_id: string;
-}
-
-interface User {
-    id: number;
-    full_name: string;
-    employee_id?: string;
-    office_name?: string;
-    responsibility?: number | null;
-    responsibility_name?: string | null;
-}
 
 interface DutyOption {
     id: number;
@@ -83,102 +61,51 @@ interface Schedule {
     end_time: string;
 }
 
+interface User {
+    id: number;
+    full_name: string;
+    employee_id?: string;
+    office_name?: string;
+    responsibility?: number | null;
+    responsibility_name?: string | null;
+}
+
 /* ===================== COMPONENT ===================== */
 
-function UserWiseReportNew() {
-    const [users, setUsers] = useState<User[]>([]);
-    const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-    const [selectAllUsers, setSelectAllUsers] = useState(true);
-
-
-    const [duties, setDuties] = useState<DutyRow[]>([]);
+function DutyReportAnusuchi1() {
     const [loading, setLoading] = useState(false);
     const [downloading, setDownloading] = useState(false);
     const [firstLoad, setFirstLoad] = useState(true);
-
-    const [me, setMe] = useState<any>(null);
+    const [preview, setPreview] = useState<ExportPreviewResponse | null>(null);
 
     const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
     const [dateTo, setDateTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
-
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
 
     const { user: authUser, hasPermission } = useAuth();
 
     const [dutyOptions, setDutyOptions] = useState<DutyOption[]>([]);
     const [selectedDuty, setSelectedDuty] = useState<string>("");
-    const [searchTerm, setSearchTerm] = useState("");
     const [dutyChartOpen, setDutyChartOpen] = useState(false);
 
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [selectedSchedule, setSelectedSchedule] = useState<string>("all");
     const [dateMode, setDateMode] = useState<"BS" | "AD">("BS");
 
+    const [users, setUsers] = useState<User[]>([]);
+    const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
+    const [selectAllUsers, setSelectAllUsers] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
     // Set document title
     useEffect(() => {
-        document.title = "Duty Report (Annex 2) - NT Duty Chart Management System";
+        document.title = "Duty Report (Anusuchi-1) - NT Duty Chart Management System";
     }, []);
 
-    /* ================= Outside click ================= */
-
-    useEffect(() => {
-        function handleClickOutside(e: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-                setDropdownOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    /* ================= Fetch me ================= */
-
-    useEffect(() => {
-        async function fetchMe() {
-            try {
-                const res = await api.get("/auth/me/");
-                setMe(res.data);
-                // No longer defaulting regular users to only themselves, 
-                // as the backend now allows them to see their office report by default.
-            } catch (err) {
-                console.error("Failed to fetch /me/", err);
-            }
-        }
-        fetchMe();
-    }, []);
-
-    /* ================= Fetch users ================= */
-
-    async function fetchUsers(dutyId?: string) {
-        if (!me) return;
-        try {
-            const params: any = {};
-            if (dutyId && dutyId !== "none") {
-                params.duty_chart_id = dutyId;
-            }
-            const res = await api.get("/users/", { params });
-            setUsers(res.data.results || res.data); // Handle both paginated and non-paginated
-        } catch (err) {
-            console.error("User fetch failed", err);
-        }
-    }
-
-    useEffect(() => {
-        if (me) {
-            if (selectedDuty && selectedDuty !== "none") {
-                fetchUsers(selectedDuty);
-            } else {
-                setUsers([]);
-                setSelectedUsers([]);
-                setSelectAllUsers(true);
-            }
-        }
-    }, [me, selectedDuty]);
     /* ================= Fetch duty options ================= */
 
     useEffect(() => {
-        async function fetchDuties() {
+        async function fetchDutyOptionsList() {
             try {
                 const res = await api.get("/reports/duties/options/");
                 setDutyOptions(res.data || []);
@@ -186,9 +113,29 @@ function UserWiseReportNew() {
                 console.error("Failed to fetch duty options", err);
             }
         }
-        fetchDuties();
+        fetchDutyOptionsList();
     }, []);
 
+    /* ================= Fetch users ================= */
+
+    useEffect(() => {
+        if (selectedDuty && selectedDuty !== "none") {
+            async function fetchUsersList() {
+                try {
+                    const params: any = { duty_chart_id: selectedDuty };
+                    const res = await api.get("/users/", { params });
+                    setUsers(res.data.results || res.data);
+                } catch (err) {
+                    console.error("User fetch failed", err);
+                }
+            }
+            fetchUsersList();
+        } else {
+            setUsers([]);
+            setSelectedUsers([]);
+            setSelectAllUsers(true);
+        }
+    }, [selectedDuty]);
 
     /* ================= Fetch schedules when duty changes ================= */
 
@@ -203,7 +150,7 @@ function UserWiseReportNew() {
                 }
             }
 
-            async function fetchSchedules() {
+            async function fetchSchedulesList() {
                 try {
                     const res = await api.get("/schedule/", {
                         params: { duty_chart: selectedDuty }
@@ -214,7 +161,7 @@ function UserWiseReportNew() {
                     console.error("Failed to fetch schedules", err);
                 }
             }
-            fetchSchedules();
+            fetchSchedulesList();
         } else {
             setSchedules([]);
             setSelectedSchedule("all");
@@ -230,19 +177,6 @@ function UserWiseReportNew() {
 
     const handleDutyChange = (val: string) => {
         setSelectedDuty(val);
-        if (val && val !== "none") {
-            const selected = dutyOptions.find(d => d.id.toString() === val);
-            if (selected) {
-                setDateFrom(selected.effective_date);
-                if (selected.end_date) {
-                    setDateTo(selected.end_date);
-                }
-            }
-        } else {
-            // Reset to current month if "none" is selected
-            setDateFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-            setDateTo(format(endOfMonth(new Date()), "yyyy-MM-dd"));
-        }
     };
 
     /* ================= Load preview ================= */
@@ -252,88 +186,79 @@ function UserWiseReportNew() {
             toast.error("Please select a Duty Chart first.");
             return;
         }
-        if (!selectedSchedule) {
-            toast.error("Please select a Shift.");
-            return;
-        }
-        if (!selectAllUsers && selectedUsers.length === 0) {
-            toast.warning("Please select an employee or enable 'All'.");
-            return;
-        }
+
         setLoading(true);
         setFirstLoad(false);
         try {
-            const res = await api.get("/reports/duties/preview/", {
-                params: {
-                    date_from: dateFrom,
-                    date_to: dateTo,
-                    user_id: selectAllUsers ? undefined : selectedUsers.join(","),
-                    all_users: selectAllUsers ? "1" : "0",
-                    duty_id: selectedDuty || undefined,
-                    schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
-                },
+            const res = await getDutyChartExportPreview({
+                chart_id: parseInt(selectedDuty),
+                scope: "range",
+                start_date: dateFrom,
+                end_date: dateTo,
+                schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
+                // user_id is not yet supported in this specific preview endpoint for Anusuchi-1,
+                // but we include the UI for consistency and future-proofing.
+                page: 1,
+                page_size: 50,
             });
-
-            if (res.data && res.data.groups) {
-                const allRows = res.data.groups.flatMap((g: any) => {
-                    // Robustly find group header info using the same logic as getVal
-                    const gKeys = Object.keys(g || {});
-                    const findGKey = (search: string[]) =>
-                        gKeys.find(k => search.some(s => k.toLowerCase().replace(/_/g, " ").includes(s.toLowerCase().replace(/_/g, " "))));
-
-                    const nameK = findGKey(["employee", "staff", "full name", "user name", "name"]);
-                    const eidK = findGKey(["employee id", "user id", "eid", "id"]);
-
-                    const name = nameK ? g[nameK] : "-";
-                    const eid = eidK ? g[eidK] : "-";
-
-                    return (g.rows || []).map((r: any) => ({
-                        ...r,
-                        employee_name: name,
-                        employee_id: eid,
-                    }));
-                });
-                // Sort by date DESC
-                allRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                setDuties(allRows);
-            } else if (Array.isArray(res.data)) {
-                // Fallback for flat array response
-                const flattened = res.data.map((r: any) => {
-                    const rKeys = Object.keys(r || {});
-                    const findRKey = (search: string[]) =>
-                        rKeys.find(k => search.some(s => k.toLowerCase().replace(/_/g, " ").includes(s.toLowerCase().replace(/_/g, " "))));
-
-                    const nameK = findRKey(["employee", "staff", "full name", "user name", "name"]);
-                    const eidK = findRKey(["employee id", "user id", "eid", "id"]);
-
-                    return {
-                        ...r,
-                        employee_name: nameK ? r[nameK] : "-",
-                        employee_id: eidK ? r[eidK] : "-",
-                    };
-                });
-                // Sort by date DESC
-                flattened.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                setDuties(flattened);
-            } else {
-                setDuties([]);
-            }
+            setPreview(res);
         } catch (err) {
             console.error(err);
-            setDuties([]);
+            setPreview(null);
+            toast.error("Failed to load report preview.");
         } finally {
             setLoading(false);
         }
     }
 
     function clearPreview() {
-        setDuties([]);
+        setPreview(null);
         setFirstLoad(true);
         setSelectedDuty("");
         setSelectedSchedule("all");
     }
 
-    /* ================= Download DOCX ================= */
+    /* ================= Download ================= */
+
+    async function downloadReport() {
+        if (!selectedDuty || selectedDuty === "none") {
+            toast.error("Please select a Duty Chart first.");
+            return;
+        }
+
+        try {
+            setDownloading(true);
+            const blob = await downloadDutyChartExportFile({
+                chart_id: parseInt(selectedDuty),
+                format: "docx",
+                scope: "range",
+                start_date: dateFrom,
+                end_date: dateTo,
+                schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
+                // user_id is handled in the file generation if the backend supports it
+                ...(selectAllUsers ? {} : { user_ids: selectedUsers.join(",") })
+            } as any);
+
+            const url = window.URL.createObjectURL(blob);
+            const ext = "docx";
+            const selectedDutyName = dutyOptions.find(d => d.id.toString() === selectedDuty)?.name || "Report";
+            const safeDutyName = selectedDutyName.replace(/[/\\?%*:|"<>]/g, '-');
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `DutyReport_Anusuchi-1_${safeDutyName}_${dateFrom}_${dateTo}.${ext}`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success("Report downloaded successfully.");
+        } catch (err) {
+            console.error("Download failed", err);
+            toast.error("Failed to download report");
+        } finally {
+            setDownloading(false);
+        }
+    }
 
     /* ================= Helpers ================= */
 
@@ -361,8 +286,8 @@ function UserWiseReportNew() {
 
     const getFormattedDate = (isoDate: string) => {
         try {
-            if (!isoDate) return { ad: "-", bs: "-" };
             const ad = new Date(isoDate);
+            // Check if valid date
             if (isNaN(ad.getTime())) return { ad: isoDate, bs: isoDate };
             const bs = new NepaliDate(ad);
             return {
@@ -374,10 +299,21 @@ function UserWiseReportNew() {
         }
     };
 
+    // We want a fixed set of columns in a specific order to match UserWiseReportNew
+    const displayColumns = [
+        { key: "id", label: "ID" },
+        { key: "employee", label: "Employee" },
+        { key: "date", label: "Date (BS / AD)" },
+        { key: "weekday", label: "Weekday" },
+        { key: "schedule", label: "Schedule" },
+        { key: "time", label: "Time" },
+        { key: "status", label: "Status", isCenter: true },
+    ];
+
     // Helper to find the actual value from dynamic API keys
     const getVal = (row: any, type: string) => {
         if (!row) return "";
-        const keys = Object.keys(row);
+        const keys = Object.keys(row || {});
         const findMatch = (searchTerms: string[], excludeTerms: string[] = []) => {
             const kl = keys.map(k => k.toLowerCase().replace(/[/_]/g, " "));
             const sTerms = searchTerms.map(s => s.toLowerCase().replace(/[/_]/g, " "));
@@ -410,15 +346,16 @@ function UserWiseReportNew() {
             const k = findMatch(["schedule", "shift"]);
             return k ? row[k] : "";
         }
+        if (type === "status") {
+            const k = findMatch(["status", "is completed", "completed", "completed status"]);
+            return k ? row[k] : "";
+        }
         if (type === "time") {
             const startK = findMatch(["start time", "start"]);
             const endK = findMatch(["end time", "end"]);
             const timeK = findMatch(["time"]);
-
             if (startK && endK && row[startK] && row[endK]) {
-                const s = String(row[startK]).slice(0, 5);
-                const e = String(row[endK]).slice(0, 5);
-                return `${s} - ${e}`;
+                return `${String(row[startK]).slice(0, 5)} - ${String(row[endK]).slice(0, 5)}`;
             }
             if (timeK && row[timeK]) return String(row[timeK]);
             return "";
@@ -426,81 +363,15 @@ function UserWiseReportNew() {
         return "";
     };
 
-    async function downloadReport() {
-        if (!selectedDuty || selectedDuty === "none") {
-            toast.error("Please select a Duty Chart first.");
-            return;
-        }
-        if (!selectedSchedule) {
-            toast.error("Please select a Shift.");
-            return;
-        }
-        if (!selectAllUsers && selectedUsers.length === 0) {
-            toast.warning("No employees selected!");
-            return;
-        }
-
-        try {
-            setDownloading(true);
-            const params: any = {
-                date_from: dateFrom,
-                date_to: dateTo,
-            };
-
-            if (selectAllUsers) {
-                params["user_id[]"] = users.map((u) => u.id);
-            } else if (selectedUsers.length > 0) {
-                params["user_id[]"] = selectedUsers;
-            }
-
-            if (selectedDuty) {
-                params["duty_id"] = selectedDuty;
-            }
-
-            if (selectedSchedule !== "all") {
-                params["schedule_id"] = selectedSchedule;
-            }
-
-            const response = await api.get("/reports/duties/file-new/", {
-                params,
-                responseType: "blob",
-            });
-
-            const url = window.URL.createObjectURL(
-                new Blob([response.data], {
-                    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                })
-            );
-
-            const selectedDutyName = dutyOptions.find(d => d.id.toString() === selectedDuty)?.name || "Report";
-            const safeDutyName = selectedDutyName.replace(/[/\\?%*:|"<>]/g, '-');
-
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `DutyCompletion_Report_अनुसूची-2_${safeDutyName}_${dateFrom}_${dateTo}.docx`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error("Download failed", err);
-            toast.error("Failed to download report");
-        } finally {
-            setDownloading(false);
-        }
-    }
-
-    /* ================= Render ================= */
-
     return (
         <div className="p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-                        Duty Report (अनुसूची - २)
+                        Duty Report (अनुसूची - १)
                     </h1>
                     <p className="text-muted-foreground text-sm">
-                        Generate and export report in अनुसूची - २ format.
+                        Generate and export report in अनुसूची - १ format.
                     </p>
                 </div>
             </div>
@@ -702,7 +573,7 @@ function UserWiseReportNew() {
                                                     {selectedUsers.length > 0 ? (
                                                         <span className="flex items-center gap-1.5">
                                                             {selectedUsers.length}
-                                                            <span className="text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Employees</span>
+                                                            <span className="text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Selected</span>
                                                         </span>
                                                     ) : (
                                                         "Select Employee"
@@ -765,17 +636,12 @@ function UserWiseReportNew() {
                                                                             {isSelected && <Check className="h-3 w-3 text-white stroke-[3px]" />}
                                                                         </div>
                                                                         <div className="flex flex-col">
-                                                                            <span className="truncate">{u.full_name} {u.responsibility_name && <span className="opacity-70 mx-1">({u.responsibility_name})</span>}</span>
+                                                                            <span className="truncate">{u.full_name}</span>
                                                                             <span className={cn("text-[9px] font-normal", isSelected ? "text-primary/70" : "text-slate-400")}>
-                                                                                ID: {u.employee_id || "N/A"} {u.office_name && <span className="opacity-70 mx-1">• {u.office_name}</span>}
+                                                                                ID: {u.employee_id || "N/A"}
                                                                             </span>
                                                                         </div>
                                                                     </div>
-                                                                    {isSelected && (
-                                                                        <div className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest">
-                                                                            Added
-                                                                        </div>
-                                                                    )}
                                                                 </div>
                                                             </CommandItem>
                                                         );
@@ -787,7 +653,9 @@ function UserWiseReportNew() {
                                 </Popover>
                             </div>
                         </div>
+
                     </div>
+
                     <div className="mt-4 flex flex-col sm:flex-row gap-4 justify-center md:justify-end">
                         <Button
                             size="default"
@@ -828,7 +696,7 @@ function UserWiseReportNew() {
             </Card>
 
             <div className="space-y-4 pt-1">
-                <h3 className="text-2xl font-bold text-primary flex items-center gap-2">
+                <h3 className="text-xl font-bold text-primary">
                     Report Preview
                 </h3>
 
@@ -845,8 +713,9 @@ function UserWiseReportNew() {
                 ) : loading ? (
                     <div className="p-20 text-center flex flex-col items-center justify-center">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        <p className="mt-4 text-sm text-slate-500 font-medium">Loading report preview...</p>
                     </div>
-                ) : duties.length === 0 ? (
+                ) : !preview || preview.rows.length === 0 ? (
                     <div className="p-16 border-2 border-dashed border-destructive/20 rounded-xl bg-destructive/5 text-center transition-all shadow-inner">
                         <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
                             <Info className="h-8 w-8 text-destructive/60" />
@@ -854,83 +723,140 @@ function UserWiseReportNew() {
                         <h4 className="text-xl font-semibold text-destructive/80">No data found</h4>
                         <p className="text-destructive/60 max-w-md mx-auto mt-2">
                             We couldn't find any duty assignments matching your selected criteria.
-                            Please adjust the date range or personnel selection.
+                            Please adjust the date range or duty chart selection.
                         </p>
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden overflow-x-auto transition-all duration-300">
                         <Table>
                             <TableHeader className="bg-primary hover:bg-primary">
                                 <TableRow className="hover:bg-transparent border-none">
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">ID</TableHead>
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Employee</TableHead>
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Date (BS / AD)</TableHead>
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Weekday</TableHead>
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Schedule</TableHead>
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider text-center">Time</TableHead>
-                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider text-center">Status</TableHead>
+                                    {displayColumns.map((col) => {
+                                        const isCenter = col.key === "time" || col.key === "status";
+                                        return (
+                                            <TableHead
+                                                key={col.key}
+                                                className={cn(
+                                                    "py-3 text-white font-bold text-sm tracking-wider",
+                                                    isCenter && "text-center"
+                                                )}
+                                            >
+                                                {col.label}
+                                            </TableHead>
+                                        );
+                                    })}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {duties.map((d) => {
-                                    const dateVal = getVal(d, "date");
-                                    const dateInfo = getFormattedDate(dateVal);
-                                    let weekdayRaw = getVal(d, "weekday");
+                                {preview.rows.map((row, idx) => (
+                                    <TableRow key={idx} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
+                                        {displayColumns.map((col) => {
+                                            const val = getVal(row, col.key);
+                                            const keyLower = col.key;
 
-                                    // Fallback: If weekday is missing or numeric, derive from date
-                                    if (!weekdayRaw || !isNaN(Number(weekdayRaw)) || weekdayRaw === "0") {
-                                        if (dateVal) {
-                                            const dv = new Date(dateVal);
-                                            if (!isNaN(dv.getTime())) {
-                                                weekdayRaw = format(dv, "EEEE");
+                                            // Specialized rendering based on column key
+                                            if (keyLower === "employee") {
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4">
+                                                        <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">{String(val ?? "")}</span>
+                                                    </TableCell>
+                                                );
                                             }
-                                        }
-                                    }
 
-                                    const nepaliWeekday = getNepaliWeekday(weekdayRaw);
-                                    return (
-                                        <TableRow key={d.id || Math.random()} className="hover:bg-slate-50/80 transition-colors border-slate-100">
-                                            <TableCell className="py-4">
-                                                <span className="text-xs font-mono text-primary font-bold uppercase whitespace-nowrap">{getVal(d, "id")}</span>
-                                            </TableCell>
-                                            <TableCell className="py-4">
-                                                <span className="font-medium text-slate-800 text-sm whitespace-nowrap">{getVal(d, "employee")}</span>
-                                            </TableCell>
-                                            <TableCell className="py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="font-mono text-sm font-bold text-slate-700">{dateInfo.bs}</span>
-                                                    <span className="text-[12px] text-slate-400 font-medium">{dateInfo.ad}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-semibold text-slate-700">{nepaliWeekday}</span>
-                                                    <span className="text-[11px] text-slate-400 italic">({weekdayRaw})</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="py-4">
-                                                <span className="text-sm font-semibold text-primary/80">{getVal(d, "schedule")}</span>
-                                            </TableCell>
-                                            <TableCell className="py-4 text-center">
-                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded border border-slate-100 font-mono text-xs font-bold text-slate-700">
-                                                    <Clock className="h-3 w-3 text-slate-400" />
-                                                    {getVal(d, "time")}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="py-4 text-center">
-                                                <Badge
-                                                    variant={d.is_completed ? "default" : "secondary"}
-                                                    className={cn(
-                                                        "text-[12px] font-bold px-3 py-0.5  tracking-tighter",
-                                                        d.is_completed ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
-                                                    )}
-                                                >
-                                                    {d.is_completed ? "Completed" : "Not Finished"}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
+                                            if (keyLower === "id") {
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4">
+                                                        <span className="text-sm font-bold text-primary uppercase whitespace-nowrap">{String(val ?? "")}</span>
+                                                    </TableCell>
+                                                );
+                                            }
+
+                                            if (keyLower === "date") {
+                                                const dateInfo = getFormattedDate(String(val ?? ""));
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4">
+                                                        <div className="flex flex-col min-w-[100px]">
+                                                            <span className="font-mono text-sm font-bold text-slate-700">{dateInfo.bs}</span>
+                                                            <span className="text-[11px] text-slate-400 font-medium">{dateInfo.bs !== dateInfo.ad ? dateInfo.ad : ""}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                );
+                                            }
+
+                                            if (keyLower === "weekday") {
+                                                let rawVal = String(val ?? "");
+
+                                                // Fallback: If weekday is missing or numeric, derive from date
+                                                if (!rawVal || !isNaN(Number(rawVal)) || rawVal === "0") {
+                                                    const dateVal = getVal(row, "date");
+                                                    if (dateVal) {
+                                                        const d = new Date(dateVal);
+                                                        if (!isNaN(d.getTime())) {
+                                                            rawVal = format(d, "EEEE");
+                                                        }
+                                                    }
+                                                }
+
+                                                const hasParentheses = rawVal.includes("(") && rawVal.includes(")");
+                                                const nepaliDay = hasParentheses ? rawVal.split("(")[0].trim() : getNepaliWeekday(rawVal);
+                                                const englishDay = hasParentheses ? rawVal.match(/\(([^)]+)\)/)?.[1] || rawVal : rawVal;
+
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-semibold text-slate-700">{nepaliDay}</span>
+                                                            <span className="text-[11px] text-slate-400 italic">({englishDay})</span>
+                                                        </div>
+                                                    </TableCell>
+                                                );
+                                            }
+
+                                            if (keyLower === "schedule") {
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4">
+                                                        <span className="text-sm font-semibold text-primary/80">{String(val ?? "")}</span>
+                                                    </TableCell>
+                                                );
+                                            }
+
+                                            if (keyLower === "time") {
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4 text-center">
+                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded border border-slate-100 font-mono text-xs font-bold text-slate-700">
+                                                            <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                                            {String(val ?? "")}
+                                                        </div>
+                                                    </TableCell>
+                                                );
+                                            }
+
+                                            if (keyLower === "status") {
+                                                const isCompleted = String(val).toLowerCase().includes("true") ||
+                                                    String(val).toLowerCase().includes("comp") ||
+                                                    val === 1 || val === true;
+                                                return (
+                                                    <TableCell key={col.key} className="py-4 px-4 text-center">
+                                                        <Badge
+                                                            variant={isCompleted ? "default" : "secondary"}
+                                                            className={cn(
+                                                                "text-[12px] font-bold px-3 py-0.5 tracking-tighter",
+                                                                isCompleted ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
+                                                            )}
+                                                        >
+                                                            {isCompleted ? "Completed" : "Not Finished"}
+                                                        </Badge>
+                                                    </TableCell>
+                                                );
+                                            }
+
+                                            return (
+                                                <TableCell key={col.key} className="py-4 px-4 text-slate-600 text-sm font-medium">
+                                                    {String(val ?? "")}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     </div>
@@ -940,4 +866,4 @@ function UserWiseReportNew() {
     );
 }
 
-export default UserWiseReportNew;
+export default DutyReportAnusuchi1;

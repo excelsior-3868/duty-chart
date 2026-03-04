@@ -577,7 +577,8 @@ const Dashboard = () => {
       description: "",
       icon: CalendarDays,
       trend: "Your shifts this month",
-      colorClass: "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none"
+      colorClass: "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none",
+      link: ROUTES.MY_DUTIES
     },
     {
       title: `Office Duties (${currentBSMonthInfo.name})`,
@@ -585,7 +586,9 @@ const Dashboard = () => {
       description: "",
       icon: Building2,
       trend: "Total office shifts",
-      colorClass: "bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-none"
+      colorClass: "bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-none",
+      link: ROUTES.DUTY_CALENDAR,
+      state: { preselect: { officeId: String(user?.office_id || "") } }
     },
     {
       title: "On Duty Today",
@@ -691,7 +694,15 @@ const Dashboard = () => {
         {stats.map((stat) => {
           const IconComponent = stat.icon;
           return (
-            <Card key={stat.title} className={`hover:border-primary/30 transition-colors border border-slate-200 shadow-sm ${stat.isDuty && myCurrentDuty ? 'bg-emerald-50/30 border-emerald-100' : ''}`}>
+            <Card
+              key={stat.title}
+              onClick={() => {
+                if ((stat as any).link) {
+                  navigate((stat as any).link, { state: (stat as any).state });
+                }
+              }}
+              className={`transition-colors border border-slate-200 shadow-sm ${(stat as any).link ? 'cursor-pointer hover:border-primary/50' : ''} ${stat.isDuty && myCurrentDuty ? 'bg-emerald-50/30 border-emerald-100 hover:border-emerald-300' : 'hover:border-primary/30'} `}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
                 <CardTitle className="text-[11px] font-semibold text-slate-500">{stat.title}</CardTitle>
                 <div className={`p-1.5 rounded-md ${stat.isDuty && myCurrentDuty ? 'bg-emerald-100' : 'bg-slate-50'}`}>

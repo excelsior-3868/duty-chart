@@ -29,7 +29,7 @@ export const getUsers = async (officeId?: number, isActivated?: boolean): Promis
 
   // Request a large page size for the dashboard/dropdowns if not specified otherwise
   // or handle pagination if the API enforces it.
-  const res = await api.get<any>("/users/?page_size=100", { params });
+  const res = await api.get<any>("/users/?page_size=1000", { params });
   if (res.data.results && Array.isArray(res.data.results)) {
     return res.data.results;
   }
