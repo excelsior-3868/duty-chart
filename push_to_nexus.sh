@@ -8,6 +8,8 @@ set -e
 VERSION=${1:-"v1.0.0"} 
 REGISTRY="nexus.ntc.net.np"
 PROJECT="dutychart"
+# You can pass the platform as the second argument, e.g., ./push_to_nexus.sh v1.0.0 linux/amd64
+PLATFORMS=${2:-"linux/amd64,linux/arm64"}
 
 echo "=================================="
 echo " Building & Publishing Dutychart images "
@@ -31,7 +33,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all || true
 # 3. Build and Push Backend (Multi-Arch)
 echo "Building & Pushing Multi-Arch Backend Image..."
 docker buildx build \
-  --platform linux/amd64,linux/arm64 \
+  --platform $PLATFORMS \
   -t $REGISTRY/$PROJECT/backend:$VERSION \
   -t $REGISTRY/$PROJECT/backend:latest \
   -f backend/Dockerfile \
@@ -40,7 +42,7 @@ docker buildx build \
 # 4. Build and Push Frontend (Multi-Arch)
 echo "Building & Pushing Multi-Arch Frontend Image..."
 docker buildx build \
-  --platform linux/amd64,linux/arm64 \
+  --platform $PLATFORMS \
   -t $REGISTRY/$PROJECT/frontend:$VERSION \
   -t $REGISTRY/$PROJECT/frontend:latest \
   -f frontend/Dockerfile \
