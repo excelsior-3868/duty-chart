@@ -10,11 +10,13 @@ REGISTRY="nexus.ntc.net.np"
 PROJECT="dutychart"
 # You can pass the platform as the second argument, e.g., ./push_to_nexus.sh v1.0.0 linux/amd64
 PLATFORMS=${2:-"linux/amd64,linux/arm64"}
+API_BASE_URL=${3:-"https://dutychart.ntc.net.np"}
 
 echo "=================================="
 echo " Building & Publishing Dutychart images "
 echo " Registry: $REGISTRY               "
 echo " Version:  $VERSION                 "
+echo " API URL:  $API_BASE_URL            "
 echo "=================================="
 
 # 1. Login to Nexus
@@ -46,7 +48,7 @@ docker buildx build \
   -t $REGISTRY/$PROJECT/frontend:$VERSION \
   -t $REGISTRY/$PROJECT/frontend:latest \
   -f frontend/Dockerfile \
-  --build-arg VITE_API_BASE_URL=https://dutychart.ntc.net.np \
+  --build-arg VITE_API_BASE_URL=$API_BASE_URL \
   --push ./frontend
 
 echo "=================================="

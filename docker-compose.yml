@@ -66,12 +66,16 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
     container_name: duty-chart-frontend
     ports:
       - "80:80"
     volumes:
       - ./mobileApp:/usr/share/nginx/html/mobileApp:ro
+      - static_volume:/usr/share/nginx/html/static:ro
+      - media_volume:/usr/share/nginx/html/media:ro
+    env_file:
+      - .env
     depends_on:
       - duty-chart-backend
 
