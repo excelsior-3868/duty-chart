@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2, Search, Shield, Briefcase, Building2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, memo } from "react";
 import { getDutiesFiltered, Duty } from "@/services/dutiesService";
 import { getUsers, User as AppUser } from "@/services/users";
 import { getDutyCharts, DutyChart } from "@/services/dutichart";
@@ -47,26 +47,46 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+interface NowRow {
+  id: number;
+  full_name: string;
+  phone_number?: string | null;
+  schedule_name?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  currently_available: boolean;
+  shift_type?: string | null;
+  working_office?: string | null;
+  position_name?: string | null;
+  responsibility_name?: string | null;
+}
+
 interface SortableOfficeCardProps {
   id: number;
-  group: { officeName: string; officeId: number; rows: any[] };
+  group: { officeName: string; officeId: number; rows: NowRow[] };
   expanded: boolean;
   onToggleExpand: (officeName: string) => void;
   onRemove: (officeId: number) => void;
 }
 
-const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: SortableOfficeCardProps) => {
-  const [activeTab, setActiveTab] = useState<"Shift" | "Regular" | "OnCall">(() => {
-    const hasActiveShifts = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "shift");
+const SortableOfficeCard = memo(({ id, group, expanded, onToggleExpand, onRemove }: SortableOfficeCardProps) => {
+  const [activeTab, setActiveTab] = useState<"Shift" | "Regular" | "On Call">(() => {
+    const isMatch = (val: string | null, target: string) => {
+      if (!val) return false;
+      const normalized = val.toLowerCase().replace(/[- ]/g, "");
+      const targetNormalized = target.toLowerCase().replace(/[- ]/g, "");
+      return normalized === targetNormalized;
+    };
+
+    const hasActiveShifts = group.rows.some((r) => r.currently_available && isMatch(r.shift_type, "shift"));
+    const hasActiveRegular = group.rows.some((r) => r.currently_available && isMatch(r.shift_type, "regular"));
+    const hasActiveOnCall = group.rows.some((r) => r.currently_available && isMatch(r.shift_type, "oncall"));
+
     if (hasActiveShifts) return "Shift";
-
-    const hasActiveRegular = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "regular");
     if (hasActiveRegular) return "Regular";
+    if (hasActiveOnCall) return "On Call";
 
-    const hasActiveOnCall = group.rows.some((r) => r.currently_available && (r.shift_type || "").toLowerCase() === "on-call");
-    if (hasActiveOnCall) return "OnCall";
-
-    return "Shift";
+    return "Shift"; // Default if nothing matches
   });
 
   const {
@@ -86,11 +106,9 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
 
   const filteredRows = group.rows.filter((r) => {
     if (!r.currently_available) return false;
-    const type = (r.shift_type || "").toLowerCase();
-    if (activeTab.toLowerCase() === "shift") return type === "shift";
-    if (activeTab.toLowerCase() === "regular") return type === "regular";
-    if (activeTab.toLowerCase() === "oncall") return type === "on-call";
-    return true;
+    const type = (r.shift_type || "").toLowerCase().replace(/[- ]/g, "");
+    const target = activeTab.toLowerCase().replace(/[- ]/g, "");
+    return type === target;
   });
 
   const visibleRows = expanded ? filteredRows : filteredRows.slice(0, 3);
@@ -122,8 +140,8 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
           <X className="h-4 w-4" />
         </button>
 
-        <CardHeader className="p-4 pb-2 pr-10 cursor-grab active:cursor-grabbing">
-          <div className="flex items-start justify-between">
+        <CardHeader className="p-4 pb-2 cursor-grab active:cursor-grabbing">
+          <div className="flex items-start justify-between pr-8">
             <div>
               <CardTitle className="text-base whitespace-normal leading-tight">{group.officeName}</CardTitle>
               <CardDescription className="text-[11px] mt-0.5">
@@ -136,25 +154,38 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
             </div>
           </div>
 
-          <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg mt-3 w-fit" onPointerDown={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setActiveTab("Shift")}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "Shift" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Shift
-            </button>
-            <button
-              onClick={() => setActiveTab("Regular")}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "Regular" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Regular
-            </button>
-            <button
-              onClick={() => setActiveTab("OnCall")}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "OnCall" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              OnCall
-            </button>
+          <div className="flex items-center justify-between mt-3" onPointerDown={(e) => e.stopPropagation()}>
+            <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg w-fit">
+              <button
+                onClick={() => setActiveTab("Shift")}
+                className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "Shift" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Shift
+              </button>
+              <button
+                onClick={() => setActiveTab("Regular")}
+                className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "Regular" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Regular
+              </button>
+              <button
+                onClick={() => setActiveTab("On Call")}
+                className={`px-2 py-0.5 text-[10px] font-medium rounded-md transition-all ${activeTab === "On Call" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                On Call
+              </button>
+            </div>
+
+            {hasMore && (
+              <button
+                type="button"
+                className="text-[10px] font-bold px-3 py-1 rounded-md border border-slate-200 bg-slate-100/50 text-slate-500 hover:text-primary hover:bg-white hover:border-primary/30 transition-all shadow-sm"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => onToggleExpand(group.officeName)}
+              >
+                {expanded ? "See less" : "See more"}
+              </button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-4 pt-0">
@@ -202,11 +233,11 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
           </div>
 
           {hasMore && (
-            <div className="mt-4">
+            <div className="mt-4 pt-1 border-t border-slate-50 flex justify-end">
               <button
                 type="button"
-                className="text-xs px-3 py-1 rounded-md border bg-muted hover:bg-muted/70 transition-colors"
-                onPointerDown={(e) => e.stopPropagation()} // Prevent drag on button click
+                className="text-[10px] font-bold px-3 py-1 rounded-md border border-slate-200 bg-slate-100/50 text-slate-500 hover:text-primary hover:bg-white hover:border-primary/30 transition-all shadow-sm"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => onToggleExpand(group.officeName)}
               >
                 {expanded ? "See less" : "See more"}
@@ -217,7 +248,7 @@ const SortableOfficeCard = ({ id, group, expanded, onToggleExpand, onRemove }: S
       </Card>
     </div>
   );
-};
+});
 
 const Dashboard = () => {
   const [expandedOffice, setExpandedOffice] = useState<Record<string, boolean>>({});
@@ -297,41 +328,43 @@ const Dashboard = () => {
   /* ==================== QUERIES ==================== */
   // Stale time of 5 minutes to avoid refetching on every navigation
 
-  const { data: duties = [], isLoading: dutiesLoading } = useQuery({
-    queryKey: ['duties', 'dashboard-board', todayLocalISODate],
-    queryFn: async () => {
-      // Fetch both today and yesterday to handle night shifts
-      const [todayResult, yesterdayResult] = await Promise.all([
-        getDutiesFiltered({ date: todayLocalISODate }),
-        getDutiesFiltered({ date: yesterdayLocalISODate })
-      ]);
-      return [...todayResult, ...yesterdayResult];
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ['users', 'all'],
-    queryFn: () => getUsers(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: dutyCharts = [], isLoading: chartsLoading } = useQuery({
-    queryKey: ['dutyCharts', 'all'],
-    queryFn: () => getDutyCharts(),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: offices = [], isLoading: officesLoading } = useQuery({
-    queryKey: ['offices', 'all'],
-    queryFn: () => getOffices(),
-    staleTime: 5 * 60 * 1000,
-  });
-
   const { data: selectedOffices = [], isLoading: selectedOfficesLoading } = useQuery({
     queryKey: ['dashboard-offices'],
     queryFn: () => getDashboardOffices(),
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Memoize selectedOfficeIds from the query data
+  const selectedOfficeIds = useMemo(() => selectedOffices.map((so: DashboardOffice) => so.office), [selectedOffices]);
+
+  const { data: duties = [], isLoading: dutiesLoading } = useQuery({
+    queryKey: ['duties', 'dashboard-board', todayLocalISODate, selectedOfficeIds.join(',')],
+    queryFn: async () => {
+      if (selectedOfficeIds.length === 0) return [];
+      const officeParam = selectedOfficeIds.join(',');
+      // Fetch both today and yesterday to handle night shifts for selected offices
+      const [todayResult, yesterdayResult] = await Promise.all([
+        getDutiesFiltered({ date: todayLocalISODate, office: officeParam }),
+        getDutiesFiltered({ date: yesterdayLocalISODate, office: officeParam })
+      ]);
+      return [...todayResult, ...yesterdayResult];
+    },
+    enabled: selectedOfficeIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: dutyCharts = [], isLoading: chartsLoading } = useQuery({
+    queryKey: ['dutyCharts', 'dashboard-filtered', selectedOfficeIds.join(',')],
+    queryFn: () => selectedOfficeIds.length > 0 ? getDutyCharts(selectedOfficeIds.join(',')) : Promise.resolve([]),
+    enabled: selectedOfficeIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: allOfficesData = [], isLoading: officesLoading } = useQuery({
+    queryKey: ['offices', 'all'],
+    queryFn: () => getOffices(),
+    enabled: isAddCardOpen, // Optimization: Only fetch when dialog is open
+    staleTime: 10 * 60 * 1000,
   });
 
   const { data: myDuties = [], isLoading: myDutiesLoading } = useQuery({
@@ -343,15 +376,13 @@ const Dashboard = () => {
 
   const { data: officeDuties = [], isLoading: officeDutiesLoading } = useQuery({
     queryKey: ['duties', 'office', user?.office_id],
-    queryFn: () => user?.office_id ? getDutiesFiltered({ office: user.office_id }) : Promise.resolve([]),
+    queryFn: () => user?.office_id ? getDutiesFiltered({ office: String(user.office_id) }) : Promise.resolve([]),
     enabled: !!user?.office_id,
     staleTime: 5 * 60 * 1000,
   });
 
-  const loading = dutiesLoading || usersLoading || chartsLoading || officesLoading || selectedOfficesLoading || myDutiesLoading || officeDutiesLoading;
 
-  // Memoize selectedOfficeIds from the query data
-  const selectedOfficeIds = useMemo(() => selectedOffices.map((so: DashboardOffice) => so.office), [selectedOffices]);
+  const loading = dutiesLoading || chartsLoading || selectedOfficesLoading || myDutiesLoading || officeDutiesLoading;
 
   /* ==================== COMPUTATIONS ==================== */
 
@@ -378,79 +409,50 @@ const Dashboard = () => {
     });
   }, [dutyCharts, todayLocalISODate, selectedOfficeIds]);
 
-  const userById = useMemo(() => {
-    const map = new Map<number, AppUser>();
-    users.forEach((u: AppUser) => {
-      if (typeof u.id === "number") {
-        map.set(u.id, u);
-      }
-    });
-    return map;
-  }, [users]);
-
-  type NowRow = {
-    id: number;
-    full_name: string;
-    phone_number?: string | null;
-    schedule_name?: string | null;
-    start_time?: string | null;
-    end_time?: string | null;
-    currently_available: boolean;
-    shift_type?: string | null;
-    working_office?: string | null;
-    position_name?: string | null;
-    responsibility_name?: string | null;
-  };
-
   const groupedByOffice = useMemo(() => {
     const groups = new Map<number, { officeName: string; officeId: number; rows: NowRow[] }>();
 
-    // First, initialize with selected offices if any, to show empty cards if they have no duties
-    selectedOfficeIds.forEach((id: number) => {
-      const off = offices.find((o: Office) => o.id === id);
-      if (off) {
-        groups.set(id, { officeName: off.name, officeId: id, rows: [] });
-      }
+    // Initialize with selected offices from dashboard preferences to ensure they show up even if empty
+    selectedOffices.forEach((pref: DashboardOffice) => {
+      groups.set(pref.office, {
+        officeName: pref.office_name || `Office ${pref.office}`,
+        officeId: pref.office,
+        rows: []
+      });
     });
 
     duties.forEach((d: Duty) => {
       const officeId = d.office;
-      if (!selectedOfficeIds.includes(officeId)) return;
+      if (!groups.has(officeId)) return;
 
-      const officeName = d.office_name || "Unknown Office";
-      const userObj = userById.get(d.user);
-      // Skip if user is deactivated
-      if (userObj && userObj.is_activated === false) return;
+      const group = groups.get(officeId)!;
 
-      const fullName = userObj?.full_name || d.user_name || "Unknown";
-      const phone = userObj?.phone_number || d.phone_number || null;
+      // Update office name if we have a better one from the duty record
+      if (d.office_name && (group.officeName.startsWith("Office ") || group.officeName === "")) {
+        group.officeName = d.office_name;
+      }
 
-      // --- Time Check Logic ---
       const isActive = checkIsActive(d);
 
       const row: NowRow = {
         id: d.id,
-        full_name: fullName,
-        phone_number: phone,
+        full_name: (d as any).user_name || "Unknown",
+        phone_number: (d as any).phone_number || null,
         schedule_name: d.schedule_name || null,
         start_time: d.start_time || null,
         end_time: d.end_time || null,
         currently_available: isActive,
-        shift_type: d.shift_type || "Regular",
-        working_office: d.user_office_name || (d as any).user_working_office || userObj?.office_name || null,
-        position_name: (d as any).position_name || userObj?.position_name || null,
-        responsibility_name: (d as any).responsibility_name || userObj?.responsibility_name || null,
+        shift_type: (d as any).shift_type || "Regular",
+        working_office: (d as any).user_office_name || (d as any).user_working_office || null,
+        position_name: (d as any).position_name || null,
+        responsibility_name: (d as any).responsibility_name || null,
       };
 
-      if (!groups.has(officeId)) {
-        groups.set(officeId, { officeName, officeId, rows: [row] });
-      } else {
-        groups.get(officeId)!.rows.push(row);
-      }
+      group.rows.push(row);
     });
 
     return Array.from(groups.values());
-  }, [duties, userById, selectedOfficeIds, offices]);
+  }, [duties, selectedOffices]);
 
 
   const chartData = useMemo(() => {
@@ -766,7 +768,7 @@ const Dashboard = () => {
                 </div>
                 <ScrollArea className="mt-4 h-[300px] pr-4">
                   <div className="space-y-2">
-                    {offices
+                    {allOfficesData
                       .filter((o: Office) => !selectedOfficeIds.includes(o.id))
                       .filter((o: Office) =>
                         o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -806,7 +808,7 @@ const Dashboard = () => {
                           </div>
                         </div>
                       ))}
-                    {offices.filter((o: Office) => !selectedOfficeIds.includes(o.id)).length === 0 && (
+                    {allOfficesData.filter((o: Office) => !selectedOfficeIds.includes(o.id)).length === 0 && (
                       <p className="text-center py-8 text-sm text-muted-foreground">All offices are already on your board.</p>
                     )}
                   </div>
@@ -923,7 +925,7 @@ const Dashboard = () => {
                     }
                   >
                     <div>
-                      <p className="font-bold text-xs tracking-tight">{chart.name}</p>
+                      <p className="text-xs tracking-tight">{chart.name}</p>
                       <p className="text-[10px] text-muted-foreground group-hover:text-primary-foreground/80 transition-colors uppercase tracking-wider font-semibold">{chart.office_name || `Office ${chart.office}`}</p>
                     </div>
                     <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200 group-hover:bg-primary-foreground/20 group-hover:text-white group-hover:border-white/30 transition-all font-bold px-1.5 py-0">
@@ -968,7 +970,7 @@ const Dashboard = () => {
                     }
                   >
                     <div>
-                      <p className="font-bold text-xs tracking-tight">{chart.name}</p>
+                      <p className="text-xs tracking-tight">{chart.name}</p>
                       <p className="text-[10px] text-muted-foreground group-hover:text-primary-foreground/80 transition-colors uppercase tracking-wider font-semibold">{chart.office_name || `Office ${chart.office}`}</p>
                     </div>
                     <Badge variant="outline" className="text-[9px] bg-orange-50 text-orange-700 border-orange-200 group-hover:bg-primary-foreground/20 group-hover:text-white group-hover:border-white/30 transition-all font-bold px-1.5 py-0">

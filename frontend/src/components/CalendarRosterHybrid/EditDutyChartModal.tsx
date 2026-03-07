@@ -97,9 +97,15 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
             // SuperAdmin sees all offices
             setOffices(officesRes);
           } else {
-            // Find office IDs where this user has created charts
+            // Include offices where user has created charts + their own office + secondary offices
             const myCharts = allCharts.filter(c => c.created_by === user?.id);
             const myOfficeIds = new Set(myCharts.map(c => c.office));
+            const baseOffices = [user?.office_id, ...(user?.secondary_offices || [])]
+              .filter(Boolean)
+              .map(id => Number(id));
+
+            baseOffices.forEach(id => myOfficeIds.add(id));
+
             setOffices(officesRes.filter(o => myOfficeIds.has(o.id)));
           }
         } catch (e) {
@@ -174,11 +180,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           const officeId = parseInt(formData.office);
           const chartsRes = await getDutyCharts(officeId);
 
-          // SuperAdmin sees all charts; everyone else only sees charts they created
-          const isSuperAdmin = user?.role === 'SUPERADMIN';
-          const visibleCharts = isSuperAdmin
-            ? chartsRes
-            : chartsRes.filter(c => c.created_by === user?.id);
+          // Backend already filters by allowed offices. We'll show all returned charts.
+          const visibleCharts = chartsRes;
 
           setCharts(visibleCharts);
           if (!visibleCharts.find(c => String(c.id) === selectedChartId)) {
@@ -372,6 +375,9 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         const officeId = parseInt(formData.office);
         const chartsRes = await getDutyCharts(officeId);
         setCharts(chartsRes);
+
+        // Notify parent to refresh its list (e.g. for the navbar/sidebar dropdown)
+        onUpdateSuccess?.({ id: parseInt(selectedChartId), name: formData.name });
       }
     } catch (error) {
       console.error("Failed to rename chart:", error);
@@ -556,7 +562,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                 {selectedChartId && (
                   <div>
                     <label className={labelClass}>
-                      Duty Chart Name
+                      Edit Duty Chart Name
                       <span className="ml-1 text-[10px] text-muted-foreground font-normal">(Click save to rename)</span>
                     </label>
                     <div className="flex gap-2">

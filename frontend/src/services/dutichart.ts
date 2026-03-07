@@ -16,7 +16,7 @@ export interface DutyChart {
 }
 
 // GET all duty charts
-export const getDutyCharts = async (officeId?: number): Promise<DutyChart[]> => {
+export const getDutyCharts = async (officeId?: number | string): Promise<DutyChart[]> => {
   const params = officeId ? { office: officeId } : {};
   // NOTE: api baseURL already includes /api/v1, so request path should NOT include /v1 again
   const response = await api.get("/duty-charts/", { params });

@@ -168,6 +168,10 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       toast.error("End date cannot be before effective date");
       return false;
     }
+    if (formData.shiftIds.length === 0) {
+      toast.error("At least one shift must be selected");
+      return false;
+    }
     return true;
   };
 
@@ -438,7 +442,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
           </div>
 
           <div>
-            <label className={labelClass}>Name *</label>
+            <label className={labelClass}>Duty Chart *</label>
             <input
               type="text"
               value={formData.name}
@@ -738,7 +742,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             </Button>
             <Button
               onClick={processManualCreation}
-              disabled={isSubmitting}
+              disabled={isSubmitting || formData.shiftIds.length === 0}
               className="bg-primary hover:bg-primary-hover"
             >
               {isSubmitting ? (

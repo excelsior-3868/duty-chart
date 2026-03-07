@@ -106,8 +106,12 @@ class ScheduleView(viewsets.ModelViewSet):
         # This explicitly EXCLUDES global templates (where office_id is NULL).
         if office_id and str(office_id).strip():
             try:
-                oid = int(str(office_id).strip())
-                queryset = queryset.filter(office_id=oid)
+                if "," in str(office_id):
+                    oids = [int(x.strip()) for x in str(office_id).split(",") if x.strip()]
+                    queryset = queryset.filter(office_id__in=oids)
+                else:
+                    oid = int(str(office_id).strip())
+                    queryset = queryset.filter(office_id=oid)
             except (ValueError, TypeError):
                 return Schedule.objects.none()
 
@@ -307,14 +311,29 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                     queryset = queryset.filter(office_id__in=allowed)
 
         if office_id:
+            # Multi-office filter support for dashboard optimization
+            oids = []
+            if "," in str(office_id):
+                try:
+                    oids = [int(x.strip()) for x in str(office_id).split(",") if x.strip()]
+                except (ValueError, TypeError):
+                    return DutyChart.objects.none()
+            else:
+                try:
+                    oids = [int(office_id)]
+                except (ValueError, TypeError):
+                    return DutyChart.objects.none()
+
             if not IsSuperAdmin().has_permission(self.request, self):
                 can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
                 if not can_view_any:
                     allowed = get_allowed_office_ids(user)
-                    if allowed and int(office_id) not in allowed:
+                    # Filter oids to only those user is allowed to see
+                    oids = [oid for oid in oids if oid in allowed]
+                    if not oids:
                         return DutyChart.objects.none()
 
-            queryset = queryset.filter(office_id=office_id)
+            queryset = queryset.filter(office_id__in=oids)
         return queryset.order_by("-id")
 
     def perform_create(self, serializer):
@@ -328,6 +347,11 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             if not office_id:
                 raise serializers.ValidationError({"detail": "Office is required."})
             
+            # Special case for NETWORK_ADMIN: allow creating for ANY office
+            if user.role == 'NETWORK_ADMIN':
+                serializer.save(created_by=user)
+                return
+
             allowed = get_allowed_office_ids(user)
             if int(office_id) not in allowed:
                 if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
@@ -343,13 +367,27 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             serializer.save(edited_by=user)
             return
 
-        # 2. Other roles → must have edit permission AND must be the creator
+        # 2. Network Admin → shared access for peers in same office
+        if user.role == 'NETWORK_ADMIN':
+            chart = serializer.instance
+            creator = chart.created_by
+            if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
+                serializer.save(edited_by=user)
+                return
+        
+        # 3. Office-level management: allow if the chart belongs to the user's office
+        chart = serializer.instance
+        if user.office_id and chart.office_id == user.office_id:
+            if user_has_permission_slug(user, 'duties.edit_dutychart'):
+                serializer.save(edited_by=user)
+                return
+
+        # 4. Other roles → must have edit permission AND must be the creator
         if not user_has_permission_slug(user, 'duties.edit_dutychart'):
             raise serializers.ValidationError({"detail": "You do not have permission to edit duty charts."})
 
-        chart = serializer.instance
         if chart.created_by_id != user.pk:
-            raise serializers.ValidationError({"detail": "You can only edit duty charts that you created."})
+            raise serializers.ValidationError({"detail": "You can only edit duty charts that you created or that belong to your office."})
 
         serializer.save(edited_by=user)
 
@@ -361,12 +399,25 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             instance.delete()
             return
 
-        # 2. Other roles → must have delete permission AND must be the creator
+        # 2. Network Admin → shared access for peers in same office
+        if user.role == 'NETWORK_ADMIN':
+            creator = instance.created_by
+            if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
+                instance.delete()
+                return
+
+        # 3. Office-level management: allow if the chart belongs to the user's office
+        if user.office_id and instance.office_id == user.office_id:
+            if user_has_permission_slug(user, 'duties.delete_chart'):
+                instance.delete()
+                return
+
+        # 4. Other roles → must have delete permission AND must be the creator
         if not user_has_permission_slug(user, 'duties.delete_chart'):
             raise serializers.ValidationError({"detail": "You do not have permission to delete duty charts."})
 
         if instance.created_by_id != user.pk:
-            raise serializers.ValidationError({"detail": "You can only delete duty charts that you created."})
+            raise serializers.ValidationError({"detail": "You can only delete duty charts that you created or that belong to your office."})
 
         # Safety: cannot delete if employees are still assigned
         if instance.duties.exists():
@@ -413,13 +464,29 @@ class DutyViewSet(viewsets.ModelViewSet):
 
 
         if office_id:
+            # Multi-office filter support for dashboard optimization
+            oids = []
+            if "," in str(office_id):
+                try:
+                    oids = [int(x.strip()) for x in str(office_id).split(",") if x.strip()]
+                except (ValueError, TypeError):
+                    return Duty.objects.none()
+            else:
+                try:
+                    oids = [int(office_id)]
+                except (ValueError, TypeError):
+                    return Duty.objects.none()
+
             if not IsSuperAdmin().has_permission(self.request, self):
                 can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
                 if not can_view_any:
                     allowed = get_allowed_office_ids(user)
-                    if allowed and int(office_id) not in allowed:
+                    # Filter oids to only those user is allowed to see
+                    oids = [oid for oid in oids if oid in allowed]
+                    if not oids:
                         return Duty.objects.none()
-            queryset = queryset.filter(office_id=office_id)
+            
+            queryset = queryset.filter(office_id__in=oids)
 
         if user_id:
             queryset = queryset.filter(user_id=user_id)
@@ -440,15 +507,30 @@ class DutyViewSet(viewsets.ModelViewSet):
             instance.delete()
             return
 
-        # 2. Must have the base permission to remove employees from duty charts
+        # 2. Network Admin management
+        if user.role == 'NETWORK_ADMIN':
+            duty_chart = instance.duty_chart
+            if duty_chart:
+                creator = duty_chart.created_by
+                if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
+                    instance.delete()
+                    return
+
+        # 3. Office-level management
+        duty_chart = instance.duty_chart
+        if user.office_id and duty_chart and duty_chart.office_id == user.office_id:
+            if user_has_permission_slug(user, 'duties.delete'):
+                instance.delete()
+                return
+
+        # 4. Must have the base permission to remove employees from duty charts
         if not user_has_permission_slug(user, 'duties.delete'):
             raise serializers.ValidationError("You do not have permission to remove employees from duty charts.")
 
-        # 3. Must be the creator of the duty chart this duty belongs to
-        duty_chart = instance.duty_chart
+        # 5. Must be the creator of the duty chart this duty belongs to
         if not duty_chart or duty_chart.created_by_id != user.pk:
             raise serializers.ValidationError(
-                "You can only remove employees from duty charts that you created."
+                "You can only remove employees from duty charts that you created or that belong to your office."
             )
 
         instance.delete()
@@ -463,10 +545,29 @@ class DutyViewSet(viewsets.ModelViewSet):
             if not user_has_permission_slug(user, 'duties.assign_employee'):
                 raise serializers.ValidationError("You do not have permission to assign employees.")
 
-            allowed = get_allowed_office_ids(user)
             office_id = self.request.data.get("office")
+            chart_id = self.request.data.get("duty_chart")
+
+            # Network Admin special handling
+            if user.role == 'NETWORK_ADMIN':
+                if chart_id:
+                    chart = DutyChart.objects.filter(id=chart_id).first()
+                    if chart:
+                        creator = chart.created_by
+                        if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
+                            serializer.save()
+                            return
+            
+            # Office Admin / Same Office handling
+            if chart_id:
+                chart = DutyChart.objects.filter(id=chart_id).first()
+                if chart and user.office_id and chart.office_id == user.office_id:
+                    if user_has_permission_slug(user, 'duties.assign_employee'):
+                        serializer.save()
+                        return
+
+            allowed = get_allowed_office_ids(user)
             if office_id is None:
-                chart_id = self.request.data.get("duty_chart")
                 if chart_id:
                     chart = DutyChart.objects.filter(id=chart_id).first()
                     office_id = getattr(chart, "office_id", None)
@@ -476,18 +577,13 @@ class DutyViewSet(viewsets.ModelViewSet):
             # Check if the assigned user belongs to the same office (unless permission allows otherwise)
             target_user_id = self.request.data.get("user")
             if target_user_id:
-                 # We need to check the target user's office
-                 # Assuming 'User' model has an 'office_id' or similar relationship.
-                 # If using 'users.views', we might need to import User model.
                  from users.models import User
                  target_user = User.objects.filter(id=target_user_id).first()
                  
                  if target_user and target_user.office_id:
-                     # If target user belongs to a different office than the Duty Chart's office
-                     # we check for 'assign_any_office_employee' permission
-                     if int(target_user.office_id) != int(office_id):
-                         if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
-                             raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
+                      if int(target_user.office_id) != int(office_id):
+                          if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
+                              raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
             
             serializer.save()
 
@@ -499,6 +595,22 @@ class DutyViewSet(viewsets.ModelViewSet):
             return
 
         with transaction.atomic():
+            # Network Admin special handling
+            if user.role == 'NETWORK_ADMIN':
+                chart = getattr(serializer.instance, "duty_chart", None)
+                if chart:
+                    creator = chart.created_by
+                    if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
+                        serializer.save()
+                        return
+            
+            # Office Admin / Same Office handling
+            chart = getattr(serializer.instance, "duty_chart", None)
+            if chart and user.office_id and chart.office_id == user.office_id:
+                if user_has_permission_slug(user, 'duties.assign_employee'):
+                    serializer.save()
+                    return
+
             allowed = get_allowed_office_ids(user)
             office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
             if office_id is None:
@@ -537,9 +649,35 @@ class DutyViewSet(viewsets.ModelViewSet):
         if not is_super:
             if not user_has_permission_slug(request.user, 'duties.assign_employee'):
                 raise serializers.ValidationError("You do not have permission to assign employees.")
+            
             allowed_offices = get_allowed_office_ids(request.user)
-            # Pre-validate office access for all items
+            is_network_admin = request.user.role == 'NETWORK_ADMIN'
+
+            # Optimization: Prefetch charts for validation if we are a Network Admin
+            chart_cache = {}
+            if is_network_admin:
+                c_ids = {int(i.get("duty_chart")) for i in data if i.get("duty_chart")}
+                if c_ids:
+                    from duties.models import DutyChart
+                    charts = DutyChart.objects.filter(id__in=c_ids).select_related('created_by')
+                    chart_cache = {c.id: c for c in charts}
+
+            # Pre-validate office/chart access for all items
             for item in data:
+                cid = item.get("duty_chart")
+                if is_network_admin and cid:
+                    chart = chart_cache.get(int(cid))
+                    if chart:
+                        # 1. Network Admin rule
+                        creator = chart.created_by
+                        if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == request.user.office_id:
+                            continue # Allowed
+                        
+                        # 2. Office Admin rule (same office)
+                        if request.user.office_id and chart.office_id == request.user.office_id:
+                            continue # Allowed
+                    raise serializers.ValidationError(f"Not allowed to assign duty for chart ID {cid}.")
+
                 oid = item.get("office")
                 if not oid or int(oid) not in allowed_offices:
                     raise serializers.ValidationError(f"Not allowed to assign duty for office ID {oid}.")
@@ -1644,6 +1782,9 @@ class DutyChartImportView(APIView):
 
         if not (file_obj and office_id and effective_date_str):
             return Response({"detail": "file, office, and effective_date are required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not schedule_ids:
+            return Response({"detail": "At least one schedule (shift) must be selected for the duty chart."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             df = pd.read_excel(file_obj)

@@ -27,6 +27,11 @@ class DutyChartSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_by', 'created_at', 'edited_by', 'edited_at']
 
+    def validate_schedules(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one schedule (shift) must be selected.")
+        return value
+
     # ✅ CHANGE: Call full_clean() so model-level validations (Nepal phone number format, end_date > effective_date) run
     def create(self, validated_data):
         schedules = validated_data.pop('schedules', [])

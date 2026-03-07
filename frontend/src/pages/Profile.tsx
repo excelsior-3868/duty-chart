@@ -23,6 +23,16 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -63,6 +73,10 @@ const Profile = () => {
     const [positions, setPositions] = useState<any[]>([]);
     const [positionSearch, setPositionSearch] = useState("");
     const [positionPopoverOpen, setPositionPopoverOpen] = useState(false);
+    const [responsibilities, setResponsibilities] = useState<any[]>([]);
+    const [responsibilitySearch, setResponsibilitySearch] = useState("");
+    const [responsibilityPopoverOpen, setResponsibilityPopoverOpen] = useState(false);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
     const BACKEND = import.meta.env.VITE_BACKEND_HOST || "";
 
@@ -103,8 +117,19 @@ const Profile = () => {
         if (isEditing) {
             fetchWorkingOffices();
             fetchPositions();
+            fetchResponsibilities();
         }
     }, [isEditing]);
+
+    const fetchResponsibilities = async () => {
+        try {
+            const { data } = await api.get("/user-responsibilities/");
+            setResponsibilities(data);
+        } catch (err) {
+            console.error("Failed to fetch responsibilities", err);
+            toast.error("Failed to load responsibilities.");
+        }
+    };
 
     const fetchPositions = async () => {
         try {
@@ -134,6 +159,10 @@ const Profile = () => {
         pos.name.toLowerCase().includes(positionSearch.toLowerCase())
     );
 
+    const filteredResponsibilities = responsibilities.filter((resp) =>
+        resp.name.toLowerCase().includes(responsibilitySearch.toLowerCase())
+    );
+
     const handleImageUpload = async (file: File) => {
         if (!user?.id) return;
 
@@ -160,8 +189,7 @@ const Profile = () => {
         }
     };
 
-    const handleUpdate = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleUpdate = async () => {
         try {
             const formData = new FormData();
             formData.append("full_name", editData.full_name);
@@ -176,6 +204,9 @@ const Profile = () => {
             }
             if (editData.position) {
                 formData.append("position", editData.position);
+            }
+            if (editData.responsibility) {
+                formData.append("responsibility", editData.responsibility);
             }
 
             await api.patch(`/users/${user.id}/`, formData);
@@ -441,6 +472,74 @@ const Profile = () => {
                                                 </div>
 
                                                 <div className="space-y-0.5">
+                                                    <Label className="text-primary text-xs font-medium ml-1">Responsibility</Label>
+                                                    {isEditing ? (
+                                                        <Popover open={responsibilityPopoverOpen} onOpenChange={setResponsibilityPopoverOpen}>
+                                                            <PopoverTrigger asChild>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    role="combobox"
+                                                                    aria-expanded={responsibilityPopoverOpen}
+                                                                    className="h-9 w-full justify-between font-normal text-sm border-slate-300"
+                                                                >
+                                                                    {editData?.responsibility
+                                                                        ? responsibilities.find((resp) => String(resp.id) === String(editData.responsibility))?.name || user.responsibility_name
+                                                                        : user.responsibility_name || "Select Responsibility"}
+                                                                    <svg
+                                                                        xmlns="http://www.w3.org/2000/svg"
+                                                                        width="16"
+                                                                        height="16"
+                                                                        viewBox="0 0 24 24"
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="2"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        className="ml-2 h-4 w-4 shrink-0 opacity-50"
+                                                                    >
+                                                                        <path d="m6 9 6 6 6-6" />
+                                                                    </svg>
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-full p-0" align="start">
+                                                                <Command shouldFilter={false}>
+                                                                    <CommandInput
+                                                                        placeholder="Search responsibility..."
+                                                                        value={responsibilitySearch}
+                                                                        onValueChange={setResponsibilitySearch}
+                                                                    />
+                                                                    <CommandList>
+                                                                        <CommandEmpty>No responsibility found.</CommandEmpty>
+                                                                        <CommandGroup>
+                                                                            {filteredResponsibilities.map((resp) => (
+                                                                                <CommandItem
+                                                                                    key={resp.id}
+                                                                                    value={resp.name}
+                                                                                    onSelect={() => {
+                                                                                        setEditData({ ...editData, responsibility: String(resp.id) });
+                                                                                        setResponsibilityPopoverOpen(false);
+                                                                                        setResponsibilitySearch("");
+                                                                                    }}
+                                                                                >
+                                                                                    {resp.name}
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                        </CommandGroup>
+                                                                    </CommandList>
+                                                                </Command>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    ) : (
+                                                        <div className="relative">
+                                                            <Layers size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                                                            <div className="px-2 py-1 pl-9 bg-slate-50 border rounded-lg h-9 flex items-center">
+                                                                <p className="text-slate-900 font-medium text-sm truncate">{user.responsibility_name || "-"}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-0.5">
                                                     <Label className="text-primary text-xs font-medium ml-1">Email Address</Label>
                                                     <div className="relative">
                                                         <Input
@@ -556,7 +655,7 @@ const Profile = () => {
                                                     <Pencil size={14} /> Edit Profile
                                                 </Button>
                                             ) : (
-                                                <Button onClick={handleUpdate} className="bg-primary hover:bg-primary/90 text-white px-8 h-9 rounded-lg font-medium text-xs transition-all flex gap-2">
+                                                <Button onClick={() => setIsConfirmOpen(true)} className="bg-primary hover:bg-primary/90 text-white px-8 h-9 rounded-lg font-medium text-xs transition-all flex gap-2">
                                                     <Save size={14} /> Update Info
                                                 </Button>
                                             )}
@@ -636,6 +735,30 @@ const Profile = () => {
                     </div>
                 </div>
             </div >
+
+            <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+                <AlertDialogContent className="bg-white rounded-xl border shadow-lg max-w-[400px]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-primary flex items-center gap-2">
+                            <Save size={18} /> Confirm Profile Update
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-slate-600 text-sm">
+                            Are you sure you want to update your profile information? These changes will be saved to the system.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 mt-2">
+                        <AlertDialogCancel className="h-9 rounded-lg text-xs font-medium border-slate-200">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleUpdate}
+                            className="bg-primary hover:bg-primary/90 text-white h-9 px-6 rounded-lg text-xs font-medium transition-all"
+                        >
+                            Confirm Update
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div >
     );
 };

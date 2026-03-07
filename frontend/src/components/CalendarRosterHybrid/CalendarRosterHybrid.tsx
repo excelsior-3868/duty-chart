@@ -111,6 +111,7 @@ export interface CalendarRosterHybridProps {
   onOfficeChange?: (officeId: number) => void;
   onDutyChartChange?: (dutyChartId: number) => void;
   onDutyChartCreated?: (chart: any) => void;
+  onDutyChartUpdated?: (chart: any) => void;
 }
 
 export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
@@ -120,7 +121,8 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
   selectedDutyChartId = "",
   onOfficeChange,
   onDutyChartChange,
-  onDutyChartCreated
+  onDutyChartCreated,
+  onDutyChartUpdated
 }) => {
   const navigate = useNavigate();
   // State - use props as source of truth
@@ -821,6 +823,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
       <EditDutyChartModal
         open={showEditDutyChart}
         onOpenChange={setShowEditDutyChart}
+        onUpdateSuccess={onDutyChartUpdated}
       />
 
       {/* Quick Assign Modal */}

@@ -410,13 +410,13 @@ const MyDuties = () => {
                     </div>
                 </div>
             ) : (
-                <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] overflow-y-auto">
-                    <div className="grid grid-cols-7 border-b bg-slate-50/80">
+                <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col max-h-[calc(100vh-260px)] overflow-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                    <div className="grid grid-cols-7 border-b bg-slate-50/80 min-w-[700px]">
                         {(dateMode === "BS" ? nepaliDays : englishDays).map((day, idx) => (
                             <div key={day} className={cn("py-3 text-center text-[11px] font-black uppercase tracking-wider text-slate-500", idx === 6 ? "text-red-500" : "")}>{day}</div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-7 auto-rows-[120px] md:auto-rows-[160px]">
+                    <div className="grid grid-cols-7 auto-rows-[120px] md:auto-rows-[160px] min-w-[700px]">
                         {calendarDays.map((date, idx) => {
                             const nd = new NepaliDate(date);
                             const isCurrentMonth = nd.getMonth() === monthBS;

@@ -223,6 +223,7 @@ const DutyChartPage: React.FC = () => {
         onOfficeChange={handleOfficeChange}
         onDutyChartChange={handleDutyChartChange}
         onDutyChartCreated={handleDutyChartCreated}
+        onDutyChartUpdated={handleDutyChartCreated}
       />
     </div>
   );

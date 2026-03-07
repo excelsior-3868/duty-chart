@@ -36,7 +36,7 @@ export const getDuties = async (): Promise<Duty[]> => {
 export const getDutiesFiltered = async (
   params: {
     user?: number;
-    office?: number;
+    office?: number | string;
     duty_chart?: number;
     schedule?: number;
     date?: string;

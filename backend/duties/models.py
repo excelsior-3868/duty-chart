@@ -216,13 +216,14 @@ class Duty(AuditableMixin, models.Model):
             new_end = self.schedule.end_time
             overlapping_duties = Duty.objects.filter(user=self.user, date=self.date).exclude(pk=self.pk)
             for existing_duty in overlapping_duties:
+                off_name = existing_duty.office.name if existing_duty.office else "Unknown Office"
                 if existing_duty.schedule == self.schedule:
-                     raise ValidationError({'schedule': f"User is already assigned to the shift '{existing_duty.schedule.name}' on this day."})
+                     raise ValidationError({'schedule': f"User is already assigned to the shift '{existing_duty.schedule.name}' at '{off_name}' on this day."})
                 if existing_duty.schedule:
                     existing_start = existing_duty.schedule.start_time
                     existing_end = existing_duty.schedule.end_time
                     if new_start < existing_end and new_end > existing_start:
-                         raise ValidationError({'schedule': f"Time overlap detected! User already has a duty '{existing_duty.schedule.name}' ({existing_start.strftime('%H:%M')} - {existing_end.strftime('%H:%M')}) which overlaps with this shift."})
+                         raise ValidationError({'schedule': f"Time overlap detected! User already has a duty '{existing_duty.schedule.name}' at '{off_name}' ({existing_start.strftime('%H:%M')} - {existing_end.strftime('%H:%M')}) which overlaps with this shift."})
         if errors:
             raise ValidationError(errors)
 

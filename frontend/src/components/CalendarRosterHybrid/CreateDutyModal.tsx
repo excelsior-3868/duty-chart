@@ -238,7 +238,8 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             if (d.start_time && d.end_time && currentSchedule.start_time && currentSchedule.end_time) {
               if (isOverlap(currentSchedule.start_time, currentSchedule.end_time, d.start_time, d.end_time)) {
                 // Found overlap
-                toast.error(`Time overlap detected! User already is assigned to ${d.schedule_name} (${d.start_time} - ${d.end_time}) on this date.`);
+                const offName = d.office_name || "another office";
+                toast.error(`Time overlap detected! User already is assigned to ${d.schedule_name} at ${offName} (${d.start_time} - ${d.end_time}) on this date.`);
                 setLoading(false);
                 return;
               }
