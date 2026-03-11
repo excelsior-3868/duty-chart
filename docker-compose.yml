@@ -1,10 +1,10 @@
 services:
   # Backend (Django)
-  duty-chart-backend:
+  dcms-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: duty-chart-backend
+    container_name: dcms-backend
     volumes:
       - ./backend:/app
       - ./mobileApp:/app/mobileApp
@@ -15,21 +15,21 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-redis
+      - dcms-redis
 
   # Redis Broker
-  duty-chart-redis:
+  dcms-redis:
     image: redis:7-alpine
-    container_name: duty-chart-redis
+    container_name: dcms-redis
     ports:
       - "6379:6379"
 
   # Celery Worker
-  duty-chart-celery-worker:
+  dcms-celery-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: duty-chart-celery-worker
+    container_name: dcms-celery-worker
     command: celery -A config worker --loglevel=info
     volumes:
       - ./backend:/app
@@ -39,15 +39,15 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-backend
-      - duty-chart-redis
+      - dcms-backend
+      - dcms-redis
 
   # Celery Beat
-  duty-chart-celery-beat:
+  dcms-celery-beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: duty-chart-celery-beat
+    container_name: dcms-celery-beat
     command: celery -A config beat --loglevel=info
     volumes:
       - ./backend:/app
@@ -57,17 +57,17 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-backend
-      - duty-chart-redis
+      - dcms-backend
+      - dcms-redis
 
   # Frontend (React + Nginx)
-  duty-chart-frontend:
+  dcms-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
         - VITE_BACKEND_HOST=${VITE_BACKEND_HOST}
-    container_name: duty-chart-frontend
+    container_name: dcms-frontend
     ports:
       - "80:80"
     volumes:
@@ -77,7 +77,7 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-backend
+      - dcms-backend
 
 volumes:
   static_volume:

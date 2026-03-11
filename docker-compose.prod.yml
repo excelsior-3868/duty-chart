@@ -1,8 +1,8 @@
 services:
   # Backend (Django)
-  duty-chart-backend:
+  dcms-backend:
     image: nexus.ntc.net.np/dutychart/backend:latest
-    container_name: duty-chart-backend
+    container_name: dcms-backend
     volumes:
       - ./static_volume:/app/static
       - ./media_volume:/app/media
@@ -11,19 +11,19 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-redis
+      - dcms-redis
 
   # Redis Broker
-  duty-chart-redis:
+  dcms-redis:
     image: redis:7-alpine
-    container_name: duty-chart-redis
+    container_name: dcms-redis
     ports:
       - "6379:6379"
 
   # Celery Worker
-  duty-chart-celery-worker:
+  dcms-celery-worker:
     image: nexus.ntc.net.np/dutychart/backend:latest
-    container_name: duty-chart-celery-worker
+    container_name: dcms-celery-worker
     command: celery -A config worker --loglevel=info
     volumes:
       - ./static_volume:/app/static
@@ -31,13 +31,13 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-backend
-      - duty-chart-redis
+      - dcms-backend
+      - dcms-redis
 
   # Celery Beat
-  duty-chart-celery-beat:
+  dcms-celery-beat:
     image: nexus.ntc.net.np/dutychart/backend:latest
-    container_name: duty-chart-celery-beat
+    container_name: dcms-celery-beat
     command: celery -A config beat --loglevel=info
     volumes:
       - ./static_volume:/app/static
@@ -45,13 +45,13 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-backend
-      - duty-chart-redis
+      - dcms-backend
+      - dcms-redis
 
   # Frontend (React + Nginx)
-  duty-chart-frontend:
-    image: nexus.ntc.net.np/dutychart/frontend:latest
-    container_name: duty-chart-frontend
+  dcms-frontend:
+    image: nexus.ntc.net.np/dutychart/frontend:release-v1.0.1.2
+    container_name: dcms-frontend
     ports:
       - "80:80"
     volumes:
@@ -60,4 +60,4 @@ services:
     env_file:
       - .env
     depends_on:
-      - duty-chart-backend
+      - dcms-backend
