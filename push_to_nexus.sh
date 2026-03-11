@@ -36,8 +36,8 @@ docker run --privileged --rm tonistiigi/binfmt --install all || true
 echo "Building & Pushing Multi-Arch Backend Image..."
 docker buildx build \
   --platform $PLATFORMS \
-  -t $REGISTRY/$PROJECT/backend:$VERSION \
-  -t $REGISTRY/$PROJECT/backend:latest \
+  -t $REGISTRY/$PROJECT/dcms-backend:$VERSION \
+  -t $REGISTRY/$PROJECT/dcms-backend:latest \
   -f backend/Dockerfile \
   --push ./backend
 
@@ -45,8 +45,8 @@ docker buildx build \
 echo "Building & Pushing Multi-Arch Frontend Image..."
 docker buildx build \
   --platform $PLATFORMS \
-  -t $REGISTRY/$PROJECT/frontend:$VERSION \
-  -t $REGISTRY/$PROJECT/frontend:latest \
+  -t $REGISTRY/$PROJECT/dcms-frontend:$VERSION \
+  -t $REGISTRY/$PROJECT/dcms-frontend:latest \
   -f frontend/Dockerfile \
   --build-arg VITE_BACKEND_HOST=$API_BASE_URL \
   --push ./frontend
