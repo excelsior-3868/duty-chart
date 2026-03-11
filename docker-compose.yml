@@ -4,6 +4,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: dcms-backend
     container_name: dcms-backend
     volumes:
       - ./backend:/app
@@ -29,6 +30,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: dcms-celery-worker
     container_name: dcms-celery-worker
     command: celery -A config worker --loglevel=info
     volumes:
@@ -47,6 +49,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: dcms-celery-beat
     container_name: dcms-celery-beat
     command: celery -A config beat --loglevel=info
     volumes:
@@ -67,6 +70,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_BACKEND_HOST=${VITE_BACKEND_HOST}
+    image: dcms-frontend
     container_name: dcms-frontend
     ports:
       - "80:80"
