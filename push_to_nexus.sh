@@ -48,7 +48,7 @@ docker buildx build \
   -t $REGISTRY/$PROJECT/frontend:$VERSION \
   -t $REGISTRY/$PROJECT/frontend:latest \
   -f frontend/Dockerfile \
-  --build-arg VITE_API_BASE_URL=$API_BASE_URL \
+  --build-arg VITE_BACKEND_HOST=$API_BASE_URL \
   --push ./frontend
 
 echo "=================================="
