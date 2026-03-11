@@ -1,15 +1,11 @@
 services:
   # Backend (Django)
   duty-chart-backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: nexus.ntc.net.np/dutychart/backend:latest
     container_name: duty-chart-backend
     volumes:
-      - ./backend:/app
-      - ./mobileApp:/app/mobileApp
-      - static_volume:/app/static
-      - media_volume:/app/media
+      - ./static_volume:/app/static
+      - ./media_volume:/app/media
     ports:
       - "8000:8000"
     env_file:
@@ -26,16 +22,12 @@ services:
 
   # Celery Worker
   duty-chart-celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: nexus.ntc.net.np/dutychart/backend:latest
     container_name: duty-chart-celery-worker
     command: celery -A config worker --loglevel=info
     volumes:
-      - ./backend:/app
-      - ./mobileApp:/app/mobileApp
-      - static_volume:/app/static
-      - media_volume:/app/media
+      - ./static_volume:/app/static
+      - ./media_volume:/app/media
     env_file:
       - .env
     depends_on:
@@ -44,16 +36,12 @@ services:
 
   # Celery Beat
   duty-chart-celery-beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: nexus.ntc.net.np/dutychart/backend:latest
     container_name: duty-chart-celery-beat
     command: celery -A config beat --loglevel=info
     volumes:
-      - ./backend:/app
-      - ./mobileApp:/app/mobileApp
-      - static_volume:/app/static
-      - media_volume:/app/media
+      - ./static_volume:/app/static
+      - ./media_volume:/app/media
     env_file:
       - .env
     depends_on:
@@ -62,23 +50,14 @@ services:
 
   # Frontend (React + Nginx)
   duty-chart-frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    image: nexus.ntc.net.np/dutychart/frontend:latest
     container_name: duty-chart-frontend
     ports:
       - "80:80"
     volumes:
-      - ./mobileApp:/usr/share/nginx/html/mobileApp:ro
-      - static_volume:/usr/share/nginx/html/static:ro
-      - media_volume:/usr/share/nginx/html/media:ro
+      - ./static_volume:/usr/share/nginx/html/static:ro
+      - ./media_volume:/usr/share/nginx/html/media:ro
     env_file:
       - .env
     depends_on:
       - duty-chart-backend
-
-volumes:
-  static_volume:
-  media_volume:
