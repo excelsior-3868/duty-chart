@@ -191,7 +191,7 @@ const MyDuties = () => {
     if (isLoading) return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
     return (
-        <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto">
+        <div className="p-4 md:p-6 space-y-6 w-full">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col gap-1">

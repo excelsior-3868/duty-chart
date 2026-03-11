@@ -608,44 +608,44 @@ const DutyCalendar = () => {
     }, [offices, user]);
 
     return (
-        <div className="p-4 space-y-4 bg-background min-h-screen">
+        <div className="p-4 md:p-6 space-y-6 bg-background min-h-screen w-full">
             {/* Header: Title + Controls */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
+                    <div className="flex flex-col gap-1">
                         <h1 className="text-2xl font-bold text-primary">Duty Calendar</h1>
-                        <p className="text-muted-foreground">Manage events and duty schedules.</p>
+                        <p className="text-sm text-muted-foreground">Manage events and duty schedules.</p>
                     </div>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
-                        <TabsList className={cn("grid w-full", hasPermission('duties.view_available_shifts') ? "grid-cols-2" : "grid-cols-1")}>
-                            <TabsTrigger value="calendar">Duty Calendar</TabsTrigger>
-                            {hasPermission('duties.view_available_shifts') && (
-                                <TabsTrigger value="shifts">Available Shift</TabsTrigger>
+                    <div className="flex flex-col md:flex-row items-center gap-4">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
+                            <TabsList className={cn("grid w-full", hasPermission('duties.view_available_shifts') ? "grid-cols-2" : "grid-cols-1")}>
+                                <TabsTrigger value="calendar">Duty Calendar</TabsTrigger>
+                                {hasPermission('duties.view_available_shifts') && (
+                                    <TabsTrigger value="shifts">Available Shift</TabsTrigger>
+                                )}
+                            </TabsList>
+                        </Tabs>
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
+                                <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>BS</button>
+                                <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>AD</button>
+                            </div>
+                            <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => navigate(ROUTES.ANNEX_I_REPORT)}>
+                                <Download className="w-3.5 h-3.5" /> Download अनुसूची -१
+                            </Button>
+                            {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
+                                <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
+                                    <Plus className="w-3.5 h-3.5" /> Create Duty Chart
+                                </Button>
                             )}
-                        </TabsList>
-                    </Tabs>
-
-
-                    <div className="flex items-center gap-3">
-
-                        <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
-                            <button onClick={() => setDateMode("BS")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>BS</button>
-                            <button onClick={() => setDateMode("AD")} className={cn("px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}>AD</button>
+                            {canManageSelectedChart && (
+                                <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
+                                    <Pencil className="w-3.5 h-3.5" /> Edit Chart
+                                </Button>
+                            )}
                         </div>
-                        <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => navigate(ROUTES.ANNEX_I_REPORT)}>
-                            <Download className="w-3.5 h-3.5" /> Download अनुसूची -१
-                        </Button>
-                        {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
-                            <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
-                                <Plus className="w-3.5 h-3.5" /> Create Duty Chart
-                            </Button>
-                        )}
-                        {canManageSelectedChart && (
-                            <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
-                                <Pencil className="w-3.5 h-3.5" /> Edit Chart
-                            </Button>
-                        )}
                     </div>
                 </div>
 

@@ -19,7 +19,7 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
         logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
         
         shift_type = getattr(instance.schedule, 'shift_type', '') or ''
-        is_notifiable_type = shift_type.lower() in ['shift', 'regular', 'on-call', 'on call']
+        is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call']
         
         if instance.user and instance.schedule and is_notifiable_type:
             logger.info(f"Triggering assignment notification for Duty {instance.id} (Type: {shift_type}, Created: {created})")
