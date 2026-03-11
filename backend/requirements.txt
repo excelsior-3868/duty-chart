@@ -97,3 +97,4 @@ wcwidth==0.6.0
 webencodings==0.5.1
 zope.interface==8.0.1
 zopfli==0.2.3.post1
+pyaxmlparser==0.3.30

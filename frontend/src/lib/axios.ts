@@ -1,6 +1,6 @@
 // src/lib/axios.ts
 import axios from "axios";
-const BACKEND = import.meta.env.VITE_BACKEND_HOST || "http://127.0.0.1:8000";
+const BACKEND = import.meta.env.VITE_BACKEND_HOST || "";
 
 const api = axios.create({
   baseURL: `${BACKEND}/api`,
