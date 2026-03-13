@@ -374,6 +374,79 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+    @action(detail=True, methods=["post"])
+    def copy(self, request, pk=None):
+        source_chart = self.get_object()
+        user = request.user
+        
+        new_name = request.data.get("name")
+        new_effective_date_str = request.data.get("effective_date")
+        new_end_date_str = request.data.get("end_date")
+        new_office_id = request.data.get("office")
+        
+        if not new_effective_date_str:
+            raise serializers.ValidationError({"detail": "New effective date is required."})
+        
+        new_effective_date = parse_date(new_effective_date_str)
+        new_end_date = parse_date(new_end_date_str) if new_end_date_str else None
+        
+        target_office_id = int(new_office_id) if new_office_id else source_chart.office_id
+        
+        # Permission check for target office
+        if not IsSuperAdmin().has_permission(request, self):
+            allowed = get_allowed_office_ids(user)
+            if target_office_id not in allowed:
+                if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
+                    raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
+
+        try:
+            with transaction.atomic():
+                # Create new chart
+                new_chart = DutyChart.objects.create(
+                    office_id=target_office_id,
+                    effective_date=new_effective_date,
+                    end_date=new_end_date,
+                    name=new_name or f"Copy of {source_chart.name}"
+                )
+                
+                # Copy schedules
+                new_chart.schedules.set(source_chart.schedules.all())
+                
+                # Calculate date offset
+                date_offset = new_effective_date - source_chart.effective_date
+                
+                # Copy duties
+                duties = source_chart.duties.all()
+                new_duties = []
+                for duty in duties:
+                    new_duty_date = duty.date + date_offset
+                    # Check if new duty date is within the new chart's range if end_date exists
+                    if new_end_date and new_duty_date > new_end_date:
+                        continue
+                        
+                    new_duties.append(Duty(
+                        user=duty.user,
+                        office=duty.office,
+                        schedule=duty.schedule,
+                        date=new_duty_date,
+                        duty_chart=new_chart,
+                        is_completed=False,
+                        currently_available=True
+                    ))
+                
+                if new_duties:
+                    # Bulk create for efficiency, but we might hit validation if we don't call clean()
+                    # However, unique_together=['user', 'duty_chart', 'date', 'schedule'] should be fine
+                    # because it's a NEW duty_chart.
+                    Duty.objects.bulk_create(new_duties)
+                
+                return Response(DutyChartSerializer(new_chart).data, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            logger.exception("Failed to copy duty chart")
+            raise serializers.ValidationError({"detail": f"Failed to copy duty chart: {str(e)}"})
+
+
 class DutyViewSet(viewsets.ModelViewSet):
     queryset = Duty.objects.all()
     serializer_class = DutySerializer

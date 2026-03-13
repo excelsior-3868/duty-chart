@@ -95,3 +95,16 @@ export const importDutyChartExcel = async (formData: FormData) => {
   return response.data;
 };
 
+/**
+ * Copies a duty chart to a new one with shifted dates.
+ */
+export const copyDutyChart = async (data: {
+  source_chart_id: number;
+  office: number;
+  name: string;
+  effective_date: string;
+  end_date?: string;
+}): Promise<DutyChart> => {
+  const response = await api.post(`/duty-charts/${data.source_chart_id}/copy/`, data);
+  return response.data;
+};

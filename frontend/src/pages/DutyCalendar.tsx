@@ -15,6 +15,7 @@ import { getOffice as getOfficeDetail, type Office as OfficeInfo } from "@/servi
 import { useAuth } from "@/context/AuthContext";
 import CreateDutyModal from "@/components/CalendarRosterHybrid/CreateDutyModal";
 import CreateDutyChartModal from "@/components/CalendarRosterHybrid/CreateDutyChartModal";
+import CopyDutyChartModal from "@/components/CalendarRosterHybrid/CopyDutyChartModal";
 import EditDutyChartModal from "@/components/CalendarRosterHybrid/EditDutyChartModal";
 import ExportPreviewModal from "@/components/CalendarRosterHybrid/ExportPreviewModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -117,6 +118,7 @@ const DutyCalendar = () => {
 
     // --- State: Modals ---
     const [showCreateDutyChart, setShowCreateDutyChart] = useState(false);
+    const [showCopyDutyChart, setShowCopyDutyChart] = useState(false);
     const [showEditDutyChart, setShowEditDutyChart] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
     const [showCreateDuty, setShowCreateDuty] = useState(false);
@@ -669,6 +671,11 @@ const DutyCalendar = () => {
                             </Button>
                         )}
                         {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
+                            <Button variant="outline" className="gap-2 text-xs h-9 bg-white text-primary border-primary hover:bg-slate-50" onClick={() => setShowCopyDutyChart(true)}>
+                                <Plus className="w-3.5 h-3.5" /> Copy Duty Chart
+                            </Button>
+                        )}
+                        {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
                             <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
                                 <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                             </Button>
@@ -1185,6 +1192,20 @@ const DutyCalendar = () => {
                         // 2. Refresh charts and select the new one
                         fetchDutyCharts(String(newChart.id));
                         // 3. Jump to the effective date
+                        if (newChart.effective_date) {
+                            setCurrentDate(new Date(newChart.effective_date));
+                        }
+                    }}
+                />
+
+                <CopyDutyChartModal
+                    open={showCopyDutyChart}
+                    onOpenChange={setShowCopyDutyChart}
+                    onCopied={(newChart) => {
+                        if (newChart.office && String(newChart.office) !== selectedOfficeId) {
+                            setSelectedOfficeId(String(newChart.office));
+                        }
+                        fetchDutyCharts(String(newChart.id));
                         if (newChart.effective_date) {
                             setCurrentDate(new Date(newChart.effective_date));
                         }
