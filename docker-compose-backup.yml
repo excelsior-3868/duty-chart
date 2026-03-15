@@ -1,83 +1,72 @@
 services:
   # Backend (Django)
-  dcms-backend:
+  duty-chart-backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: dcms-backend
-    container_name: dcms-backend
+    container_name: duty-chart-backend
     volumes:
       - ./backend:/app
-      - ./mobileApp:/app/mobileApp
       - static_volume:/app/static
       - media_volume:/app/media
     ports:
-      - "8802:8000"
+      - "8801:8000"
     env_file:
-      - .env
+      - ./.env.docker
     depends_on:
-      - dcms-redis
+      - duty-chart-redis
 
   # Redis Broker
-  dcms-redis:
+  duty-chart-redis:
     image: redis:7-alpine
-    container_name: dcms-redis
+    container_name: duty-chart-redis
     ports:
-      - "6381:6379"
+      - "6380:6379"
 
   # Celery Worker
-  dcms-celery-worker:
+  duty-chart-celery-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: dcms-celery-worker
-    container_name: dcms-celery-worker
+    container_name: duty-chart-celery-worker
     command: celery -A config worker --loglevel=info
     volumes:
       - ./backend:/app
-      - ./mobileApp:/app/mobileApp
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:
-      - .env
+      - ./.env.docker
     depends_on:
-      - dcms-backend
-      - dcms-redis
+      - duty-chart-backend
+      - duty-chart-redis
 
   # Celery Beat
-  dcms-celery-beat:
+  duty-chart-celery-beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: dcms-celery-beat
-    container_name: dcms-celery-beat
+    container_name: duty-chart-celery-beat
     command: celery -A config beat --loglevel=info
     volumes:
       - ./backend:/app
-      - ./mobileApp:/app/mobileApp
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:
-      - .env
+      - ./.env.docker
     depends_on:
-      - dcms-backend
-      - dcms-redis
+      - duty-chart-backend
+      - duty-chart-redis
 
   # Frontend (React + Nginx)
-  dcms-frontend:
+  duty-chart-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        - VITE_BACKEND_HOST=${VITE_BACKEND_HOST}
-    image: dcms-frontend
-    container_name: dcms-frontend
+    container_name: duty-chart-frontend
     ports:
       - "82:80"
-    env_file:
-      - .env
     depends_on:
-      - dcms-backend
+      - duty-chart-backend
 
 volumes:
   static_volume:
