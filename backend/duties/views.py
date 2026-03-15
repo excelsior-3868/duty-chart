@@ -27,7 +27,7 @@ from docx.enum.table import WD_ALIGN_VERTICAL
 
 from django.shortcuts import render, get_object_or_404
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import transaction, IntegrityError
 
 from rest_framework import viewsets, permissions, status, renderers, serializers
 from rest_framework.decorators import action
@@ -48,16 +48,17 @@ from drf_yasg import openapi
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 
 from org.models import WorkingOffice as Office
+from users.models import User # Added this
 from users.permissions import (
     AdminOrReadOnly,
     SuperAdminOrReadOnly,
     IsSuperAdmin,
     IsOfficeAdmin,
     IsOfficeScoped,
-    IsOfficeScoped,
     get_allowed_office_ids,
     user_has_permission_slug,
 )
+from django.core.exceptions import ValidationError, MultipleObjectsReturned # Added this
 
 
 from .models import DutyChart, Duty, RosterAssignment, Schedule
@@ -641,94 +642,91 @@ class DutyViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=["post"], url_path="bulk-upsert")
     def bulk_upsert(self, request):
-        data = request.data
-        if not isinstance(data, list):
-            raise serializers.ValidationError("Expected a list of duty objects.")
-
-        is_super = IsSuperAdmin().has_permission(request, self)
-        if not is_super:
-            if not user_has_permission_slug(request.user, 'duties.assign_employee'):
-                raise serializers.ValidationError("You do not have permission to assign employees.")
-            
-            allowed_offices = get_allowed_office_ids(request.user)
-            is_network_admin = request.user.role == 'NETWORK_ADMIN'
-
-            # Optimization: Prefetch charts for validation if we are a Network Admin
-            chart_cache = {}
-            if is_network_admin:
-                c_ids = {int(i.get("duty_chart")) for i in data if i.get("duty_chart")}
-                if c_ids:
-                    from duties.models import DutyChart
-                    charts = DutyChart.objects.filter(id__in=c_ids).select_related('created_by')
-                    chart_cache = {c.id: c for c in charts}
-
-            # Pre-validate office/chart access for all items
-            for item in data:
-                cid = item.get("duty_chart")
-                if is_network_admin and cid:
-                    chart = chart_cache.get(int(cid))
-                    if chart:
-                        # 1. Network Admin rule
-                        creator = chart.created_by
-                        if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == request.user.office_id:
-                            continue # Allowed
-                        
-                        # 2. Office Admin rule (same office)
-                        if request.user.office_id and chart.office_id == request.user.office_id:
-                            continue # Allowed
-                    raise serializers.ValidationError(f"Not allowed to assign duty for chart ID {cid}.")
-
-                oid = item.get("office")
-                if not oid or int(oid) not in allowed_offices:
-                    raise serializers.ValidationError(f"Not allowed to assign duty for office ID {oid}.")
-
-        created, updated = 0, 0
-        from users.models import User
-        from django.db import transaction, IntegrityError
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"Bulk upsert started with {len(data)} items for user {request.user.username}")
-
-        # Helper to convert to int safely
-        def to_int(val):
-            try:
-                if val is None or str(val).strip() == "": return None
-                return int(val)
-            except (ValueError, TypeError):
-                return None
-
-        # Optimization: prefetch users, schedules, and charts
-        u_ids = {to_int(i.get("user")) for i in data if i.get("user")}
-        u_ids.discard(None)
-        s_ids = {to_int(i.get("schedule")) for i in data if i.get("schedule")}
-        s_ids.discard(None)
-        c_ids = {to_int(i.get("duty_chart")) for i in data if i.get("duty_chart")}
-        c_ids.discard(None)
-
-        users_map = {u.id: u for u in User.objects.filter(id__in=u_ids)}
-        schedules_map = {s.id: s for s in Schedule.objects.filter(id__in=s_ids)}
-        charts_map = {c.id: c for c in DutyChart.objects.filter(id__in=c_ids)}
-
-        can_assign_any = is_super or user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
-
+        """
+        Bulk create or update duties. Expects list of {user, office, schedule, date, duty_chart, ...}
+        """
         try:
+            data = request.data
+            if not isinstance(data, list):
+                raise serializers.ValidationError("Expected a list of duty objects.")
+
+            # Helper to convert to int safely
+            def _to_int(val):
+                try:
+                    if val is None or str(val).strip() == "": return None
+                    # Handle float strings like "52.0"
+                    if isinstance(val, str) and "." in val:
+                        return int(float(val))
+                    return int(val)
+                except (ValueError, TypeError):
+                    return None
+
+            user = request.user
+            is_super = IsSuperAdmin().has_permission(request, self)
+            
+            # 1. Permission checks (Pre-check)
+            if not is_super:
+                if not user_has_permission_slug(user, 'duties.assign_employee'):
+                    raise serializers.ValidationError("You do not have permission to assign employees.")
+                
+                allowed_offices = get_allowed_office_ids(user)
+                is_network_admin = user.role == 'NETWORK_ADMIN'
+
+                chart_cache = {}
+                if is_network_admin:
+                    c_ids = {_to_int(i.get("duty_chart")) for i in data if i.get("duty_chart")}
+                    c_ids.discard(None)
+                    if c_ids:
+                        charts = DutyChart.objects.filter(id__in=c_ids).select_related('created_by')
+                        chart_cache = {c.id: c for c in charts}
+
+                for item in data:
+                    cid = _to_int(item.get("duty_chart"))
+                    if is_network_admin and cid:
+                        chart = chart_cache.get(cid)
+                        if chart:
+                            creator = chart.created_by
+                            if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == getattr(user, 'office_id', None):
+                                continue # Allowed
+                            if getattr(user, 'office_id', None) and chart.office_id == user.office_id:
+                                continue # Allowed
+                        raise serializers.ValidationError(f"Not allowed to assign duty for chart ID {cid}.")
+
+                    oid = _to_int(item.get("office"))
+                    if oid is None or oid not in allowed_offices:
+                        raise serializers.ValidationError(f"Not allowed to assign duty for office ID {item.get('office')}.")
+
+            # 2. Preparation
+            created, updated = 0, 0
+            u_ids = {_to_int(i.get("user")) for i in data if i.get("user")}
+            u_ids.discard(None)
+            s_ids = {_to_int(i.get("schedule")) for i in data if i.get("schedule")}
+            s_ids.discard(None)
+            c_ids = {_to_int(i.get("duty_chart")) for i in data if i.get("duty_chart")}
+            c_ids.discard(None)
+
+            users_map = {u.id: u for u in User.objects.filter(id__in=u_ids)}
+            schedules_map = {s.id: s for s in Schedule.objects.filter(id__in=s_ids)}
+            charts_map = {c.id: c for c in DutyChart.objects.filter(id__in=c_ids)}
+
+            can_assign_any = is_super or user_has_permission_slug(user, 'duties.assign_any_office_employee')
+
+            # 3. Execution
             with transaction.atomic():
                 for item in data:
-                    user_id = to_int(item.get("user"))
-                    office_id = to_int(item.get("office"))
-                    chart_id = to_int(item.get("duty_chart"))
-                    schedule_id = to_int(item.get("schedule"))
+                    user_id = _to_int(item.get("user"))
+                    office_id = _to_int(item.get("office"))
+                    chart_id = _to_int(item.get("duty_chart"))
+                    schedule_id = _to_int(item.get("schedule"))
                     duty_date_raw = item.get("date")
 
                     if not user_id or not schedule_id or not duty_date_raw:
-                         raise serializers.ValidationError("Missing required fields: user, schedule, or date.")
+                        raise serializers.ValidationError("Missing required fields: user, schedule, or date.")
 
-                    # Parse and Validate Date
                     duty_date = parse_date(duty_date_raw) if isinstance(duty_date_raw, str) else duty_date_raw
                     if not duty_date:
                         raise serializers.ValidationError(f"Invalid date format: {duty_date_raw}")
 
-                    # Check existence
                     if user_id not in users_map:
                         raise serializers.ValidationError(f"User with ID {user_id} does not exist.")
                     if schedule_id not in schedules_map:
@@ -736,16 +734,12 @@ class DutyViewSet(viewsets.ModelViewSet):
                     if chart_id and chart_id not in charts_map:
                         raise serializers.ValidationError(f"Duty Chart with ID {chart_id} does not exist.")
 
-                    # --- Restriction Check ---
                     if not can_assign_any:
                         t_user = users_map.get(user_id)
                         t_user_office_id = getattr(t_user, 'office_id', None)
-                        # If target user belongs to a different office (or no office) than the target office
-                        if t_user_office_id is None or int(t_user_office_id) != int(office_id):
+                        if t_user_office_id is None or office_id is None or int(t_user_office_id) != int(office_id):
                             raise serializers.ValidationError(f"Cannot assign employee {t_user.full_name} from a different office (or no office) without the 'Assign Any Office Employee' permission.")
 
-                    # Create or Update based on unique_together = ['user', 'duty_chart', 'date', 'schedule']
-                    # We use update_or_create to merge with existing duties if same user/date/shift/chart
                     obj, was_created = Duty.objects.update_or_create(
                         user_id=user_id,
                         duty_chart_id=chart_id,
@@ -758,30 +752,37 @@ class DutyViewSet(viewsets.ModelViewSet):
                         },
                     )
 
-                    # ✅ Force validation (overlap checks, etc.)
                     try:
                         obj.full_clean()
                         obj.save()
+                    except MultipleObjectsReturned:
+                        # This happens if there are duplicate rows for (user, chart, date, schedule)
+                        # We try to recover by taking the first one
+                        obj = Duty.objects.filter(
+                            user_id=user_id, duty_chart_id=chart_id,
+                            schedule_id=schedule_id, date=duty_date
+                        ).first()
+                        obj.office_id = office_id
+                        obj.is_completed = item.get("is_completed", False)
+                        obj.currently_available = item.get("currently_available", True)
+                        obj.save()
+                        was_created = False
                     except (ValidationError, IntegrityError) as e:
-                        # If validation fails, we want specific error message
                         message = getattr(e, 'message_dict', None) or {'detail': str(e)}
                         raise serializers.ValidationError(message)
 
                     if was_created:
-                        logger.info(f"Bulk Upsert: Created new Duty {obj.id} for user {user_id}")
                         created += 1
                     else:
-                        logger.info(f"Bulk Upsert: Updated existing Duty {obj.id} for user {user_id}")
                         updated += 1
 
-            logger.info(f"Bulk upsert finished: created={created}, updated={updated}")
             return Response({"created": created, "updated": updated}, status=status.HTTP_200_OK)
-        except serializers.ValidationError as e:
-            logger.warning(f"Bulk upsert validation error: {e}")
+
+        except serializers.ValidationError:
             raise
         except Exception as e:
             logger.exception("Unexpected error in bulk_upsert")
-            raise serializers.ValidationError({"detail": f"An unexpected error occurred: {str(e)}"})
+            return Response({"detail": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @swagger_auto_schema(
         method="post",
