@@ -152,7 +152,7 @@ const Register = () => {
 
   // Auto-verify when OTP is 4 digits
   useEffect(() => {
-    if (step === "OTP" && otp.length === 4) {
+    if (step === "OTP" && otp.length === 6) {
       validateOtpLogic();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,12 +257,12 @@ const Register = () => {
                 </div>
 
                 <Input
-                  placeholder="••••"
+                  placeholder="••••••"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
-                  maxLength={4}
+                  maxLength={6}
                   required
-                  className="h-12 text-center text-2xl tracking-[1em] font-bold border-2 focus:border-primary transition-all placeholder:text-slate-200 placeholder:opacity-100"
+                  className="h-12 text-center text-2xl tracking-[0.5em] font-bold border-2 focus:border-primary transition-all placeholder:text-slate-200 placeholder:opacity-100"
                   autoFocus
                 />
 
@@ -286,7 +286,7 @@ const Register = () => {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 font-bold shadow-md shadow-primary/20" disabled={isLoading || otp.length < 4}>
+                <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 font-bold shadow-md shadow-primary/20" disabled={isLoading || otp.length < 6}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify OTP"}
                 </Button>
               </form>

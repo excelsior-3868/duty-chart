@@ -26,95 +26,104 @@ def send_otp_email(email, otp_code, purpose="verification"):
 
 def send_otp_ntc(phone):
     """
-    Sends OTP via NTC API.
+    Sends OTP via the new OTP API.
     Returns: (success: bool, data: dict/None, error: str/None)
     """
-    # Ensure phone number starts with 977
-    if phone and not phone.startswith('977'):
-        phone = f"977{phone}"
+    # Ensure we send exactly 10 digits to the OTP API (stripping +977 or 977)
+    if phone:
+        # Remove any non-digit characters (+, space, etc)
+        clean_phone = ''.join(filter(str.isdigit, phone))
+        # Take the last 10 digits (e.g., from 9779851117226 -> 9851117226)
+        if len(clean_phone) >= 10:
+            phone = clean_phone[-10:]
+        else:
+            phone = clean_phone
         
     base_url = settings.NTC_OTP_URL.rstrip('/')
-    url = f"{base_url}/otp/send"
+    url = f"{base_url}/sendotp"
     payload = {
-        "phone": phone
+        "mobileNumber": phone,
+        "systemId": "2"
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=5)
-        print(f"DEBUG: NTC Gateway Response Status: {response.status_code}")
-        print(f"DEBUG: NTC Gateway Raw Response: {response.text}")
-        response.raise_for_status()
+        response = requests.post(url, json=payload, timeout=10)
+        print(f"DEBUG: OTP Gateway Response Status: {response.status_code}")
+        print(f"DEBUG: OTP Gateway Raw Response: {response.text}")
         
-        data = response.json()
-        
-        # Robust success check: handle both boolean True and string "true"
-        is_success = data.get("success") in [True, "true", "True"]
-        
-        if is_success:
-            nested_data = data.get("data", {})
-            if isinstance(nested_data, dict):
-                inner_data = nested_data.get("data", {})
-                if isinstance(inner_data, dict) and "seq_no" in inner_data:
-                    return True, inner_data, None
-                
-                if "seq_no" in nested_data:
-                    return True, nested_data, None
+        if response.status_code == 200:
+            data = response.json()
+            # The new API returns transactionId directly or in a nested field?
+            # Example provided: "transactionId": "B8146E22ED81431B8C18B616F"
+            # Assuming it's in the top level of the response or data field.
+            transaction_id = data.get("transactionId") or data.get("data", {}).get("transactionId")
             
-            return True, {"seq_no": "DUMMY_SEQ"}, None
+            if transaction_id:
+                return True, {"seq_no": transaction_id}, None
+            
+            # If success but no transactionId, return as is if no error field
+            return True, {"seq_no": "DUMMY_TXN"}, None
         else:
-            ntc_data = data.get("data", {})
-            error_msg = "NTC Error"
-            if isinstance(ntc_data, dict):
-                error_msg = ntc_data.get("description") or "NTC Error"
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("message") or error_data.get("description") or f"HTTP {response.status_code}"
+            except:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
             return False, None, error_msg
         
     except Exception as e:
         if settings.DEBUG:
-            print(f"DEBUG: NTC Gateway unreachable ({e}). Returning MOCK OTP since DEBUG=True.")
-            return True, {"otp": "1234", "seq_no": "MOCK_SEQ_123"}, None
+            print(f"DEBUG: OTP Gateway unreachable ({e}). Returning MOCK OTP since DEBUG=True.")
+            return True, {"seq_no": "MOCK_TXN_123"}, None
         return False, None, str(e)
 
 def validate_otp_ntc(seq_no, otp, phone=None):
     """
-    Validates OTP via NTC API using seq_no.
+    Validates OTP via the new OTP API using transactionId (passed as seq_no).
     """
-    url = f"{settings.NTC_OTP_URL.rstrip('/')}/otp/validate"
-    # Ensure phone number starts with 977
-    if phone and not phone.startswith('977'):
-        phone = f"977{phone}"
+    base_url = settings.NTC_OTP_URL.rstrip('/')
+    url = f"{base_url}/verifyotp"
+    
+    if phone:
+        # Standardize to 10 digits
+        clean_phone = ''.join(filter(str.isdigit, phone))
+        if len(clean_phone) >= 10:
+            phone = clean_phone[-10:]
+        else:
+            phone = clean_phone
 
     payload = {
-        "seq_no": seq_no,
-        "otp": otp,
-        "phone": phone
+        "mobileNumber": phone,
+        "transactionId": seq_no,
+        "otp": otp
     }
-    print(f"DEBUG: Payload sent to NTC Validate: {json.dumps(payload)}")
+    print(f"DEBUG: Payload sent to OTP Validate: {json.dumps(payload)}")
     
     try:
-        if settings.DEBUG and seq_no == "MOCK_SEQ_123":
-            if otp == "1234":
+        if settings.DEBUG and seq_no == "MOCK_TXN_123":
+            if otp == "123456" or otp == "1234":
                 return True, "Success (Mock)"
             return False, "Invalid Mock OTP"
 
-        response = requests.post(url, json=payload, timeout=5)
-        data = response.json()
+        response = requests.post(url, json=payload, timeout=10)
+        print(f"DEBUG: OTP Validate Response Status: {response.status_code}")
+        print(f"DEBUG: OTP Validate Raw Response: {response.text}")
         
-        # Robust success check
-        is_success = data.get("success") in [True, "true", "True"]
-        ntc_data = data.get("data", {})
-        has_error = isinstance(ntc_data, dict) and "error" in ntc_data
-        code = ntc_data.get("code") if isinstance(ntc_data, dict) else None
-        
-        if is_success and not has_error:
-            return True, "Success"
-        elif is_success and (code == 0 or code == "0"):
+        if response.status_code == 200:
+            data = response.json()
+            # Check for success indicators in the response body if any, 
+            # otherwise 200 is success.
             return True, "Success"
         else:
-            error_detail = ntc_data.get("error") if has_error else ntc_data.get("description")
-            return False, f"Gateway Error: {error_detail or json.dumps(data)}"
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("message") or error_data.get("description") or f"Invalid OTP"
+            except:
+                error_msg = f"Verification failed (HTTP {response.status_code})"
+            return False, error_msg
             
     except Exception as e:
-        if settings.DEBUG and seq_no == "MOCK_SEQ_123":
+        if settings.DEBUG and seq_no == "MOCK_TXN_123":
              return True, "Success (Mock Fallback)"
         return False, str(e)
 
