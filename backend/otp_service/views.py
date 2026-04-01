@@ -13,6 +13,7 @@ from .serializers import (
     UserLookupSerializer, SignupCompleteSerializer
 )
 from .utils import send_otp_ntc, validate_otp_ntc
+from .tasks import send_otp_task
 from django.utils import timezone
 from datetime import timedelta
 import random
@@ -147,67 +148,28 @@ class RequestOTPView(APIView):
         if last_request:
              return Response({"message": "Please wait before requesting another OTP."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
-        # 3. Handle Channel
-        seq_no = None
-        otp_code = None
+        # 3. Queue Task
         phone_number = user.phone_number
-        
-        if channel == 'sms_ntc':
-            if not phone_number:
-                 return Response({"message": "No phone number associated with this account."}, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Send via NTC
-            success, data, error = send_otp_ntc(phone_number)
-            if not success:
-                # Log error
-                return Response({"message": f"Failed to send OTP: {error}"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            
-            # Extract seq_no from NTC data (Assuming structure, need validation)
-            # Assuming {'seq_no': '1234'} or similar based on PRD FR-04
-            seq_no = data.get('seq_no') 
-            print(f"DEBUG: Extracted seq_no: {seq_no}")
-            if not seq_no:
-                 # Fallback if NTC structure differs, but we need seq_no for validation
-                 # Should log this anomaly
-                 pass
+        otp_code = None
+        if channel == 'email':
+            otp_code = str(random.randint(100000, 999999))
 
-        elif channel == 'email':
-            # Internal Email OTP
-            email = user.email
-            if not email:
-                 return Response({"message": "No email address associated with this account."}, status=status.HTTP_400_BAD_REQUEST)
-
-            otp_code = str(random.randint(1000, 9999))
-            
-            # Send Email
-            from .utils import send_otp_email
-            success, error = send_otp_email(email, otp_code, purpose)
-            if not success:
-                 return Response({"message": f"Failed to send OTP via email: {error}"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        
-        # 4. Save Request
         otp_req = OTPRequest.objects.create(
             user=user,
             phone=phone_number,
             channel=channel,
-            seq_no=seq_no,
-            otp_code=otp_code if channel == 'email' else None, # Store local OTP for email
+            otp_code=otp_code if channel == 'email' else None,
             purpose=purpose,
             expires_at=timezone.now() + timedelta(minutes=5),
             status='pending'
         )
+
+        # Trigger Synchronous Task (as requested to avoid Celery fork issues on macOS)
+        # Note: In production, .delay() is preferred, but user requested sync.
+        send_otp_task(user.id, str(otp_req.id), phone_number, channel, purpose)
         
         response_data = {"message": "OTP sent successfully."}
-        if seq_no:
-            response_data['seq_no'] = seq_no # Need to return seq_no for the client to pass back? 
-            # PRD FR-05 says "System must not expose seq_no to the frontend directly."
-            # BUT FR-07 says validation payload needs seq_no.
-            # Contradiction? 
-            # Usually seq_no is public safe reference, but if PRD says strictly no expose...
-            # Maybe the client sends back the request_id (UUID) and backend looks up seq_no?
-            # Let's return the OTPRequest ID (UUID) and use that to look up seq_no internally.
-            pass
-            
+        
         # Returning request_id as a safe reference
         response_data['request_id'] = otp_req.id
         

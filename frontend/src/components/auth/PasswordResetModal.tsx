@@ -194,10 +194,10 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                                 id="otp"
                                 value={otp}
                                 onChange={(e) => setOtp(e.target.value)}
-                                placeholder="••••"
+                                placeholder="••••••"
                                 required
-                                maxLength={4}
-                                className="h-12 text-center text-2xl tracking-[1em] font-bold border-2 focus:border-primary transition-all placeholder:text-slate-200 placeholder:opacity-100"
+                                maxLength={6}
+                                className="h-12 text-center text-2xl tracking-[0.5em] font-bold border-2 focus:border-primary transition-all placeholder:text-slate-200 placeholder:opacity-100"
                                 autoFocus
                             />
                         </div>
@@ -222,7 +222,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                             </div>
                         </div>
 
-                        <Button type="submit" className="w-full h-12 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]" disabled={isLoading || otp.length < 4}>
+                        <Button type="submit" className="w-full h-12 font-bold bg-[#1F5CA9] hover:bg-[#1a4d8c]" disabled={isLoading || otp.length < 6}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Verify OTP
                         </Button>
