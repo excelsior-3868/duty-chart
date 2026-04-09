@@ -52,10 +52,20 @@ class Document(models.Model):
             self.checksum = file_checksum(self.file)
 
 class DutyChart(AuditableMixin, models.Model):
+    STATUS_DRAFT = "draft"
+    STATUS_APPROVED = "approved"
+    STATUS_ACTIVE = "active"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_ACTIVE, "Active"),
+    ]
+
     office = models.ForeignKey('org.WorkingOffice', on_delete=models.CASCADE, related_name='duty_charts')
     effective_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
     schedules = models.ManyToManyField(
         'Schedule',
         related_name='duty_charts',

@@ -77,6 +77,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _mark_chart_as_draft(chart):
+    if chart and chart.status in {DutyChart.STATUS_APPROVED, DutyChart.STATUS_ACTIVE}:
+        chart.status = DutyChart.STATUS_DRAFT
+        chart.save(update_fields=["status", "edited_at"])
+
+
 class ScheduleView(viewsets.ModelViewSet):
     queryset = Schedule.objects.all()
     serializer_class = ScheduleSerializer
@@ -340,7 +346,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
-            serializer.save(created_by=user)
+            serializer.save(created_by=user, status=DutyChart.STATUS_DRAFT)
             return
 
         with transaction.atomic():
@@ -350,7 +356,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             
             # Special case for NETWORK_ADMIN: allow creating for ANY office
             if user.role == 'NETWORK_ADMIN':
-                serializer.save(created_by=user)
+                serializer.save(created_by=user, status=DutyChart.STATUS_DRAFT)
                 return
 
             allowed = get_allowed_office_ids(user)
@@ -358,7 +364,39 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
                     raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
             
-            serializer.save(created_by=user)
+            serializer.save(created_by=user, status=DutyChart.STATUS_DRAFT)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request, pk=None):
+        chart = self.get_object()
+        user = request.user
+
+        if not IsSuperAdmin().has_permission(request, self):
+            allowed = False
+
+            if user.role == 'NETWORK_ADMIN':
+                creator = chart.created_by
+                if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
+                    allowed = True
+
+            if not allowed and user.office_id and chart.office_id == user.office_id and user_has_permission_slug(user, 'duties.edit_dutychart'):
+                allowed = True
+
+            if not allowed:
+                if not user_has_permission_slug(user, 'duties.edit_dutychart'):
+                    raise serializers.ValidationError({"detail": "You do not have permission to approve duty charts."})
+                if chart.created_by_id != user.pk:
+                    raise serializers.ValidationError({"detail": "You can only approve duty charts that you created or that belong to your office."})
+
+        chart.status = DutyChart.STATUS_APPROVED
+        chart.edited_by = user
+        chart.save(update_fields=["status", "edited_by", "edited_at"])
+
+        from notification_service.signals import send_notifications_for_chart
+        send_notifications_for_chart(chart)
+
+        serializer = self.get_serializer(chart)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -539,6 +577,8 @@ class DutyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
+            chart = serializer.validated_data.get("duty_chart")
+            _mark_chart_as_draft(chart)
             serializer.save()
             return
 
@@ -554,6 +594,7 @@ class DutyViewSet(viewsets.ModelViewSet):
                 if chart_id:
                     chart = DutyChart.objects.filter(id=chart_id).first()
                     if chart:
+                        _mark_chart_as_draft(chart)
                         creator = chart.created_by
                         if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
                             serializer.save()
@@ -564,6 +605,7 @@ class DutyViewSet(viewsets.ModelViewSet):
                 chart = DutyChart.objects.filter(id=chart_id).first()
                 if chart and user.office_id and chart.office_id == user.office_id:
                     if user_has_permission_slug(user, 'duties.assign_employee'):
+                        _mark_chart_as_draft(chart)
                         serializer.save()
                         return
 
@@ -586,12 +628,16 @@ class DutyViewSet(viewsets.ModelViewSet):
                           if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
                               raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
             
+            chart = DutyChart.objects.filter(id=chart_id).first() if chart_id else None
+            _mark_chart_as_draft(chart)
             serializer.save()
 
 
     def perform_update(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
+            chart = serializer.validated_data.get("duty_chart") or getattr(serializer.instance, "duty_chart", None)
+            _mark_chart_as_draft(chart)
             serializer.save()
             return
 
@@ -600,6 +646,7 @@ class DutyViewSet(viewsets.ModelViewSet):
             if user.role == 'NETWORK_ADMIN':
                 chart = getattr(serializer.instance, "duty_chart", None)
                 if chart:
+                    _mark_chart_as_draft(chart)
                     creator = chart.created_by
                     if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
                         serializer.save()
@@ -609,6 +656,7 @@ class DutyViewSet(viewsets.ModelViewSet):
             chart = getattr(serializer.instance, "duty_chart", None)
             if chart and user.office_id and chart.office_id == user.office_id:
                 if user_has_permission_slug(user, 'duties.assign_employee'):
+                    _mark_chart_as_draft(chart)
                     serializer.save()
                     return
 
@@ -619,6 +667,8 @@ class DutyViewSet(viewsets.ModelViewSet):
                 office_id = getattr(chart, "office_id", None)
             if not office_id or int(office_id) not in allowed:
                 raise serializers.ValidationError("Not allowed to update duty for this office.")
+            chart = serializer.validated_data.get("duty_chart") or getattr(serializer.instance, "duty_chart", None)
+            _mark_chart_as_draft(chart)
             serializer.save()
 
     @swagger_auto_schema(
@@ -710,6 +760,9 @@ class DutyViewSet(viewsets.ModelViewSet):
             charts_map = {c.id: c for c in DutyChart.objects.filter(id__in=c_ids)}
 
             can_assign_any = is_super or user_has_permission_slug(user, 'duties.assign_any_office_employee')
+
+            for chart in charts_map.values():
+                _mark_chart_as_draft(chart)
 
             # 3. Execution
             with transaction.atomic():
@@ -1863,7 +1916,8 @@ class DutyChartImportView(APIView):
                         office=office,
                         name=name,
                         effective_date=eff_date,
-                        end_date=en_date
+                        end_date=en_date,
+                        status=DutyChart.STATUS_DRAFT,
                     )
                     if schedule_ids:
                         chart.schedules.set([int(sid) for sid in schedule_ids])
@@ -1874,6 +1928,7 @@ class DutyChartImportView(APIView):
                     chart.office = office
                     # Always update end_date (allows clearing it)
                     chart.end_date = en_date
+                    _mark_chart_as_draft(chart)
                     chart.save()
 
                     # If appending, ensure schedules provided are ADDED to the chart

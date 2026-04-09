@@ -19,6 +19,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
             'effective_date',
             'end_date',
             'name',
+            'status',
             'schedules',
             'created_by',
             'created_at',

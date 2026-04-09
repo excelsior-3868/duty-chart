@@ -8,6 +8,7 @@ import logging
 import threading
 
 logger = logging.getLogger(__name__)
+APPROVED_CHART_STATUSES = {"approved", "active"}
 
 @receiver(post_save, sender=Duty)
 def notify_duty_assignment(sender, instance, created, **kwargs):
@@ -21,12 +22,17 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
         shift_type = getattr(instance.schedule, 'shift_type', '') or ''
         is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call']
         
-        if instance.user and instance.schedule and is_notifiable_type:
+        chart_status = getattr(getattr(instance, "duty_chart", None), "status", None)
+        is_chart_approved = chart_status in APPROVED_CHART_STATUSES or instance.duty_chart_id is None
+
+        if instance.user and instance.schedule and is_notifiable_type and is_chart_approved:
             logger.info(f"Triggering assignment notification for Duty {instance.id} (Type: {shift_type}, Created: {created})")
             # Transactional Safety: Wait for the Duty save to be committed
             transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
         else:
             reason = "No user" if not instance.user else "Not a 'Shift' type"
+            if instance.duty_chart_id and not is_chart_approved:
+                reason = f"Duty chart status is '{chart_status}'"
             logger.debug(f"Skipping notification for Duty {instance.id} ({reason})")
     except Exception as e:
         logger.error(f"Error in notify_duty_assignment signal: {e}")
@@ -91,3 +97,12 @@ def _handle_duty_assignment_notification(instance):
             logger.warning(f"User {user.username} has no phone number for SMS notification.")
     except Exception as e:
         logger.exception(f"Error in _handle_duty_assignment_notification for Duty {instance.id}")
+
+
+def send_notifications_for_chart(chart):
+    duties = chart.duties.select_related("user", "schedule", "office", "duty_chart").all()
+    for duty in duties:
+        shift_type = getattr(duty.schedule, 'shift_type', '') or ''
+        is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call']
+        if duty.user and duty.schedule and is_notifiable_type:
+            transaction.on_commit(lambda duty=duty: _handle_duty_assignment_notification(duty))

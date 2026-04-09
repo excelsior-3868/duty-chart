@@ -17,8 +17,8 @@ from .serializers import (
 
 @admin.register(DutyChart)
 class DutyChartAdmin(admin.ModelAdmin):
-    list_display = ('office', 'get_directorate', 'effective_date', 'end_date')
-    list_filter = ('office__directorate', 'office')
+    list_display = ('office', 'get_directorate', 'effective_date', 'end_date', 'status')
+    list_filter = ('status', 'office__directorate', 'office')
     search_fields = ('office__name', 'office__directorate__directorate')
     autocomplete_fields = ['office']
     date_hierarchy = 'effective_date'
