@@ -38,6 +38,7 @@ interface AuthContextType {
   hasPermission: (permissionSlug: string) => boolean;
   hasRole: (roleSlug: string) => boolean;
   canManageOffice: (officeId: number) => boolean;
+  isAssignedToOffice: (officeId: number) => boolean;
 }
 
 // ----------------------------------------------------------------------
@@ -139,9 +140,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return true;
     }
 
+    return isAssignedToOffice(officeId);
+  };
+
+  const isAssignedToOffice = (officeId: number): boolean => {
+    if (!user) return false;
+    if (user.role === 'SUPERADMIN') return true;
     if (user.office_id === null || user.office_id === undefined) return false;
 
-    return Number(user.office_id) === Number(officeId);
+    const primaryId = Number(user.office_id);
+    const secondaryIds = (user.secondary_offices || []).map(id => Number(id));
+
+    return primaryId === Number(officeId) || secondaryIds.includes(Number(officeId));
   };
 
   const value = {
@@ -156,6 +166,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     hasPermission,
     hasRole,
     canManageOffice,
+    isAssignedToOffice,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

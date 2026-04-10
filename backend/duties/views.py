@@ -48,7 +48,7 @@ from drf_yasg import openapi
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 
 from org.models import WorkingOffice as Office
-from users.models import User # Added this
+from users.models import User
 from users.permissions import (
     AdminOrReadOnly,
     SuperAdminOrReadOnly,
@@ -56,9 +56,10 @@ from users.permissions import (
     IsOfficeAdmin,
     IsOfficeScoped,
     get_allowed_office_ids,
+    get_managed_office_ids,
     user_has_permission_slug,
 )
-from django.core.exceptions import ValidationError, MultipleObjectsReturned # Added this
+from django.core.exceptions import ValidationError, MultipleObjectsReturned
 
 
 from .models import DutyChart, Duty, RosterAssignment, Schedule
@@ -299,42 +300,24 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = DutyChart.objects.all()
+        queryset = DutyChart.objects.select_related(
+            'office', 'office__directorate', 'office__ac_office', 'office__cc_office', 'created_by'
+        ).prefetch_related('schedules').all()
         office_id = self.request.query_params.get("office", None)
         user = self.request.user
+        
         if not IsSuperAdmin().has_permission(self.request, self):
-            # Check for special 'view_any' permission
             can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
-            
             if not can_view_any:
                 allowed = get_allowed_office_ids(user)
-                if allowed:
-                    queryset = queryset.filter(office_id__in=allowed)
+                queryset = queryset.filter(office_id__in=allowed)
 
         if office_id:
-            # Multi-office filter support for dashboard optimization
-            oids = []
-            if "," in str(office_id):
-                try:
-                    oids = [int(x.strip()) for x in str(office_id).split(",") if x.strip()]
-                except (ValueError, TypeError):
-                    return DutyChart.objects.none()
-            else:
-                try:
-                    oids = [int(office_id)]
-                except (ValueError, TypeError):
-                    return DutyChart.objects.none()
-
-            if not IsSuperAdmin().has_permission(self.request, self):
-                can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
-                if not can_view_any:
-                    allowed = get_allowed_office_ids(user)
-                    # Filter oids to only those user is allowed to see
-                    oids = [oid for oid in oids if oid in allowed]
-                    if not oids:
-                        return DutyChart.objects.none()
-
-            queryset = queryset.filter(office_id__in=oids)
+            try:
+                oids = [int(x.strip()) for x in str(office_id).split(",") if x.strip()]
+                queryset = queryset.filter(office_id__in=oids)
+            except (ValueError, TypeError):
+                return DutyChart.objects.none()
         return queryset.order_by("-id")
 
     def perform_create(self, serializer):
@@ -400,15 +383,9 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             instance.delete()
             return
 
-        # 2. Network Admin → shared access for peers in same office
-        if user.role == 'NETWORK_ADMIN':
-            creator = instance.created_by
-            if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
-                instance.delete()
-                return
-
-        # 3. Office-level management: allow if the chart belongs to the user's office
-        if user.office_id and instance.office_id == user.office_id:
+        # 2. Scope-based management (Office Admin, Network Admin, etc.)
+        allowed = get_managed_office_ids(user)
+        if instance.office_id and instance.office_id in allowed:
             if user_has_permission_slug(user, 'duties.delete_chart'):
                 instance.delete()
                 return
@@ -508,33 +485,26 @@ class DutyViewSet(viewsets.ModelViewSet):
             instance.delete()
             return
 
-        # 2. Network Admin management
-        if user.role == 'NETWORK_ADMIN':
-            duty_chart = instance.duty_chart
-            if duty_chart:
-                creator = duty_chart.created_by
-                if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
-                    instance.delete()
-                    return
-
-        # 3. Office-level management
-        duty_chart = instance.duty_chart
-        if user.office_id and duty_chart and duty_chart.office_id == user.office_id:
-            if user_has_permission_slug(user, 'duties.delete'):
-                instance.delete()
-                return
-
-        # 4. Must have the base permission to remove employees from duty charts
         if not user_has_permission_slug(user, 'duties.delete'):
             raise serializers.ValidationError("You do not have permission to remove employees from duty charts.")
 
-        # 5. Must be the creator of the duty chart this duty belongs to
-        if not duty_chart or duty_chart.created_by_id != user.pk:
-            raise serializers.ValidationError(
-                "You can only remove employees from duty charts that you created or that belong to your office."
-            )
+        duty_chart = instance.duty_chart
+        office_id = getattr(duty_chart, 'office_id', None)
+        
+        # 2. Scope-based management (Office Admin, Network Admin, etc.)
+        allowed = get_managed_office_ids(user)
+        if office_id and office_id in allowed:
+            instance.delete()
+            return
 
-        instance.delete()
+        # 4. Creator fallback
+        if duty_chart and duty_chart.created_by_id == user.pk:
+            instance.delete()
+            return
+
+        raise serializers.ValidationError(
+            "You can only remove employees from duty charts that you created or that belong to your office."
+        )
 
     def perform_create(self, serializer):
         user = self.request.user

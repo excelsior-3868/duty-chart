@@ -95,14 +95,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if not can_create and not can_create_any:
             raise DRFValidationError("You do not have permission to create employees.")
 
-        is_office_admin = IsOfficeAdmin().has_permission(self.request, self)
+        user_role = getattr(self.request.user, 'role', None)
+        is_restricted_role = user_role in ['OFFICE_ADMIN', 'NETWORK_ADMIN']
 
-        # 2. Network Admin (or any non-OfficeAdmin role) with permission → unrestricted
-        if not is_office_admin:
+        # 2. Non-restricted roles (like SuperAdmin or others) with permission → unrestricted
+        if not is_restricted_role:
             serializer.save()
             return
 
-        # 3. Office Admin with permission → restricted to their own office(s)
+        # 3. Office Admin / Network Admin with permission → restricted to their own office(s)
         allowed = get_allowed_office_ids(self.request.user)
         data_office = self.request.data.get('office')
         secondary_ids = self.request.data.get('secondary_offices') or []
@@ -141,14 +142,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if not can_edit and not can_edit_any:
             raise DRFValidationError("You do not have permission to edit employees.")
 
-        is_office_admin = IsOfficeAdmin().has_permission(self.request, self)
+        user_role = getattr(self.request.user, 'role', None)
+        is_restricted_role = user_role in ['OFFICE_ADMIN', 'NETWORK_ADMIN']
 
-        # 3. Network Admin (or any non-OfficeAdmin role) with permission → unrestricted
-        if not is_office_admin:
+        # 3. Non-restricted roles with permission → unrestricted
+        if not is_restricted_role:
             serializer.save()
             return
 
-        # 4. Office Admin with permission → restricted to their own office(s)
+        # 4. Office Admin / Network Admin with permission → restricted to their own office(s)
         allowed = get_allowed_office_ids(self.request.user)
         data_office = self.request.data.get('office')
         current_office = getattr(serializer.instance, 'office_id', None)

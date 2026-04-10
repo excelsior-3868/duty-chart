@@ -69,6 +69,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
         data['cc_office_name'] = instance.office.cc_office.name if instance.office and instance.office.cc_office else "-"
         data['schedule_names'] = [s.name for s in instance.schedules.all()]
         data['duties_count'] = instance.duties.count()
+        data['created_by_role'] = instance.created_by.role if instance.created_by else None
         return data
 
 

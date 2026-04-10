@@ -892,9 +892,11 @@ const Employees = () => {
                           )}
                         </Protect>
                         <Protect permission="users.delete_employee">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => openDeleteConfirm(emp)} title="Delete Employee">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {(hasPermission('users.create_any_office_employee') || (user?.office_id && getIdFromField(emp.office) === user.office_id)) && (
+                            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => openDeleteConfirm(emp)} title="Delete Employee">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </Protect>
                       </div>
                     </TableCell>

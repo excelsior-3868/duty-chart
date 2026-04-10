@@ -138,7 +138,7 @@ const DutyCalendar = () => {
     const [showDayDetailModal, setShowDayDetailModal] = useState(false);
     const [selectedDateForDetail, setSelectedDateForDetail] = useState<Date | null>(null);
 
-    const { user, hasPermission, canManageOffice } = useAuth();
+    const { user, hasPermission, canManageOffice, isAssignedToOffice } = useAuth();
     const location = useLocation();
     const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
@@ -427,9 +427,18 @@ const DutyCalendar = () => {
     const canDeleteAssignment = useCallback((a: DutyAssignment) => {
         if (isSuperAdmin) return true;
         if (!hasPermission('duties.delete')) return false;
-        // Must be the creator of the parent duty chart
-        return isChartCreator;
-    }, [isSuperAdmin, hasPermission, isChartCreator]);
+        
+        if (isChartCreator) return true;
+
+        if (selectedDutyChartInfo) {
+            const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+                ? Number((selectedDutyChartInfo.office as any)?.id)
+                : Number(selectedDutyChartInfo.office);
+            return isAssignedToOffice(chartOfficeId);
+        }
+        
+        return false;
+    }, [isSuperAdmin, hasPermission, isChartCreator, selectedDutyChartInfo, canManageOffice]);
 
     const modalAssignments = useMemo(() => {
         if (!selectedDateForDetail) return [];
@@ -566,11 +575,15 @@ const DutyCalendar = () => {
     const canDeleteDuty = useMemo(() => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.delete')) return false;
-        // SuperAdmin can always delete
         if (isSuperAdmin) return true;
-        // Others must be the creator of the chart
-        return isChartCreator;
-    }, [selectedDutyChartInfo, hasPermission, isSuperAdmin, isChartCreator]);
+        
+        if (isChartCreator) return true;
+
+        const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+            ? Number((selectedDutyChartInfo.office as any)?.id)
+            : Number(selectedDutyChartInfo.office);
+        return isAssignedToOffice(chartOfficeId);
+    }, [selectedDutyChartInfo, hasPermission, isSuperAdmin, isChartCreator, isAssignedToOffice]);
 
     const handleDeleteDuty = async () => {
         if (!selectedProfile?.id) return;

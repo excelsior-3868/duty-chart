@@ -9,12 +9,22 @@ def get_allowed_office_ids(user):
        user_has_permission_slug(user, 'duties.create_any_office_chart'):
         return set(WorkingOffice.objects.values_list('id', flat=True))
 
+    return get_managed_office_ids(user)
+
+def get_managed_office_ids(user):
+    """Returns ONLY the offices the user is explicitly assigned to (primary + secondary)"""
     ids = []
     if getattr(user, 'office_id', None):
         ids.append(user.office_id)
     try:
-        if hasattr(user, 'secondary_offices'):
-            ids.extend(list(user.secondary_offices.values_list('id', flat=True)))
+        secondary = getattr(user, 'secondary_offices', None)
+        if secondary:
+            if hasattr(secondary, 'all'):
+                # ManyToMany manager or QuerySet
+                ids.extend(list(secondary.values_list('id', flat=True)))
+            elif isinstance(secondary, (list, tuple)):
+                # List of IDs or objects
+                ids.extend([getattr(o, 'id', o) for o in secondary])
     except Exception:
         pass
     return set(ids)
@@ -60,15 +70,33 @@ class AdminOrReadOnly(BasePermission):
         # Allow user to edit their own profile
         if request.user == obj:
             return True
-        if IsOfficeAdmin().has_permission(request, view):
-            # Office Admin: must also have the RBAC permission, then restricted to own office
-            if user_has_permission_slug(request.user, 'users.edit_employee'):
-                return IsOfficeScoped().has_object_permission(request, view, obj)
+
+        # Map methods to required permissions
+        permission_map = {
+            'PUT': 'users.edit_employee',
+            'PATCH': 'users.edit_employee',
+            'DELETE': 'users.delete_employee',
+        }
+        
+        required_slug = permission_map.get(request.method)
+        if not required_slug:
             return False
-        # Any other role (e.g. Network Admin) with users.edit_employee → full access, no office restriction
-        if user_has_permission_slug(request.user, 'users.edit_employee'):
-            return True
-        return False
+
+        # Check for permission or the 'any office' override
+        has_permission = user_has_permission_slug(request.user, required_slug)
+        has_any_permission = user_has_permission_slug(request.user, 'users.create_any_office_employee')
+
+        if not (has_permission or has_any_permission):
+            return False
+        
+        # SuperAdmin is already handled.
+        # Office Admin and Network Admin: restricted to their own office(s) unless they have 'any office' permission
+        user_role = getattr(request.user, 'role', None)
+        if user_role in ['OFFICE_ADMIN', 'NETWORK_ADMIN']:
+            if not has_any_permission:
+                return IsOfficeScoped().has_object_permission(request, view, obj)
+        
+        return True
 
 class SuperAdminOrReadOnly(BasePermission):
     def has_permission(self, request, view):

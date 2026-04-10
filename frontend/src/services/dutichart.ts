@@ -13,6 +13,7 @@ export interface DutyChart {
   directorate_name?: string;
   duties_count?: number;
   created_by?: number | null;
+  created_by_role?: string | null;
 }
 
 // GET all duty charts
