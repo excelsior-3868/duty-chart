@@ -1,19 +1,21 @@
-name: Mirror to devntc
+name: Sync main to devntc master
 
 on:
   push:
     branches:
-      - main   # change if needed
+      - main
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # important for full history
+          fetch-depth: 0
 
       - name: Setup SSH
         run: |
@@ -22,7 +24,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-      - name: Mirror push to devntc
+      - name: Push main → master
         run: |
           git remote add target git@github.com/Software-and-Security-Wing/duty-chart.git
-          git push --mirror target
+          git push target main:main --force
