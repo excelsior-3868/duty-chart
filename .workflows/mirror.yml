@@ -1,0 +1,28 @@
+name: Mirror to devntc
+
+on:
+  push:
+    branches:
+      - main   # change if needed
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # important for full history
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Mirror push to devntc
+        run: |
+          git remote add target git@github.com/Software-and-Security-Wing/duty-chart.git
+          git push --mirror target
