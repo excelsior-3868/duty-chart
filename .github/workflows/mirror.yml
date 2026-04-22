@@ -26,5 +26,5 @@ jobs:
 
       - name: Push main → master
         run: |
-          git remote add target git@github.com/Software-and-Security-Wing/duty-chart.git
+          git remote add target https://github.com/Software-and-Security-Wing/duty-chart.git
           git push target main:main --force
