@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { DutyChartCard } from "@/components/DutyChartCard/DutyChartCard";
 import type { DutyChart as DutyChartDTO } from "@/services/dutichart";
+import { Loader2 } from "lucide-react";
 
 interface CreateDutyChartModalProps {
   open: boolean;
@@ -11,6 +12,7 @@ interface CreateDutyChartModalProps {
 
 const CreateDutyChartModal: React.FC<CreateDutyChartModalProps> = ({ open, onOpenChange, onCreated }) => {
   const [dateMode, setDateMode] = useState<"AD" | "BS">("BS");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,6 +51,7 @@ const CreateDutyChartModal: React.FC<CreateDutyChartModalProps> = ({ open, onOpe
             setDateMode={setDateMode}
             hideHeader={true}
             hideFooter={true}
+            onSubmittingChange={setIsSubmitting}
           />
         </div>
 
@@ -56,9 +59,17 @@ const CreateDutyChartModal: React.FC<CreateDutyChartModalProps> = ({ open, onOpe
           <button
             type="submit"
             form="create-duty-chart-form"
-            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover"
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Create
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              "Create"
+            )}
           </button>
         </DialogFooter>
       </DialogContent>

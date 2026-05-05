@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getOffices, type Office } from "@/services/offices";
-import { getDutyCharts, getDutyChartById, type DutyChart as DutyChartInfo } from "@/services/dutichart";
+import { getDutyCharts, getDutyChartById, approveDutyChart, type DutyChart as DutyChartInfo } from "@/services/dutichart";
 import { getDutiesFiltered, type Duty, deleteDuty } from "@/services/dutiesService";
 import { getUser, type User } from "@/services/users";
 import { getOffice as getOfficeDetail, type Office as OfficeInfo } from "@/services/offices";
@@ -53,6 +53,7 @@ import { PageHeader } from "@/components/PageHeader";
 interface DutyChart {
     id: string;
     name: string;
+    status?: 'draft' | 'approved';
 }
 
 // Interface for Assignments (UI model)
@@ -181,7 +182,8 @@ const DutyCalendar = () => {
             const res = await getDutyCharts(parseInt(selectedOfficeId));
             const formattedCharts = res.map((c: any) => ({
                 id: String(c.id),
-                name: c.name
+                name: c.name,
+                status: c.status
             }));
             setDutyCharts(formattedCharts);
 
@@ -261,30 +263,8 @@ const DutyCalendar = () => {
                 const fetchedSchedules = res || [];
                 setSchedules(fetchedSchedules);
 
-                // --- Find shift of current time as default ---
-                const now = new Date();
-                const nowH = now.getHours();
-                const nowM = now.getMinutes();
-                const nMin = nowH * 60 + nowM;
-
-                const activeShift = fetchedSchedules.find(s => {
-                    if (!s.start_time || !s.end_time) return false;
-                    const [sh, sm] = s.start_time.split(':').map(Number);
-                    const [eh, em] = s.end_time.split(':').map(Number);
-                    const sMin = sh * 60 + sm;
-                    const eMin = eh * 60 + em;
-
-                    if (eMin < sMin) { // Crosses midnight (e.g., 22:00 to 06:00)
-                        return nMin >= sMin || nMin < eMin;
-                    }
-                    return nMin >= sMin && nMin < eMin;
-                });
-
-                if (activeShift) {
-                    setSelectedScheduleId(String(activeShift.id));
-                } else {
-                    setSelectedScheduleId("all");
-                }
+                // Always default to "all" shifts as requested
+                setSelectedScheduleId("all");
             } catch (e) {
                 console.error("Failed to load schedules", e);
             }
@@ -448,6 +428,13 @@ const DutyCalendar = () => {
             .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
     }, [assignments, selectedDateForDetail, selectedScheduleId]);
 
+    // Close day detail modal if it becomes empty (e.g. after successful delete)
+    useEffect(() => {
+        if (showDayDetailModal && modalAssignments.length === 0) {
+            setShowDayDetailModal(false);
+        }
+    }, [modalAssignments.length, showDayDetailModal]);
+
     // Bulk Delete Logic
     const toggleDutySelection = (id: string) => {
         const newSelected = new Set(selectedDutyIds);
@@ -506,6 +493,7 @@ const DutyCalendar = () => {
                 toast.success(`Successfully deleted ${successCount} assignment(s).`);
                 fetchDuties(); // Refresh list
                 setSelectedDutyIds(new Set()); // Clear selection
+                setShowDayDetailModal(false); // Close the detail modal immediately
             }
 
             if (failCount > 0) {
@@ -573,6 +561,26 @@ const DutyCalendar = () => {
         return hasPermission('duties.edit_dutychart');
     }, [hasPermission]);
 
+    const handleApprove = async () => {
+        if (!selectedDutyChartId) return;
+        try {
+            setLoading(true);
+            const res = await approveDutyChart(parseInt(selectedDutyChartId));
+            toast.success("Duty Chart Approved", { description: res.detail });
+            
+            // Refresh chart info and duties
+            await fetchDutyCharts(selectedDutyChartId);
+            const updatedInfo = await getDutyChartById(parseInt(selectedDutyChartId));
+            setSelectedDutyChartInfo(updatedInfo);
+            await fetchDuties();
+        } catch (e: any) {
+            console.error("Failed to approve chart", e);
+            toast.error(e.response?.data?.detail || "Failed to approve duty chart");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const canDeleteDuty = useMemo(() => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.delete')) return false;
@@ -593,6 +601,7 @@ const DutyCalendar = () => {
             toast.success("Duty deleted");
             setShowDeleteConfirm(false);
             setShowProfileModal(false);
+            setShowDayDetailModal(false); // Close the day detail modal as well
             await fetchDuties();
         } catch (e: any) {
             toast.error("Failed to delete duty");
@@ -626,12 +635,27 @@ const DutyCalendar = () => {
             {/* Header: Title + Controls */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <PageHeader 
-                        title="Duty Calendar" 
-                        subtitle="Manage events and duty schedules." 
-                        icon={CalendarIcon} 
-                        iconColor="text-emerald-500"
-                    />
+                    <div className="flex items-center gap-4">
+                        <PageHeader 
+                            title="Duty Calendar" 
+                            subtitle="Manage events and duty schedules." 
+                            icon={CalendarIcon} 
+                            iconColor="text-emerald-500"
+                        />
+                        {selectedDutyChartInfo && (
+                            <div className="hidden sm:block">
+                                {selectedDutyChartInfo.status === 'approved' ? (
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 px-3 py-1 gap-1.5 font-bold">
+                                        <Check className="w-3 h-3" /> Approved (Live)
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 px-3 py-1 gap-1.5 font-bold">
+                                        <Clock className="w-3 h-3" /> Draft Mode
+                                    </Badge>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="flex flex-col md:flex-row items-center gap-4">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
@@ -658,8 +682,31 @@ const DutyCalendar = () => {
                             )}
                             {canManageSelectedChart && (
                                 <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
-                                    <Pencil className="w-3.5 h-3.5" /> Edit Chart
+                                    <Pencil className="w-3.5 h-3.5" /> Edit/Update/Delete Chart
                                 </Button>
+                            )}
+                            {canManageSelectedChart && selectedDutyChartInfo?.status === 'draft' && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button className="gap-2 text-xs h-9 bg-emerald-600 hover:bg-emerald-700">
+                                            <Check className="w-3.5 h-3.5" /> Approve & Notify
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Approve Duty Chart?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will flip the chart status to <strong>Approved</strong> and send bulk SMS notifications to all {duties.length} assigned staff.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction onClick={handleApprove} className="bg-emerald-600 hover:bg-emerald-700">
+                                                Confirm & Notify
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             )}
                         </div>
                     </div>

@@ -78,6 +78,11 @@ class DutyChart(AuditableMixin, models.Model):
         help_text="User who last edited this duty chart."
     )
     edited_at = models.DateTimeField(auto_now=True, null=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[('draft', 'Draft'), ('approved', 'Approved')],
+        default='draft'
+    )
     def clean(self):
         super().clean()
         if self.end_date and self.end_date < self.effective_date:

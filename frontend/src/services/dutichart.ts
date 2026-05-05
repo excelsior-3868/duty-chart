@@ -14,7 +14,16 @@ export interface DutyChart {
   duties_count?: number;
   created_by?: number | null;
   created_by_role?: string | null;
+  status?: 'draft' | 'approved';
 }
+
+/**
+ * Approves a duty chart (publishes it and triggers notifications).
+ */
+export const approveDutyChart = async (id: number): Promise<{ status: string; detail: string }> => {
+  const response = await api.post(`/duty-charts/${id}/approve/`);
+  return response.data;
+};
 
 // GET all duty charts
 export const getDutyCharts = async (officeId?: number | string): Promise<DutyChart[]> => {

@@ -13,8 +13,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, icon: I
     <header>
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-3">
-          {Icon && <Icon className={cn("h-[31px] w-[31px]", iconColor)} />}
-          <h1 className="text-[19px] md:text-[25px] font-semibold text-primary tracking-tight">{title}</h1>
+          {Icon && <Icon className={cn("h-[29px] w-[29px]", iconColor)} />}
+          <h1 className="text-[17px] md:text-[23px] font-semibold text-primary tracking-tight">{title}</h1>
         </div>
         {subtitle && (
           <p className={cn(

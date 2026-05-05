@@ -77,6 +77,9 @@ from .serializers import (
 import logging
 logger = logging.getLogger(__name__)
 
+from notification_service.signals import suppress_duty_notifications
+from notification_service.utils import send_bulk_assignment_notification
+
 
 class ScheduleView(viewsets.ModelViewSet):
     queryset = Schedule.objects.all()
@@ -405,6 +408,49 @@ class DutyChartViewSet(viewsets.ModelViewSet):
 
         instance.delete()
 
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        chart = self.get_object()
+        if chart.status == 'approved':
+            return Response({"detail": "Chart is already approved."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Permission check: must have edit_dutychart or be SuperAdmin
+        if not user_has_permission_slug(request.user, 'duties.edit_dutychart') and not IsSuperAdmin().has_permission(request, self):
+             return Response({"detail": "You do not have permission to approve duty charts."}, status=status.HTTP_403_FORBIDDEN)
+
+        with transaction.atomic():
+            chart.status = 'approved'
+            chart.save()
+            
+            # Find all unique users in this chart
+            duties = Duty.objects.filter(duty_chart=chart).select_related('user')
+            user_duties = {} # {user_id: [dates]}
+            for d in duties:
+                if d.user:
+                    if d.user_id not in user_duties:
+                        user_duties[d.user_id] = []
+                    user_duties[d.user_id].append(d.date)
+            
+            if user_duties:
+                def trigger_approval_sms():
+                    # Batch fetch users to be efficient
+                    users = {u.id: u for u in User.objects.filter(id__in=user_duties.keys())}
+                    for u_id, dates in user_duties.items():
+                        target_user = users.get(u_id)
+                        if not target_user: continue
+                        
+                        dates.sort()
+                        if len(dates) == 1:
+                            dr_str = str(dates[0])
+                        else:
+                            dr_str = f"{dates[0]} to {dates[-1]}"
+                        
+                        send_bulk_assignment_notification([target_user], chart, date_range_str=dr_str)
+                
+                transaction.on_commit(trigger_approval_sms)
+
+        return Response({"status": "approved", "detail": f"Chart approved and {len(user_duties)} employees notified."})
+
 
 class DutyViewSet(viewsets.ModelViewSet):
     queryset = Duty.objects.all()
@@ -680,9 +726,10 @@ class DutyViewSet(viewsets.ModelViewSet):
             charts_map = {c.id: c for c in DutyChart.objects.filter(id__in=c_ids)}
 
             can_assign_any = is_super or user_has_permission_slug(user, 'duties.assign_any_office_employee')
+            assigned_data = {} # {user_id: [dates]}
 
             # 3. Execution
-            with transaction.atomic():
+            with transaction.atomic(), suppress_duty_notifications():
                 for item in data:
                     user_id = _to_int(item.get("user"))
                     office_id = _to_int(item.get("office"))
@@ -743,8 +790,37 @@ class DutyViewSet(viewsets.ModelViewSet):
 
                     if was_created:
                         created += 1
+                        if user_id not in assigned_data:
+                            assigned_data[user_id] = []
+                        assigned_data[user_id].append(duty_date)
                     else:
                         updated += 1
+
+                if assigned_data:
+                    def trigger_bulk_sms():
+                        # Resolve chart context
+                        chart = None
+                        if c_ids:
+                            chart = charts_map.get(list(c_ids)[0])
+                        
+                        # Only send if chart is APPROVED
+                        if chart and chart.status != 'approved':
+                            logger.info(f"Skipping bulk notifications for Chart {chart.id}: Status is {chart.status}")
+                            return
+
+                        for u_id, dates in assigned_data.items():
+                            target_user = users_map.get(u_id)
+                            if not target_user: continue
+                            
+                            dates.sort()
+                            if len(dates) == 1:
+                                date_str = str(dates[0])
+                            else:
+                                date_str = f"{dates[0]} to {dates[-1]}"
+                            
+                            send_bulk_assignment_notification([target_user], chart, date_range_str=date_str)
+                    
+                    transaction.on_commit(trigger_bulk_sms)
 
             return Response({"created": created, "updated": updated}, status=status.HTTP_200_OK)
 
@@ -1640,26 +1716,49 @@ class DutyChartImportTemplateView(APIView):
         headers = ["Date (BS)", "Search Employee", "Employee ID", "Employee Name", "Phone", "Office", "Schedule", "Start Time", "End Time", "Position"]
         ws.append(headers)
 
+        # Create a reference sheet for employees
+        ws_users = wb.create_sheet("Reference")
+        # Column Order: 1: Search Key (Lookup), 2: Full Name, 3: Employee ID, 4: Phone, 5: Position, 6: Office
+        ws_users.append(["Search Key", "Full Name", "Employee ID", "Phone", "Position", "Office"])
+        
+        from users.models import User
+        from django.db.models import Q
+        can_assign_all = IsSuperAdmin().has_permission(request, self) or \
+                         user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
+
+        if can_assign_all:
+            users = User.objects.filter(is_activated=True).select_related('directorate', 'department', 'position', 'office')
+        else:
+            # Strictly use the primary office relationship
+            users = User.objects.filter(
+                office=office,
+                is_activated=True
+            ).select_related('directorate', 'department', 'position', 'office')
+        
+        for u in users:
+            office_name = getattr(u.office, 'name', 'N/A')
+            search_key = f"{u.employee_id} - {u.full_name} ({office_name})"
+            ws_users.append([
+                search_key,
+                u.full_name,
+                u.employee_id,
+                u.phone_number,
+                getattr(u.position, 'name', ''),
+                office_name
+            ])
+
+        # Fill the main duty sheet
         days = (end_date - start_date).days + 1
         row_idx = 2
         for sch in schedules:
             for i in range(days):
                 duty_date = start_date + timedelta(days=i)
-                # Duplicate rows (2 per date/schedule)
+                # 2 slots per date/schedule
                 for _ in range(2):
-                    # Formulas for lookup from Reference sheet
-                    # Ref Sheet Col Order: Full Name (A/1), Employee ID (B/2), Phone (C/3), Dir (D/4), Dept (E/5), Pos (F/6), Office (G/7), Search String (H/8)
-                    match_val = f"MATCH(B{row_idx}, 'Reference - Office Users'!$H$2:$H$1000, 0)"
-                    
-                    def get_f(col_idx):
-                        ref_col = f"'Reference - Office Users'!${chr(64+col_idx)}2:${chr(64+col_idx)}1000"
-                        return f'=IF(B{row_idx}<>"", IFERROR(INDEX({ref_col}, {match_val}), ""), "")'
-
-                    f_id = get_f(2)   # Employee ID
-                    f_name = get_f(1) # Full Name
-                    f_phone = get_f(3)
-                    f_office = get_f(7) # Office
-                    f_pos = get_f(6)
+                    # Reference sheet columns: 1:Key, 2:Name, 3:ID, 4:Phone, 5:Position, 6:Office
+                    def vlookup_f(col):
+                        # Use wildcards on both sides ("*" & B2 & "*") to allow searching by ID OR Name
+                        return f'=IF(ISBLANK(B{row_idx}), "", IFERROR(VLOOKUP("*" & B{row_idx} & "*", Reference!$A$2:$F$10000, {col}, FALSE), ""))'
 
                     if nepali_datetime:
                         bs_date_str = nepali_datetime.date.from_datetime_date(duty_date).strftime("%Y-%m-%d")
@@ -1668,63 +1767,39 @@ class DutyChartImportTemplateView(APIView):
 
                     ws.append([
                         bs_date_str,
-                        "",       # Search Employee (Dropdown Box)
-                        f_id,     # Employee ID (Auto-populated)
-                        f_name,   # Employee Name (Auto-populated)
-                        f_phone,
-                        f_office, # Office (Auto-populated)
+                        "",           # Search Employee (Dropdown Box) - Column B
+                        vlookup_f(3), # Employee ID - Column C
+                        vlookup_f(2), # Employee Name - Column D
+                        vlookup_f(4), # Phone - Column E
+                        vlookup_f(6), # Office - Column F
                         sch.name,
                         sch.start_time.strftime("%H:%M"),
                         sch.end_time.strftime("%H:%M"),
-                        f_pos
+                        vlookup_f(5)  # Position - Column J
                     ])
                     row_idx += 1
 
-        # Add Data Validation (Combined ID - Name Dropdown for Search Box)
+        # Add Data Validation for the Search Box (Column B)
         from openpyxl.worksheet.datavalidation import DataValidation
-        dv = DataValidation(type="list", formula1="'Reference - Office Users'!$H$2:$H$1000", allow_blank=True, showErrorMessage=False)
+        dv = DataValidation(type="list", formula1="Reference!$A$2:$A$10000", allow_blank=True, showErrorMessage=False)
         dv.add(f"B2:B{row_idx}")
         ws.add_data_validation(dv)
         
-        # Auto-adjust column width for Search Combobox
-        ws.column_dimensions['B'].width = 40
+        # UI Polish
+        ws.column_dimensions['B'].width = 55
         ws.column_dimensions['C'].width = 15
         ws.column_dimensions['D'].width = 25
-
-        # Add a sheet for reference users
-        # If user has 'assign_any_office_employee' permission, show all users; else only office users.
-        can_assign_all = IsSuperAdmin().has_permission(request, self) or \
-                         user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
-
-        ws_users = wb.create_sheet("Reference - Office Users")
-        # Column Order: Full Name, Employee ID, Phone, Directorate, Department, Position, Office, ID - Name
-        ws_users.append(["Full Name", "Employee ID", "Phone", "Directorate", "Department", "Position", "Office", "ID - Name"])
-        from users.models import User
-        if can_assign_all:
-            users = User.objects.filter(is_activated=True).select_related('directorate', 'department', 'position', 'office')
-        else:
-            users = User.objects.filter(office=office, is_activated=True).select_related('directorate', 'department', 'position', 'office')
-        
-        for u in users:
-            ws_users.append([
-                u.full_name,
-                u.employee_id,
-                u.phone_number,
-                getattr(u.directorate, 'name', ''),
-                getattr(u.department, 'name', ''),
-                getattr(u.position, 'name', ''),
-                getattr(u.office, 'name', ''),
-                f"{u.employee_id} - {u.full_name} ({getattr(u.office, 'name', 'N/A')})"
-            ])
+        ws.column_dimensions['E'].width = 15
+        ws.column_dimensions['F'].width = 30
+        ws.column_dimensions['J'].width = 25
 
         bio = BytesIO()
         wb.save(bio)
-        bio.seek(0)
-
-        filename = f"duty_template_{office.name}_{start_date_str}.xlsx"
-        resp = HttpResponse(bio.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return resp
+        
+        filename = f"duty_template_{office.name.replace(' ', '_')}_{start_date_str}.xlsx"
+        response = HttpResponse(bio.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
 
 class DutyChartImportView(APIView):
@@ -1749,6 +1824,7 @@ class DutyChartImportView(APIView):
         end_date_str = request.data.get("end_date")
         schedule_ids = request.data.getlist("schedule_ids")
         chart_id = request.data.get("chart_id")
+        status_val = request.data.get("status", "draft").lower()
         dry_run = request.data.get("dry_run", "false").lower() == "true"
 
         if not (file_obj and office_id and effective_date_str):
@@ -1824,16 +1900,18 @@ class DutyChartImportView(APIView):
         created_count = 0
         errors = []
         seen_in_file = set() # To detect duplicate assignments within the Excel itself
+        assigned_users = set() # To send single SMS per employee at the end
 
         try:
-            with transaction.atomic():
+            with transaction.atomic(), suppress_duty_notifications():
                 # Create Duty Chart if not provided
                 if not chart:
                     chart = DutyChart.objects.create(
                         office=office,
                         name=name,
                         effective_date=eff_date,
-                        end_date=en_date
+                        end_date=en_date,
+                        status=status_val
                     )
                     if schedule_ids:
                         chart.schedules.set([int(sid) for sid in schedule_ids])
@@ -1844,6 +1922,8 @@ class DutyChartImportView(APIView):
                     chart.office = office
                     # Always update end_date (allows clearing it)
                     chart.end_date = en_date
+                    if status_val:
+                        chart.status = status_val
                     chart.save()
 
                     # If appending, ensure schedules provided are ADDED to the chart
@@ -1938,14 +2018,17 @@ class DutyChartImportView(APIView):
 
                         # --- Activation check ---
                         if not user.is_activated:
-                            # Skip deactivated employees as requested
+                            errors.append(f"Row {row_num}: Employee {user.full_name} is not activated in the system.")
                             continue
 
-                        # --- Office check for User (unless assign_any_office_employee permission) ---
-                        user_office_id = getattr(user, 'office_id', None)
-                        if user_office_id is None or int(user_office_id) != int(office_id):
-                             if not user_has_permission_slug(request.user, 'duties.assign_any_office_employee'):
-                                 errors.append(f"Row {row_num}: You cannot assign employee {user.full_name} as they belong to another office (or no office) and you lack the 'Assign Any Office Employee' permission.")
+                        # --- Office check for User (Primary Office or Directorate Staff) ---
+                        can_assign_any = IsSuperAdmin().has_permission(request, self) or \
+                                         user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
+                        
+                        if not can_assign_any:
+                            # Strictly check if user belongs to this specific office
+                            if not user.office_id or int(user.office_id) != int(office_id):
+                                 errors.append(f"Row {row_num}: You cannot assign employee {user.full_name} as they belong to another office and you lack the 'Assign Any Office Employee' permission.")
                                  continue
 
                         # --- D. Schedule & Time Validation ---
@@ -2011,9 +2094,18 @@ class DutyChartImportView(APIView):
                                 date=duty_date,
                                 duty_chart=chart
                             )
+                            assigned_users.add(user)
                         created_count += 1
                     except Exception as e:
                         errors.append(f"Row {row_num}: Error: {str(e)}")
+
+                if not dry_run and assigned_users:
+                    # Send single SMS per employee after all duties are saved
+                    # ONLY if the chart is APPROVED
+                    if chart.status == 'approved':
+                        transaction.on_commit(lambda: send_bulk_assignment_notification(assigned_users, chart))
+                    else:
+                        logger.info(f"Skipping bulk notifications for imported Chart {chart.id}: Status is {chart.status}")
 
                 if created_count == 0 and not errors:
                     errors.append("No valid duty assignments found in the Excel file. Please ensure you have selected or entered employees in the 'Employee ID' or 'Employee Name' columns.")

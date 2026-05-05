@@ -104,3 +104,51 @@ def create_dashboard_notification(user, title, message, notification_type='SYSTE
     
     # return notification
     return None
+
+def send_bulk_assignment_notification(users, chart, date_range_str=None):
+    """
+    Sends a single SMS to each user in the list regarding their assignments in the chart.
+    If date_range_str is provided, it's included in the message.
+    """
+    import threading
+    from .models import SMSLog
+    
+    if not users or not chart:
+        return
+    
+    chart_name = chart.name or "Duty Chart"
+    office_name = chart.office.name if chart.office else "Unknown Office"
+    
+    for user in users:
+        if not getattr(user, 'phone_number', None):
+            logger.warning(f"User {user.username} has no phone number for bulk SMS notification.")
+            continue
+            
+        full_name = getattr(user, 'full_name', user.username)
+        
+        if date_range_str:
+            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the period {date_range_str}. Please visit dutychart.ntc.net.np for details.'
+        else:
+            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}". Please visit dutychart.ntc.net.np for details.'
+        
+        # Create log
+        log = SMSLog.objects.create(
+            user=user,
+            phone=user.phone_number,
+            message=sms_message,
+            reminder_type='ASSIGNMENT',
+            status='pending'
+        )
+        
+        # Send in background
+        def trigger_sms_task(u, msg, lid):
+            try:
+                success, response = send_sms(u.phone_number, msg, user=u, log_id=lid)
+                if success:
+                    logger.info(f"Bulk Assignment SMS sent successfully to {u.username}")
+                else:
+                    logger.error(f"Bulk Assignment SMS failed for {u.username}: {response}")
+            except Exception as e:
+                logger.error(f"Fatal error in bulk SMS thread for {u.username}: {e}")
+
+        threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()

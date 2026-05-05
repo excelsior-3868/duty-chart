@@ -138,7 +138,7 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
             className="text-[hsl(var(--header-foreground))] hover:bg-[hsl(var(--primary-hover))] lg:hidden"
             onClick={onMenuClick}
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-[18px] w-[18px]" />
           </Button>
 
           <div className="flex items-center gap-3">
@@ -151,8 +151,8 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
               />
             </div>
             <div className="hidden sm:block">
-              <h1 className="text-lg font-semibold">Duty Chart Management System</h1>
-              <p className="text-xs opacity-90">{COMPANY_NAME}</p>
+              <h1 className="text-base font-semibold">Duty Chart Management System</h1>
+              <p className="text-[10px] opacity-90">{COMPANY_NAME}</p>
             </div>
           </div>
         </div>

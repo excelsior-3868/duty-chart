@@ -60,6 +60,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     end_date: "",
     office: "",
     scheduleIds: [] as string[],
+    status: "draft" as "draft" | "approved",
   });
 
   const [initialChart, setInitialChart] = useState<DutyChartDTO | null>(null);
@@ -135,6 +136,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         end_date: "",
         office: "",
         scheduleIds: [],
+        status: "draft",
       });
       setInitialChart(null);
       setIsSubmitting(false);
@@ -162,6 +164,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           end_date: chart.end_date || "",
           office: String(chart.office || ""),
           scheduleIds: (chart.schedules || []).map(String),
+          status: (chart.status as "draft" | "approved") || "draft",
         });
         const officeId = chart.office ? chart.office : undefined;
         const scheds = await getSchedules(officeId);
@@ -416,6 +419,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         end_date: formData.end_date || undefined,
         office: formData.office ? parseInt(formData.office) : undefined,
         schedules: formData.scheduleIds.map(id => parseInt(id)),
+        status: formData.status,
       };
       const updatedChart = await patchDutyChart(parseInt(selectedChartId), payload);
       toast.success("Duty Chart updated successfully");
@@ -584,6 +588,36 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                       >
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       </Button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedChartId && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Status</label>
+                      <Select
+                        value={formData.status}
+                        onValueChange={(val: any) => handleInputChange("status", val)}
+                      >
+                        <SelectTrigger className={inputClass}>
+                          <SelectValue placeholder="Select Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              Draft (No SMS)
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="approved">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              Approved (SMS Enabled)
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 )}

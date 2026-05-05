@@ -9,12 +9,30 @@ import threading
 
 logger = logging.getLogger(__name__)
 
+_thread_locals = threading.local()
+
+class suppress_duty_notifications:
+    """
+    Context manager to temporarily suppress duty assignment notifications.
+    Useful during bulk imports.
+    """
+    def __enter__(self):
+        _thread_locals.skip_duty_notifications = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        _thread_locals.skip_duty_notifications = False
+
 @receiver(post_save, sender=Duty)
 def notify_duty_assignment(sender, instance, created, **kwargs):
     """
     Signal to notify user when a duty is assigned.
     Includes idempotency check and transactional safety.
     """
+    if getattr(_thread_locals, 'skip_duty_notifications', False):
+        logger.debug(f"Skipping notification for Duty {instance.id} (Suppressed)")
+        return
+
     try:
         logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
         
@@ -22,6 +40,11 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
         is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call', 'oncall', 'shifted']
         
         if instance.user and instance.schedule and is_notifiable_type:
+            # ONLY notify if the chart is APPROVED
+            if instance.duty_chart and instance.duty_chart.status != 'approved':
+                logger.info(f"Skipping notification for Duty {instance.id}: Chart is in {instance.duty_chart.status} status.")
+                return
+
             logger.info(f"Triggering assignment notification for Duty {instance.id} (Type: {shift_type}, Created: {created})")
             # Transactional Safety: Wait for the Duty save to be committed
             transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
@@ -60,7 +83,7 @@ def _handle_duty_assignment_notification(instance):
             
             # Custom Message
             office_name = instance.office.name if instance.office else "Unknown Office"
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the "{duty_name}". Please visit dutychart.ntc.net.np for the detail.'
+            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit dutychart.ntc.net.np for the detail.'
             
             # Idempotency: Try to create the SMSLog entry first
             try:

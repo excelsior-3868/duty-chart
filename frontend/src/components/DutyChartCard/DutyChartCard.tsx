@@ -65,6 +65,7 @@ interface DutyChartCardProps {
   setDateMode?: (mode: "AD" | "BS") => void;
   hideHeader?: boolean;
   hideFooter?: boolean;
+  onSubmittingChange?: (isSubmitting: boolean) => void;
 }
 
 export const DutyChartCard: React.FC<DutyChartCardProps> = ({
@@ -72,7 +73,8 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   dateMode: externalDateMode,
   setDateMode: setExternalDateMode,
   hideHeader,
-  hideFooter
+  hideFooter,
+  onSubmittingChange
 }) => {
   const { user, canManageOffice, hasPermission } = useAuth();
   const [internalDateMode, setInternalDateMode] = useState<"AD" | "BS">("BS");
@@ -85,11 +87,17 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
     end_date: "",
     office: "",
     shiftIds: [] as string[],
+    status: "draft" as "draft" | "approved",
   });
 
   const [offices, setOffices] = useState<Office[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    onSubmittingChange?.(isSubmitting);
+  }, [isSubmitting, onSubmittingChange]);
+
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
@@ -200,7 +208,8 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         onCreated?.({
           id: response.chart_id,
           office: parseInt(formData.office),
-          effective_date: response.effective_date
+          effective_date: response.effective_date,
+          status: formData.status
         } as any);
       }
       toast.success("Duty Chart Imported Successfully from Excel");
@@ -224,10 +233,11 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         effective_date: formData.effective_date,
         end_date: formData.end_date || undefined,
         schedules: formData.shiftIds.map((id) => parseInt(id)),
+        status: formData.status,
       });
       onCreated?.(newChart);
       toast.success("Duty Chart Created Successfully");
-      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [] });
+      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [], status: "draft" });
       setImportFile(null);
       setShowManualConfirm(false);
     } catch (error: any) {
@@ -451,6 +461,34 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               className={inputClass}
               disabled={!formData.office}
             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Status *</label>
+            <Select
+              value={formData.status}
+              onValueChange={(val: any) => handleInputChange("status", val)}
+            >
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="Select Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    Draft (No SMS)
+                  </div>
+                </SelectItem>
+                <SelectItem value="approved">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    Approved (Sends SMS)
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -708,6 +746,12 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 <span className="text-muted-foreground">Excel Import:</span>
                 <span className="col-span-2 font-medium text-orange-600">
                   Excel File not selected
+                </span>
+              </div>
+              <div className="grid grid-cols-3 text-sm">
+                <span className="text-muted-foreground">Initial Status:</span>
+                <span className={cn("col-span-2 font-semibold", formData.status === "approved" ? "text-emerald-600" : "text-amber-600")}>
+                  {formData.status === "approved" ? "Approved" : "Draft"}
                 </span>
               </div>
               <div className="pt-2">
