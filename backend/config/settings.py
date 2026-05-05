@@ -194,6 +194,11 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
 # NTC OTP Settings
 NTC_OTP_URL = os.environ.get('NTC_OTP_URL')
 
+# NTC SMS Settings
+NTC_SMS_URL = os.environ.get('NTC_SMS_URL', 'http://10.26.192.122:42399/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/')
+NTC_SMS_USERNAME = os.environ.get('NTC_SMS_USERNAME', 'NtcSmsSender')
+NTC_SMS_PASSWORD = os.environ.get('NTC_SMS_PASSWORD', '')
+
 # Mobile API Token
 MOBILE_API_TOKEN = os.environ.get('MOBILE_API_TOKEN')
 

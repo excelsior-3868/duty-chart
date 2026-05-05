@@ -29,6 +29,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
 
 // Shift Color Mapping
 const SHIFT_COLORS = [
@@ -191,13 +192,15 @@ const MyDuties = () => {
     if (isLoading) return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
     return (
-        <div className="p-4 md:p-6 space-y-6 w-full">
+        <div className="p-4 md:p-6 space-y-4 w-full">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-2xl font-bold text-primary">My Duties</h1>
-                    <p className="text-sm text-muted-foreground">Manage and view your assigned shifts across all offices.</p>
-                </div>
+                <PageHeader 
+                    title="My Duties" 
+                    subtitle="Manage and view your assigned shifts across all offices." 
+                    icon={Clock} 
+                    iconColor="text-orange-500"
+                />
                 <Tabs value={view} onValueChange={(v) => setView(v as any)} className="w-[180px]">
                     <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="calendar" className="text-xs gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Calendar</TabsTrigger>

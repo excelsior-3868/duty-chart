@@ -39,67 +39,68 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   {
     title: 'Dashboard',
     href: ROUTES.DASHBOARD,
-    icon: 'Home'
+    icon: 'Home',
+    color: 'text-blue-500'
+  },
+  {
+    title: 'Duty Calendar',
+    href: ROUTES.DUTY_CALENDAR,
+    icon: 'Calendar',
+    permission: 'duties.view_chart',
+    color: 'text-emerald-500',
   },
   {
     title: 'My Duties',
     href: ROUTES.MY_DUTIES,
     icon: 'Clock',
+    color: 'text-orange-500',
   },
-  // {
-  //   title: 'Duty Chart',
-  //   href: ROUTES.DUTY_CHART,
-  //   icon: 'Calendar',
-  //   permission: 'duties.view_chart'
-  // },
-
   {
     title: 'Duty Schedule Template',
     href: ROUTES.TEMPLATE_SCHEDULE,
     icon: 'ClipboardList',
-    permission: 'schedule_templates.view'
+    permission: 'schedule_templates.view',
+    color: 'text-purple-500',
   },
-
   {
     title: 'Office Duty Schedule',
     href: ROUTES.DUTY_SCHEDULE,
     icon: 'FileText',
-    permission: 'schedules.view_office_schedule'
-  },
-
-  {
-    title: 'Duty Calendar',
-    href: ROUTES.DUTY_CALENDAR,
-    icon: 'Calendar',
-    permission: 'duties.view_chart'
+    permission: 'schedules.view_office_schedule',
+    color: 'text-rose-500',
   },
   {
     title: 'Employees',
     href: ROUTES.EMPLOYEES,
     icon: 'Users',
-    permission: 'users.view_employee'
+    permission: 'users.view_employee',
+    color: 'text-indigo-500',
   },
   {
     title: 'Organization',
     icon: 'Building2',
+    color: 'text-amber-500',
     children: [
       {
         title: 'Directorates',
         href: ROUTES.DIRECTORATES,
         icon: 'Building2',
         permission: 'org.view_directorate',
+        color: 'text-blue-500',
       },
       {
         title: 'Accounting Offices',
         href: ROUTES.ACCOUNTING_OFFICES,
         icon: 'Landmark',
         permission: 'org.view_accounting_office',
+        color: 'text-cyan-500',
       },
       {
         title: 'CC Offices',
         href: ROUTES.CC_OFFICES,
         icon: 'Landmark',
         permission: 'org.view_cc_office',
+        color: 'text-sky-500',
       },
     ]
   },
@@ -107,17 +108,20 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     title: 'Reports',
     icon: 'BarChart3',
     permission: 'duties.view_chart',
+    color: 'text-teal-500',
     children: [
 
       {
         title: 'Duty Report (अनुसूची-१)',
         href: ROUTES.ANNEX_I_REPORT,
-        icon: 'FileText'
+        icon: 'FileText',
+        color: 'text-rose-500'
       },
       {
         title: 'Duty Report (अनुसूची-२)',
         href: ROUTES.ANNEX_II_REPORT,
-        icon: 'FileText'
+        icon: 'FileText',
+        color: 'text-pink-500'
       }
     ]
   },
@@ -125,7 +129,8 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     title: 'Settings',
     href: ROUTES.SETTINGS,
     icon: 'Settings',
-    permission: 'system.view_settings'
+    permission: 'system.view_settings',
+    color: 'text-slate-500'
   }
 ];
 
@@ -227,7 +232,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        {IconComponent && <IconComponent className="h-5 w-5" />}
+                        {IconComponent && <IconComponent className={cn("h-5 w-5", item.color)} />}
                         <span className="text-sm font-medium">{item.title}</span>
                       </div>
                     </AccordionTrigger>
@@ -254,7 +259,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                                 )
                               }
                             >
-                              {ChildIcon && <ChildIcon className="h-4 w-4" />}
+                              {ChildIcon && <ChildIcon className={cn("h-4 w-4", child.color)} />}
                               {child.title}
                             </NavLink>
                           </Button>
@@ -283,7 +288,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                     )
                   }
                 >
-                  {IconComponent && <IconComponent className="h-5 w-5" />}
+                  {IconComponent && <IconComponent className={cn("h-5 w-5", item.color)} />}
                   {item.title}
                 </NavLink>
               </Button>
@@ -301,7 +306,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5" />
+                    <FileText className="h-5 w-5 text-amber-600" />
                     <span className="text-sm font-medium">Logs</span>
                   </div>
                 </AccordionTrigger>
@@ -321,7 +326,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                         )
                       }
                     >
-                      <ShieldAlert className="h-4 w-4" />
+                      <ShieldAlert className="h-4 w-4 text-red-500" />
                       Audit Logs
                     </NavLink>
                   </Button>
@@ -340,7 +345,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                         )
                       }
                     >
-                      <Mail className="h-4 w-4" />
+                      <Mail className="h-4 w-4 text-blue-400" />
                       SMS Logs
                     </NavLink>
                   </Button>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Clock, CheckCircle, XCircle, Calendar, Filter, Download } from 'lucide-react';
+import { PageHeader } from "@/components/PageHeader";
 
 const Attendance = () => {
   const [selectedDate, setSelectedDate] = useState<Date>();
@@ -75,12 +76,14 @@ const Attendance = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Attendance</h1>
-          <p className="text-muted-foreground">Track employee attendance and work hours</p>
-        </div>
+        <PageHeader 
+          title="Attendance" 
+          subtitle="Track employee attendance and work hours" 
+          icon={CheckCircle} 
+          iconColor="text-emerald-500"
+        />
         <div className="flex gap-2">
           <DatePicker
             date={selectedDate}

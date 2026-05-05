@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { TimePicker } from "@/components/common/TimePicker";
+import { PageHeader } from "@/components/PageHeader";
 
 
 const TemplateSchedule = () => {
@@ -135,11 +136,13 @@ const TemplateSchedule = () => {
     };
 
     return (
-        <div className="p-6 space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-primary">Duty Schedule Template</h1>
-                <p className="text-muted-foreground">Manage and configure reusable shift templates.</p>
-            </div>
+        <div className="p-6 space-y-4">
+            <PageHeader 
+                title="Duty Schedule Template" 
+                subtitle="Manage and configure reusable shift templates." 
+                icon={ClipboardList} 
+                iconColor="text-purple-500"
+            />
 
             <div className={`grid grid-cols-1 ${hasPermission('schedule_templates.create') ? 'xl:grid-cols-2' : ''} gap-6`}>
                 {hasPermission('schedule_templates.create') && (

@@ -273,7 +273,7 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
 
   return (
     <>
-      <Card className="hover:shadow-md transition-shadow">
+      <Card className="hover:shadow-md transition-shadow h-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />

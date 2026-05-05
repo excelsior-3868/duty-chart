@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { BarChart3 } from "lucide-react";
 import { ROUTES } from "@/utils/constants";
+import { PageHeader } from "@/components/PageHeader";
 
 function Reports() {
   const [reportStats, setReportStats] = useState({
@@ -51,15 +52,13 @@ function Reports() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Reports & Analytics</h1>
-          <p className="text-muted-foreground">
-            Comprehensive insights and performance metrics
-          </p>
-        </div>
-      </div>
+    <div className="p-6 space-y-4">
+      <PageHeader 
+        title="Reports & Analytics" 
+        subtitle="Comprehensive insights and performance metrics" 
+        icon={BarChart3} 
+        iconColor="text-teal-500"
+      />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* Prominent User Wise Report card placed first */}

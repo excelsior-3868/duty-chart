@@ -11,7 +11,7 @@ import { deleteSchedule } from "@/services/schedule";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Pencil, Loader2, Trash2 } from "lucide-react";
+import { Pencil, Loader2, Trash2, FileText } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Command,
   CommandEmpty,
@@ -124,16 +125,18 @@ const Schedule = () => {
 
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Duty Schedule</h1>
-        <p className="text-muted-foreground">Define shift times and assign them to specific offices.</p>
-      </div>
+    <div className="p-6 space-y-4">
+      <PageHeader 
+        title="Office Duty Schedule" 
+        subtitle="Define shift times and assign them to specific offices." 
+        icon={FileText} 
+        iconColor="text-rose-500"
+      />
 
       {/* Immediate Render: Removed isInitializing check to show UI instantly */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
         {(canCreateAtAll || editingSchedule) && (
-          <div className="space-y-6">
+          <div className="flex flex-col h-full">
             <DutyHoursCard
               mode={editingSchedule ? "edit" : "create"}
               initialSchedule={editingSchedule}
@@ -151,10 +154,9 @@ const Schedule = () => {
           </div>
         )}
 
-        <div className="space-y-6">
-
-          <Card>
-            <CardHeader className="pb-2">
+        <div className="flex flex-col h-full">
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-2 flex-none">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Schedules</CardTitle>
@@ -225,7 +227,7 @@ const Schedule = () => {
                 </Popover>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {loading ? (
                 <div className="flex justify-center mb-4">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -235,7 +237,7 @@ const Schedule = () => {
                   No schedules found for the selected office.
                 </div>
               ) : (
-                <div className="divide-y max-h-[400px] overflow-y-auto pr-2">
+                <div className="divide-y overflow-y-auto pr-2 flex-1">
                   {visibleSchedules.map((s) => (
                     <div key={s.id} className="py-3 flex items-center justify-between">
                       <div>

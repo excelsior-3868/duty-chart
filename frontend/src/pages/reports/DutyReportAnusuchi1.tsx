@@ -23,6 +23,7 @@ import {
     CommandList,
 } from "@/components/ui/command";
 import { Loader2, Download, FileText, Calendar, Info, Check, ChevronDown, Clock, Trash2, Users } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
@@ -364,17 +365,13 @@ function DutyReportAnusuchi1() {
     };
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-                        Duty Report (अनुसूची - १)
-                    </h1>
-                    <p className="text-muted-foreground text-sm">
-                        Generate and export report in अनुसूची - १ format.
-                    </p>
-                </div>
-            </div>
+        <div className="p-6 space-y-4">
+            <PageHeader 
+                title="Duty Report (अनुसूची - १)" 
+                subtitle="Generate and export report in अनुसूची - १ format." 
+                icon={FileText} 
+                iconColor="text-rose-500"
+            />
 
             <Card className="border-primary/20 shadow-lg overflow-hidden">
                 <CardHeader className="bg-primary py-3 text-white">
@@ -834,16 +831,25 @@ function DutyReportAnusuchi1() {
                                                 const isCompleted = String(val).toLowerCase().includes("true") ||
                                                     String(val).toLowerCase().includes("comp") ||
                                                     val === 1 || val === true;
+                                                
+                                                const dateVal = getVal(row, "date");
+                                                const rowDate = new Date(dateVal);
+                                                const today = new Date();
+                                                today.setHours(0, 0, 0, 0);
+                                                rowDate.setHours(0, 0, 0, 0);
+                                                const isPast = rowDate < today;
+                                                const showFinished = isCompleted || isPast;
+
                                                 return (
                                                     <TableCell key={col.key} className="py-4 px-4 text-center">
                                                         <Badge
-                                                            variant={isCompleted ? "default" : "secondary"}
+                                                            variant={showFinished ? "default" : "secondary"}
                                                             className={cn(
                                                                 "text-[12px] font-bold px-3 py-0.5 tracking-tighter",
-                                                                isCompleted ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
+                                                                showFinished ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
                                                             )}
                                                         >
-                                                            {isCompleted ? "Completed" : "Not Finished"}
+                                                            {showFinished ? (isCompleted ? "Completed" : "Finished") : "Not Finished"}
                                                         </Badge>
                                                     </TableCell>
                                                 );

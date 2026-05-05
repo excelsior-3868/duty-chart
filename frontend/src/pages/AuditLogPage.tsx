@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Loader2, Eye } from "lucide-react";
+import { Search, Loader2, Eye, ShieldAlert } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function AuditLogPage() {
     const [page, setPage] = useState(1);
@@ -75,13 +76,13 @@ export default function AuditLogPage() {
     };
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary">System Audit Logs</h1>
-                    <p className="text-muted-foreground">Detailed history of all system operations.</p>
-                </div>
-            </div>
+        <div className="p-6 space-y-4">
+                <PageHeader 
+                    title="System Audit Logs" 
+                    subtitle="Detailed history of all system operations." 
+                    icon={ShieldAlert} 
+                    iconColor="text-red-500"
+                />
 
             {/* Filter Card */}
             <Card className="border-none shadow-sm bg-white">

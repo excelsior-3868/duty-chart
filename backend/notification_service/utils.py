@@ -18,13 +18,14 @@ def send_sms(phone, message, user=None, log_id=None):
     # Gateway URL structure:
     # http://10.26.204.149:8080/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/?username=...&password=...&cellNo=...&message=...&encoding=E
     
-    base_url = os.getenv("NTC_SMS_URL", "http://10.26.204.149:8080/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/")
+    base_url = getattr(settings, "NTC_SMS_URL", "http://10.26.192.122:42399/updatedsmssender-1.0-SNAPSHOT/updatedsmssender/")
     params = {
-        "username": os.getenv("NTC_SMS_USERNAME", "NtcSmsSender"),
-        "password": os.getenv("NTC_SMS_PASSWORD", ""),
+        "username": getattr(settings, "NTC_SMS_USERNAME", "NtcSmsSender"),
+        "password": getattr(settings, "NTC_SMS_PASSWORD", ""),
         "cellNo": phone,
         "message": message,
-        "encoding": "E"
+        "encoding": "E",
+        "systemId": "1"
     }
     
     if log_id:
@@ -50,7 +51,10 @@ def send_sms(phone, message, user=None, log_id=None):
         )
     
     try:
+        print(f"DEBUG: Sending SMS to {base_url} with params {params}")
         response = requests.get(base_url, params=params, timeout=10)
+        print(f"DEBUG: SMS Gateway Response Status: {response.status_code}")
+        print(f"DEBUG: SMS Gateway Raw Response: {response.text}")
         log.response_raw = response.text
         if response.status_code == 200:
             log.status = 'sent'

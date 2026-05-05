@@ -49,6 +49,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/PageHeader";
+import { Landmark } from "lucide-react";
 
 export default function AccountingOfficesPage() {
     const queryClient = useQueryClient();
@@ -169,13 +171,14 @@ export default function AccountingOfficesPage() {
     };
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-4">
             <div className="flex justify-between items-end md:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary">Accounting Offices</h1>
-                    <p className="text-muted-foreground text-sm">Manage accounting offices and their provincial directorate mapping.</p>
-                </div>
-
+                <PageHeader 
+                    title="Accounting Offices" 
+                    subtitle="Manage accounting offices and their provincial directorate mapping." 
+                    icon={Landmark} 
+                    iconColor="text-cyan-500"
+                />
             </div>
 
             {/* Filter Card */}

@@ -3,8 +3,9 @@ import { getDutyCharts } from "@/services/dutichart";
 import { getOffices } from "@/services/offices";
 import { CalendarRosterHybrid, Office, DutyChart } from "@/components/CalendarRosterHybrid";
 import { useLocation } from "react-router-dom";
-import { Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { PageHeader } from "@/components/PageHeader";
+import { Calendar, AlertCircle, Loader2 } from "lucide-react";
 
 // ---------- Types ----------
 export interface Person {
@@ -196,11 +197,13 @@ const DutyChartPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Duty Chart</h1>
-          <p className="text-muted-foreground">View and manage the weekly duty roster for all offices.</p>
-        </div>
+      <div className="p-6 space-y-4">
+        <PageHeader 
+          title="Duty Chart" 
+          subtitle="View and manage the weekly duty roster for all offices." 
+          icon={Calendar} 
+          iconColor="text-emerald-500"
+        />
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 flex items-center gap-3 text-destructive">
           <AlertCircle className="h-5 w-5" />
           <p className="text-sm font-medium">{error}</p>
@@ -210,11 +213,13 @@ const DutyChartPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Duty Chart</h1>
-        <p className="text-muted-foreground">View and manage the weekly duty roster for all offices.</p>
-      </div>
+    <div className="p-6 space-y-4">
+      <PageHeader 
+        title="Duty Chart" 
+        subtitle="View and manage the weekly duty roster for all offices." 
+        icon={Calendar} 
+        iconColor="text-emerald-500"
+      />
       <CalendarRosterHybrid
         offices={offices.filter(o => canManageOffice(Number(o.id)) || hasPermission("duties.assign_any_office_employee"))}
         dutyCharts={dutyCharts}

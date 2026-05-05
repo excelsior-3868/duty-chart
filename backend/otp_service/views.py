@@ -165,7 +165,7 @@ class RequestOTPView(APIView):
         )
 
         # Trigger Synchronous Task (as requested to avoid Celery fork issues on macOS)
-        # Note: In production, .delay() is preferred, but user requested sync.
+        print(f"DEBUG: Requesting OTP for User: {user.username}, Phone: {phone_number}, Channel: {channel}")
         send_otp_task(user.id, str(otp_req.id), phone_number, channel, purpose)
         
         response_data = {"message": "OTP sent successfully."}

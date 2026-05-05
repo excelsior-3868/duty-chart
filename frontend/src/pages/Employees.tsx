@@ -24,6 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/PageHeader";
 import { toast } from "sonner";
 import { createUser, getResponsibilities } from "@/services/users";
 import { getPositions, type Position as PositionType } from "@/services/positions";
@@ -515,12 +516,14 @@ const Employees = () => {
 
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Employees</h1>
-          <p className="text-muted-foreground">Manage employee records and information across all departments.</p>
-        </div>
+        <PageHeader 
+          title="Employees" 
+          subtitle="Manage employee records and information across all departments." 
+          icon={Users} 
+          iconColor="text-indigo-500"
+        />
         <div>
           <Protect permission="users.create_employee">
             <Button onClick={() => setCreateModalOpen(true)} className="gap-2 shadow-sm">

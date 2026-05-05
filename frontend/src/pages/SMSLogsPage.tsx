@@ -21,6 +21,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search, Loader2, Eye, Mail } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function SMSLogsPage() {
     const [page, setPage] = useState(1);
@@ -63,13 +64,13 @@ export default function SMSLogsPage() {
     };
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary">SMS Delivery Logs</h1>
-                    <p className="text-muted-foreground">Historical record of all SMS notifications sent by the system.</p>
-                </div>
-            </div>
+        <div className="p-6 space-y-4">
+            <PageHeader 
+                title="SMS Delivery Logs" 
+                subtitle="Historical record of all SMS notifications sent by the system." 
+                icon={Mail} 
+                iconColor="text-blue-400"
+            />
 
             {/* Filter Card */}
             <Card className="border-none shadow-sm bg-white">

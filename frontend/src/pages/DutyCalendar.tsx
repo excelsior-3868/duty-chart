@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Loader2 } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 
 // Interface for Duty Chart (simplified)
 interface DutyChart {
@@ -625,10 +626,12 @@ const DutyCalendar = () => {
             {/* Header: Title + Controls */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1">
-                        <h1 className="text-2xl font-bold text-primary">Duty Calendar</h1>
-                        <p className="text-sm text-muted-foreground">Manage events and duty schedules.</p>
-                    </div>
+                    <PageHeader 
+                        title="Duty Calendar" 
+                        subtitle="Manage events and duty schedules." 
+                        icon={CalendarIcon} 
+                        iconColor="text-emerald-500"
+                    />
 
                     <div className="flex flex-col md:flex-row items-center gap-4">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">

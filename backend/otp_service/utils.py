@@ -43,10 +43,12 @@ def send_otp_ntc(phone):
     url = f"{base_url}/sendotp"
     payload = {
         "mobileNumber": phone,
-        "systemId": "2"
+        "systemId": "1"
     }
 
     try:
+        print(f"DEBUG: Sending OTP request to {url}")
+        print(f"DEBUG: Payload: {json.dumps(payload)}")
         response = requests.post(url, json=payload, timeout=10)
         print(f"DEBUG: OTP Gateway Response Status: {response.status_code}")
         print(f"DEBUG: OTP Gateway Raw Response: {response.text}")
@@ -72,10 +74,8 @@ def send_otp_ntc(phone):
             return False, None, error_msg
         
     except Exception as e:
-        if settings.DEBUG:
-            print(f"DEBUG: OTP Gateway unreachable ({e}). Returning MOCK OTP since DEBUG=True.")
-            return True, {"seq_no": "MOCK_TXN_123"}, None
-        return False, None, str(e)
+        print(f"ERROR: OTP Gateway request failed: {e}")
+        return False, None, f"Connectivity error: {e}"
 
 def validate_otp_ntc(seq_no, otp, phone=None):
     """

@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageHeader } from "@/components/PageHeader";
+import { Layers } from "lucide-react";
 
 export default function ArchitecturePage() {
     useEffect(() => {
@@ -168,10 +170,12 @@ export default function ArchitecturePage() {
 
     return (
         <div className="p-6 h-[calc(100vh-4rem)] flex flex-col gap-6">
-            <div>
-                <h1 className="text-2xl font-bold text-primary">Architectural Diagrams</h1>
-                <p className="text-muted-foreground">System architecture, database design, and component hierarchy</p>
-            </div>
+            <PageHeader 
+                title="Architectural Diagrams" 
+                subtitle="System architecture, database design, and component hierarchy" 
+                icon={Layers} 
+                iconColor="text-emerald-500"
+            />
 
             <Card className="flex-1 h-full border-none shadow-sm flex flex-col overflow-hidden bg-white/50">
                 <CardContent className="p-0 flex-1 flex flex-col h-full">

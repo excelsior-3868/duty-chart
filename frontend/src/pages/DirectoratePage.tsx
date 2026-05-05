@@ -62,6 +62,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/PageHeader";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function DirectoratePage() {
@@ -200,12 +201,14 @@ export default function DirectoratePage() {
     };
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-4">
             <div className="flex justify-between items-end md:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary">Office Hierarchy (Directorates)</h1>
-                    <p className="text-muted-foreground text-sm">Manage organization-level offices and structure.</p>
-                </div>
+                <PageHeader 
+                    title="Office Hierarchy" 
+                    subtitle="Manage organization-level offices and structure." 
+                    icon={Building2} 
+                    iconColor="text-blue-500"
+                />
                 <Button onClick={() => { resetForm(); setIsAddModalOpen(true); }} className="gap-2 shadow-sm whitespace-nowrap">
                     <Plus className="h-4 w-4" /> Add Office
                 </Button>

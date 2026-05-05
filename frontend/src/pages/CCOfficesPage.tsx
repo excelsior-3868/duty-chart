@@ -48,6 +48,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { PageHeader } from "@/components/PageHeader";
+import { Landmark } from "lucide-react";
 
 export default function CCOfficesPage() {
     const queryClient = useQueryClient();
@@ -168,13 +170,14 @@ export default function CCOfficesPage() {
     };
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-4">
             <div className="flex justify-between items-end md:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary">CC Offices</h1>
-                    <p className="text-muted-foreground text-sm">Manage Collection Centre offices.</p>
-                </div>
-
+                <PageHeader 
+                    title="CC Offices" 
+                    subtitle="Manage Collection Centre offices." 
+                    icon={Landmark} 
+                    iconColor="text-sky-500"
+                />
             </div>
 
             {/* Filter Card */}

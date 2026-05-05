@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import api from "@/services/api";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 
 /* ===================== TYPES ===================== */
 
@@ -199,8 +200,13 @@ function UserWiseReport() {
   /* ================= Render ================= */
 
   return (
-    <div className="p-6 space-y-6">
-      <h2 className="text-2xl font-bold">User Wise Duty Report</h2>
+    <div className="p-6 space-y-4">
+      <PageHeader 
+        title="User Wise Duty Report" 
+        subtitle="View and download individual duty reports." 
+        icon={FileText} 
+        iconColor="text-pink-500"
+      />
 
       {/* Select Duty */}
       <div className="flex items-center gap-3">
@@ -321,7 +327,14 @@ function UserWiseReport() {
                 <td>{d.schedule}</td>
                 <td>{d.start_time}</td>
                 <td>{d.end_time}</td>
-                <td>{d.is_completed ? "✔️" : "❌"}</td>
+                <td>{(() => {
+                  const today = new Date();
+                  today.setHours(0,0,0,0);
+                  const rowDate = new Date(d.date);
+                  rowDate.setHours(0,0,0,0);
+                  const isPast = rowDate < today;
+                  return (d.is_completed || isPast) ? "✔️" : "❌";
+                })()}</td>
                 <td>{d.currently_available ? "✔️" : "❌"}</td>
               </tr>
             ))}

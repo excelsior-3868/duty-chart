@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { PageHeader } from "@/components/PageHeader";
 
 const OrgField = ({ label, value, icon, className = "" }: { label: string, value: string, icon: any, className?: string }) => (
     <div className={`space-y-0.5 ${className}`}>
@@ -280,11 +281,12 @@ const Profile = () => {
     return (
         <div className="p-4 bg-slate-50/50 min-h-screen">
             <div className="w-full space-y-3">
-                {/* Simplified Header */}
-                <div className="pb-1">
-                    <h1 className="text-2xl font-bold text-primary">Profile Settings</h1>
-                    <p className="text-muted-foreground">Manage your personal information and security</p>
-                </div>
+                <PageHeader 
+                    title="Profile Settings" 
+                    subtitle="Manage your personal information and security" 
+                    icon={User} 
+                    iconColor="text-violet-500"
+                />
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     {/* Left Sidebar */}

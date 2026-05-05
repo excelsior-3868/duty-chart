@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { ROUTES } from "@/utils/constants";
 import api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, Key } from "lucide-react";
 import publicApi from "@/services/publicApi"; // Use publicApi for OTP endpoints if they are under /otp/ which might be public, but here we use authenticated context so 'api' is better IF endpoints allow it. 
 // Actually our otp endpoints are public (permission_classes=[]), but ChangePasswordView IS authenticated. 
 // RequestOTPView works for both. Users lookup is public.
@@ -144,12 +144,17 @@ const ChangePassword = () => {
     <div className="min-h-screen flex items-center justify-center gradient-background p-4">
       <Card className="w-full max-w-md shadow-lg border-0 bg-white/90 backdrop-blur-sm">
         <CardContent className="p-8">
-          <h1 className="text-2xl font-bold mb-6 text-center text-primary">
+          <div className="flex flex-col items-center mb-6">
+            <div className="p-3 bg-amber-50 rounded-2xl mb-4">
+              <Key className="h-8 w-8 text-amber-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-center text-primary">
             {step === "VERIFY_OLD" && "Verify Identity"}
             {step === "SELECT_CHANNEL" && "Select Verification Method"}
             {step === "VALIDATE_OTP" && "Enter Verification Code"}
             {step === "NEW_PASSWORD" && "Set New Password"}
           </h1>
+        </div>
 
           {step === "VERIFY_OLD" && (
             <form onSubmit={handleVerifyOld} className="space-y-4">

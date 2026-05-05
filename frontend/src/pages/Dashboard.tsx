@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2, Search, Shield, Briefcase, Building2 } from 'lucide-react';
+import { Users, Calendar, Clock, FileText, BarChart3, CalendarDays, Plus, X, LayoutDashboard, Loader2, Search, Shield, Briefcase, Building2, Home } from 'lucide-react';
 import { useEffect, useMemo, useState, memo } from "react";
 import { getDutiesFiltered, Duty } from "@/services/dutiesService";
 import { getUsers, User as AppUser } from "@/services/users";
@@ -46,6 +46,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { PageHeader } from "@/components/PageHeader";
 
 interface NowRow {
   id: number;
@@ -678,10 +679,12 @@ const Dashboard = () => {
   return (
     <div className="p-6 space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome to Nepal Telecom Duty Chart Management</p>
-        </div>
+        <PageHeader 
+          title="Dashboard" 
+          subtitle="Welcome to Nepal Telecom Duty Chart Management" 
+          icon={Home} 
+          iconColor="text-blue-500"
+        />
         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm self-start md:self-auto">
           <CalendarDays className="h-5 w-5 text-primary" />
           <div className="flex flex-col items-end leading-tight">

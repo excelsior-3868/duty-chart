@@ -19,7 +19,7 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
         logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
         
         shift_type = getattr(instance.schedule, 'shift_type', '') or ''
-        is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call']
+        is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call', 'oncall', 'shifted']
         
         if instance.user and instance.schedule and is_notifiable_type:
             logger.info(f"Triggering assignment notification for Duty {instance.id} (Type: {shift_type}, Created: {created})")
@@ -73,15 +73,19 @@ def _handle_duty_assignment_notification(instance):
                     status='pending'
                 )
                 
-                # If created, dispatch to Celery
+                # Use a direct background thread for immediate delivery without Celery overhead for single assignments
                 def trigger_sms_task():
                     try:
-                        async_send_sms.delay(user.phone_number, sms_message, user_id=user.id, log_id=log.id)
-                    except Exception as sms_err:
-                        logger.error(f"Failed to queue SMS (threaded) for user {user.id}: {sms_err}")
+                        from .utils import send_sms
+                        success, response = send_sms(user.phone_number, sms_message, user=user, log_id=log.id)
+                        if success:
+                            logger.info(f"Assignment SMS sent successfully to {user.username}")
+                        else:
+                            logger.error(f"Assignment SMS failed for {user.username}: {response}")
+                    except Exception as e:
+                        logger.error(f"Fatal error in SMS thread for {user.username}: {e}")
 
                 threading.Thread(target=trigger_sms_task, daemon=True).start()
-                logger.info(f"Queued assignment SMS for user {user.username}, duty {instance.id}")
                 
             except IntegrityError:
                 # Already exists, skip sending again

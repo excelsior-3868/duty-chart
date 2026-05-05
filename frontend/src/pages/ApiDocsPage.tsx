@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Network } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 
 export default function ApiDocsPage() {
     const [isLoading, setIsLoading] = useState(true);
@@ -13,10 +14,12 @@ export default function ApiDocsPage() {
 
     return (
         <div className="p-6 h-[calc(100vh-4rem)] flex flex-col gap-6">
-            <div>
-                <h1 className="text-2xl font-bold text-primary">API Documentation</h1>
-                <p className="text-muted-foreground">Interactive API reference (Swagger UI)</p>
-            </div>
+            <PageHeader 
+                title="API Documentation" 
+                subtitle="Interactive API reference (Swagger UI)" 
+                icon={Network} 
+                iconColor="text-orange-500"
+            />
 
             <Card className="flex-1 flex flex-col overflow-hidden border-none shadow-sm">
                 <CardContent className="p-0 flex-1 relative bg-slate-50">

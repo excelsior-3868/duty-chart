@@ -26,6 +26,7 @@ import {
     CommandList,
 } from "@/components/ui/command";
 import { Loader2, Download, FileText, Calendar, Users, Info, Search, Check, ChevronDown, Clock, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
@@ -493,17 +494,13 @@ function UserWiseReportNew() {
     /* ================= Render ================= */
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-                        Duty Report (अनुसूची - २)
-                    </h1>
-                    <p className="text-muted-foreground text-sm">
-                        Generate and export report in अनुसूची - २ format.
-                    </p>
-                </div>
-            </div>
+        <div className="p-6 space-y-4">
+            <PageHeader 
+                title="Duty Report (अनुसूची - २)" 
+                subtitle="Generate and export report in अनुसूची - २ format." 
+                icon={FileText} 
+                iconColor="text-pink-500"
+            />
 
             <Card className="border-primary/20 shadow-lg overflow-hidden">
                 <CardHeader className="bg-primary py-3 text-white">
@@ -918,15 +915,26 @@ function UserWiseReportNew() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="py-4 text-center">
-                                                <Badge
-                                                    variant={d.is_completed ? "default" : "secondary"}
-                                                    className={cn(
-                                                        "text-[12px] font-bold px-3 py-0.5  tracking-tighter",
-                                                        d.is_completed ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
-                                                    )}
-                                                >
-                                                    {d.is_completed ? "Completed" : "Not Finished"}
-                                                </Badge>
+                                                {(() => {
+                                                    const rowDate = new Date(dateVal);
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
+                                                    rowDate.setHours(0, 0, 0, 0);
+                                                    const isPast = rowDate < today;
+                                                    const showFinished = d.is_completed || isPast;
+
+                                                    return (
+                                                        <Badge
+                                                            variant={showFinished ? "default" : "secondary"}
+                                                            className={cn(
+                                                                "text-[12px] font-bold px-3 py-0.5 tracking-tighter",
+                                                                showFinished ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
+                                                            )}
+                                                        >
+                                                            {showFinished ? (d.is_completed ? "Completed" : "Finished") : "Not Finished"}
+                                                        </Badge>
+                                                    );
+                                                })()}
                                             </TableCell>
                                         </TableRow>
                                     );

@@ -11,6 +11,7 @@ import { useEffect, useState, useRef } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { PageHeader } from "@/components/PageHeader";
 
 const Settings = () => {
   const { hasPermission, hasRole } = useAuth();
@@ -102,10 +103,12 @@ const Settings = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Settings</h1>
-        <p className="text-muted-foreground">Configure system preferences and user settings</p>
-      </div>
+      <PageHeader 
+        title="Settings" 
+        subtitle="Configure system preferences and user settings" 
+        icon={SettingsIcon} 
+        iconColor="text-slate-500"
+      />
 
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
