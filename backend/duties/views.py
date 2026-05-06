@@ -31,7 +31,7 @@ from django.db import transaction, IntegrityError
 
 from rest_framework import viewsets, permissions, status, renderers, serializers
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponse, JsonResponse
@@ -408,7 +408,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
 
         instance.delete()
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser])
     def approve(self, request, pk=None):
         chart = self.get_object()
         if chart.status == 'approved':
@@ -418,8 +418,17 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         if not user_has_permission_slug(request.user, 'duties.edit_dutychart') and not IsSuperAdmin().has_permission(request, self):
              return Response({"detail": "You do not have permission to approve duty charts."}, status=status.HTTP_403_FORBIDDEN)
 
+        approval_doc = request.FILES.get('approval_document')
+        approval_remarks = request.data.get('approval_remarks')
+
+        # Validation
+        if not approval_doc:
+            return Response({"detail": "An approved Anusuchi 1 document is required for approval."}, status=status.HTTP_400_BAD_REQUEST)
+
         with transaction.atomic():
             chart.status = 'approved'
+            chart.approval_document = approval_doc
+            chart.approval_remarks = approval_remarks
             chart.save()
             
             # Find all unique users in this chart
@@ -439,17 +448,15 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                         target_user = users.get(u_id)
                         if not target_user: continue
                         
-                        dates.sort()
-                        if len(dates) == 1:
-                            dr_str = str(dates[0])
-                        else:
-                            dr_str = f"{dates[0]} to {dates[-1]}"
-                        
-                        send_bulk_assignment_notification([target_user], chart, date_range_str=dr_str)
+                        send_bulk_assignment_notification([target_user], chart)
                 
                 transaction.on_commit(trigger_approval_sms)
 
-        return Response({"status": "approved", "detail": f"Chart approved and {len(user_duties)} employees notified."})
+        return Response({
+            "status": "approved", 
+            "detail": f"Chart approved and {len(user_duties)} employees notified.",
+            "approval_document": chart.approval_document.url if chart.approval_document else None
+        })
 
 
 class DutyViewSet(viewsets.ModelViewSet):

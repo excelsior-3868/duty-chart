@@ -127,16 +127,18 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
         full_name = getattr(user, 'full_name', user.username)
         
         if date_range_str:
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the period {date_range_str}. Please visit dutychart.ntc.net.np for details.'
+            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the period {date_range_str}. Please visit https://dutychart.ntc.net.np for details.'
         else:
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}". Please visit dutychart.ntc.net.np for details.'
+            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}". Please visit https://dutychart.ntc.net.np for details.'
         
         # Create log
+        # We include the chart ID in the reminder_type to satisfy the uniqueness constraint
+        # (user, duty, reminder_type) since duty is None for bulk notifications.
         log = SMSLog.objects.create(
             user=user,
             phone=user.phone_number,
             message=sms_message,
-            reminder_type='ASSIGNMENT',
+            reminder_type=f'ASSIGNMENT_CHART_{chart.id}',
             status='pending'
         )
         

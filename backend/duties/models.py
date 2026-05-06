@@ -51,6 +51,17 @@ class Document(models.Model):
         if self.file and not self.checksum:
             self.checksum = file_checksum(self.file)
 
+def duty_chart_approval_path(instance, filename):
+    import os
+    office_name = (instance.office.name if instance.office else "Unknown_Office").replace(" ", "_")
+    chart_name = (instance.name or "Unnamed_Chart").replace(" ", "_")
+    current_date = datetime.date.today().strftime("%Y-%m-%d")
+    
+    ext = os.path.splitext(filename)[1]
+    new_filename = f"{office_name}_{chart_name}_anusuchi1{ext}"
+    
+    return f"{office_name}/{chart_name}/{current_date}/{new_filename}"
+
 class DutyChart(AuditableMixin, models.Model):
     office = models.ForeignKey('org.WorkingOffice', on_delete=models.CASCADE, related_name='duty_charts')
     effective_date = models.DateField()
@@ -83,6 +94,8 @@ class DutyChart(AuditableMixin, models.Model):
         choices=[('draft', 'Draft'), ('approved', 'Approved')],
         default='draft'
     )
+    approval_document = models.FileField(upload_to=duty_chart_approval_path, null=True, blank=True)
+    approval_remarks = models.TextField(null=True, blank=True)
     def clean(self):
         super().clean()
         if self.end_date and self.end_date < self.effective_date:

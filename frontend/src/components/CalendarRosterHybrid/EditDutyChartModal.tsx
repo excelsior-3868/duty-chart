@@ -592,35 +592,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                   </div>
                 )}
 
-                {selectedChartId && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Status</label>
-                      <Select
-                        value={formData.status}
-                        onValueChange={(val: any) => handleInputChange("status", val)}
-                      >
-                        <SelectTrigger className={inputClass}>
-                          <SelectValue placeholder="Select Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="draft">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-amber-500" />
-                              Draft (No SMS)
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="approved">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              Approved (SMS Enabled)
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
+
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">

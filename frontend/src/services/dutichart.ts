@@ -20,8 +20,12 @@ export interface DutyChart {
 /**
  * Approves a duty chart (publishes it and triggers notifications).
  */
-export const approveDutyChart = async (id: number): Promise<{ status: string; detail: string }> => {
-  const response = await api.post(`/duty-charts/${id}/approve/`);
+export const approveDutyChart = async (id: number, formData: FormData): Promise<{ status: string; detail: string }> => {
+  const response = await api.post(`/duty-charts/${id}/approve/`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return response.data;
 };
 

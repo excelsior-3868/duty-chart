@@ -330,6 +330,11 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
               <DialogTitle>Create Duty</DialogTitle>
               <DialogDescription>
                 Assign an employee to this schedule for a specific date.
+                {dutyChartId && (
+                  <span className="block mt-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">
+                    Note: SMS notifications are only sent for Approved charts.
+                  </span>
+                )}
               </DialogDescription>
             </div>
             <div className="flex bg-gray-100 p-1 rounded-lg">

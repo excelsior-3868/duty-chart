@@ -34,22 +34,19 @@ def notify_duty_assignment(sender, instance, created, **kwargs):
         return
 
     try:
-        logger.debug(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
+        logger.info(f"Signal notify_duty_assignment triggered for Duty {instance.id}. Created: {created}, User: {instance.user_id}")
         
-        shift_type = getattr(instance.schedule, 'shift_type', '') or ''
-        is_notifiable_type = shift_type.lower() in ['shift', 'on-call', 'on call', 'oncall', 'shifted']
-        
-        if instance.user and instance.schedule and is_notifiable_type:
+        if instance.user and instance.schedule:
             # ONLY notify if the chart is APPROVED
             if instance.duty_chart and instance.duty_chart.status != 'approved':
-                logger.info(f"Skipping notification for Duty {instance.id}: Chart is in {instance.duty_chart.status} status.")
+                logger.info(f"Skipping notification for Duty {instance.id}: Chart status is '{instance.duty_chart.status}' (must be 'approved').")
                 return
 
-            logger.info(f"Triggering assignment notification for Duty {instance.id} (Type: {shift_type}, Created: {created})")
+            logger.info(f"Triggering assignment notification for Duty {instance.id} (Schedule: {instance.schedule.name})")
             # Transactional Safety: Wait for the Duty save to be committed
             transaction.on_commit(lambda: _handle_duty_assignment_notification(instance))
         else:
-            reason = "No user" if not instance.user else "Not a 'Shift' type"
+            reason = "No user" if not instance.user else "No schedule"
             logger.debug(f"Skipping notification for Duty {instance.id} ({reason})")
     except Exception as e:
         logger.error(f"Error in notify_duty_assignment signal: {e}")
@@ -83,7 +80,7 @@ def _handle_duty_assignment_notification(instance):
             
             # Custom Message
             office_name = instance.office.name if instance.office else "Unknown Office"
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit dutychart.ntc.net.np for the detail.'
+            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit https://dutychart.ntc.net.np for the detail.'
             
             # Idempotency: Try to create the SMSLog entry first
             try:

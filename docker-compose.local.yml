@@ -1,0 +1,93 @@
+services:
+  # Redis Broker
+  dcms-redis:
+    image: redis:7-alpine
+    container_name: dcms-redis
+    ports:
+      - "6380:6379"
+
+  # Backend (Django)
+  dcms-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    image: dcms-backend-local
+    container_name: dcms-backend
+    volumes:
+      - ./backend:/app
+      - ./mobileApp:/app/mobileApp
+      - static_volume:/app/static
+      - media_volume:/app/media
+    ports:
+      - "8002:8000"
+    environment:
+      - DEBUG=True
+      - REDIS_HOST=dcms-redis
+      - USE_INMEMORY_CHANNEL_LAYER=False
+    env_file:
+      - .env
+    depends_on:
+      - dcms-redis
+
+  # Celery Worker
+  dcms-celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    image: dcms-celery-worker-local
+    container_name: dcms-celery-worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./mobileApp:/app/mobileApp
+      - static_volume:/app/static
+      - media_volume:/app/media
+    environment:
+      - REDIS_HOST=dcms-redis
+    env_file:
+      - .env
+    depends_on:
+      - dcms-redis
+
+  # Celery Beat
+  dcms-celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    image: dcms-celery-beat-local
+    container_name: dcms-celery-beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./mobileApp:/app/mobileApp
+      - static_volume:/app/static
+      - media_volume:/app/media
+    environment:
+      - REDIS_HOST=dcms-redis
+    env_file:
+      - .env
+    depends_on:
+      - dcms-redis
+
+  # Frontend (Vite Dev Server)
+  dcms-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    image: dcms-frontend-local
+    container_name: dcms-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "8083:8083"
+    environment:
+      - VITE_BACKEND_URL=http://dcms-backend:8000
+    env_file:
+      - .env
+    depends_on:
+      - dcms-backend
+
+volumes:
+  static_volume:
+  media_volume:
