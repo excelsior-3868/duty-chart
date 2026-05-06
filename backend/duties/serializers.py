@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import DutyChart, Duty, Document, RosterAssignment, Schedule
+from .models import DutyChart, Duty, Document, RosterAssignment, Schedule, AnusuchiDocument
 from org.models import WorkingOffice
 from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError
@@ -8,8 +8,14 @@ from org.models import WorkingOffice as Office
  # adjust import if needed
 
 
+class AnusuchiDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AnusuchiDocument
+        fields = ['id', 'file', 'uploaded_at', 'uploaded_by']
+
 class DutyChartSerializer(serializers.ModelSerializer):
     schedules = serializers.PrimaryKeyRelatedField(queryset=Schedule.objects.all(), many=True, required=False)
+    anusuchi_documents = AnusuchiDocumentSerializer(many=True, read_only=True)
 
     class Meta:
         model = DutyChart
@@ -25,6 +31,9 @@ class DutyChartSerializer(serializers.ModelSerializer):
             'created_at',
             'edited_by',
             'edited_at',
+            'approval_document',
+            'approval_remarks',
+            'anusuchi_documents',
         ]
         read_only_fields = ['created_by', 'created_at', 'edited_by', 'edited_at']
 

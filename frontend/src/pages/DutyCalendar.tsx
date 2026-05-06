@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@/utils/constants";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2, Info, FileText, ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -625,9 +625,55 @@ const DutyCalendar = () => {
                         {selectedDutyChartInfo && (
                             <div className="hidden sm:block">
                                 {selectedDutyChartInfo.status === 'approved' ? (
-                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 px-3 py-1 gap-1.5 font-bold">
-                                        <Check className="w-3 h-3" /> Approved
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 px-3 py-1 gap-1.5 font-bold">
+                                            <Check className="w-3 h-3" /> Approved
+                                        </Badge>
+                                        
+                                        {selectedDutyChartInfo && (selectedDutyChartInfo as any).anusuchi_documents?.length > 0 && (
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm transition-all hover:scale-110">
+                                                        <FileText className="w-4 h-4" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-64 p-2" align="start">
+                                                    <div className="space-y-2">
+                                                        <div className="px-2 py-1 border-b">
+                                                            <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                                                <FileText className="w-3 h-3 text-emerald-600" />
+                                                                स्वीकृत अनुसूची कागजातहरू
+                                                            </h4>
+                                                        </div>
+                                                        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+                                                            {(selectedDutyChartInfo as any).anusuchi_documents.map((doc: any, idx: number) => (
+                                                                <a 
+                                                                    key={idx}
+                                                                    href={doc.file}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
+                                                                >
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0">
+                                                                            <span className="text-[10px] font-bold text-emerald-700">{idx + 1}</span>
+                                                                        </div>
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="text-[10px] font-bold text-emerald-600 uppercase italic">अनुसूची - १</span>
+                                                                            <span className="text-xs font-medium text-slate-600 truncate">
+                                                                                {doc.file.split('/').pop()}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-500 shrink-0" />
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                        )}
+                                    </div>
                                 ) : (
                                     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 flex flex-col gap-0.5 shadow-sm animate-in fade-in zoom-in duration-300 max-w-[220px]">
                                         <div className="flex items-center gap-1.5 text-amber-700 font-bold text-[11px] uppercase tracking-wide">

@@ -45,9 +45,10 @@ export const getDutyChartById = async (id: number): Promise<DutyChart> => {
 
 // CREATE a duty chart
 export const createDutyChart = async (
-  data: Partial<DutyChart>
+  data: Partial<DutyChart> | FormData
 ): Promise<DutyChart> => {
-  const response = await api.post("/duty-charts/", data);
+  const headers = data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {};
+  const response = await api.post("/duty-charts/", data, { headers });
   return response.data;
 };
 
@@ -63,9 +64,10 @@ export const updateDutyChart = async (
 // PATCH a duty chart (partial)
 export const patchDutyChart = async (
   id: number,
-  data: Partial<DutyChart>
+  data: Partial<DutyChart> | FormData
 ): Promise<DutyChart> => {
-  const response = await api.patch(`/duty-charts/${id}/`, data);
+  const headers = data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {};
+  const response = await api.patch(`/duty-charts/${id}/`, data, { headers });
   return response.data;
 };
 

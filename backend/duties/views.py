@@ -35,6 +35,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from io import BytesIO
 import openpyxl
@@ -323,10 +324,24 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 return DutyChart.objects.none()
         return queryset.order_by("-id")
 
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def save_anusuchi_documents(self, chart):
+        files = self.request.FILES.getlist('anusuchi_documents')
+        if files:
+            from .models import AnusuchiDocument
+            for f in files:
+                AnusuchiDocument.objects.create(
+                    duty_chart=chart, 
+                    file=f, 
+                    uploaded_by=self.request.user
+                )
+
     def perform_create(self, serializer):
         user = self.request.user
         if IsSuperAdmin().has_permission(self.request, self):
-            serializer.save(created_by=user)
+            chart = serializer.save(created_by=user)
+            self.save_anusuchi_documents(chart)
             return
 
         with transaction.atomic():
@@ -336,7 +351,8 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             
             # Special case for NETWORK_ADMIN: allow creating for ANY office
             if user.role == 'NETWORK_ADMIN':
-                serializer.save(created_by=user)
+                chart = serializer.save(created_by=user)
+                self.save_anusuchi_documents(chart)
                 return
 
             allowed = get_allowed_office_ids(user)
@@ -344,29 +360,32 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
                     raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
             
-            serializer.save(created_by=user)
+            chart = serializer.save(created_by=user)
+            self.save_anusuchi_documents(chart)
 
     def perform_update(self, serializer):
         user = self.request.user
+        chart = serializer.instance
 
         # 1. SuperAdmin → unrestricted
         if IsSuperAdmin().has_permission(self.request, self):
             serializer.save(edited_by=user)
+            self.save_anusuchi_documents(chart)
             return
 
         # 2. Network Admin → shared access for peers in same office
         if user.role == 'NETWORK_ADMIN':
-            chart = serializer.instance
             creator = chart.created_by
             if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
                 serializer.save(edited_by=user)
+                self.save_anusuchi_documents(chart)
                 return
         
         # 3. Office-level management: allow if the chart belongs to the user's office
-        chart = serializer.instance
         if user.office_id and chart.office_id == user.office_id:
             if user_has_permission_slug(user, 'duties.edit_dutychart'):
                 serializer.save(edited_by=user)
+                self.save_anusuchi_documents(chart)
                 return
 
         # 4. Other roles → must have edit permission AND must be the creator
@@ -377,6 +396,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({"detail": "You can only edit duty charts that you created or that belong to your office."})
 
         serializer.save(edited_by=user)
+        self.save_anusuchi_documents(chart)
 
     def perform_destroy(self, instance):
         user = self.request.user
@@ -418,18 +438,38 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         if not user_has_permission_slug(request.user, 'duties.edit_dutychart') and not IsSuperAdmin().has_permission(request, self):
              return Response({"detail": "You do not have permission to approve duty charts."}, status=status.HTTP_403_FORBIDDEN)
 
+        anusuchi_docs = request.FILES.getlist('anusuchi_documents')
         approval_doc = request.FILES.get('approval_document')
         approval_remarks = request.data.get('approval_remarks')
 
+        # If approval_document is missing but anusuchi_documents are present, use the first one
+        if not approval_doc and anusuchi_docs:
+            approval_doc = anusuchi_docs[0]
+
         # Validation
-        if not approval_doc:
+        if not approval_doc and not anusuchi_docs:
             return Response({"detail": "An approved Anusuchi 1 document is required for approval."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             chart.status = 'approved'
-            chart.approval_document = approval_doc
+            if approval_doc:
+                chart.approval_document = approval_doc # Still set the main one for legacy
             chart.approval_remarks = approval_remarks
+            chart.approved_by = request.user
+            chart.approval_date = timezone.now()
             chart.save()
+            
+            # Save multiple documents
+            if anusuchi_docs:
+                self.save_anusuchi_documents(chart)
+            elif approval_doc:
+                # If only approval_document was sent, also save it as an AnusuchiDocument record
+                from .models import AnusuchiDocument
+                AnusuchiDocument.objects.create(
+                    duty_chart=chart,
+                    file=approval_doc,
+                    uploaded_by=request.user
+                )
             
             # Find all unique users in this chart
             duties = Duty.objects.filter(duty_chart=chart).select_related('user')
@@ -1813,6 +1853,17 @@ class DutyChartImportView(APIView):
     permission_classes = [AdminOrReadOnly]
     parser_classes = [MultiPartParser, FormParser]
 
+    def save_anusuchi_documents(self, request, chart):
+        files = request.FILES.getlist('anusuchi_documents')
+        if files:
+            from .models import AnusuchiDocument
+            for f in files:
+                AnusuchiDocument.objects.create(
+                    duty_chart=chart, 
+                    file=f, 
+                    uploaded_by=request.user
+                )
+
     @swagger_auto_schema(
         operation_description="Import duty chart from filled Excel template.",
         manual_parameters=[
@@ -1937,6 +1988,9 @@ class DutyChartImportView(APIView):
                     if schedule_ids:
                         new_sids = [int(sid) for sid in schedule_ids]
                         chart.schedules.add(*new_sids)
+                
+                if not dry_run:
+                    self.save_anusuchi_documents(request, chart)
 
                 # 2. Parse Rows and Create Duties
                 today = datetime.date.today()

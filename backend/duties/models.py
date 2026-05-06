@@ -53,14 +53,30 @@ class Document(models.Model):
 
 def duty_chart_approval_path(instance, filename):
     import os
-    office_name = (instance.office.name if instance.office else "Unknown_Office").replace(" ", "_")
-    chart_name = (instance.name or "Unnamed_Chart").replace(" ", "_")
+    # If instance is AnusuchiDocument, it has a duty_chart attribute
+    if hasattr(instance, 'duty_chart'):
+        target = instance.duty_chart
+    else:
+        target = instance
+
+    office_name = (target.office.name if target.office else "Unknown_Office").replace(" ", "_")
+    chart_name = (target.name or "Unnamed_Chart").replace(" ", "_")
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     
     ext = os.path.splitext(filename)[1]
-    new_filename = f"{office_name}_{chart_name}_anusuchi1{ext}"
-    
-    return f"{office_name}/{chart_name}/{current_date}/{new_filename}"
+    # For multiple documents, we might want to keep the original filename or a variation
+    safe_filename = "".join([c for c in filename if c.isalnum() or c in ('.', '_')]).strip()
+    return f"{office_name}/{chart_name}/{current_date}/anusuchi_{safe_filename}"
+
+class AnusuchiDocument(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    duty_chart = models.ForeignKey('DutyChart', on_delete=models.CASCADE, related_name='anusuchi_documents')
+    file = models.FileField(upload_to=duty_chart_approval_path)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"Anusuchi for {self.duty_chart.name} - {self.file.name}"
 
 class DutyChart(AuditableMixin, models.Model):
     office = models.ForeignKey('org.WorkingOffice', on_delete=models.CASCADE, related_name='duty_charts')

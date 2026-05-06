@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { FileUp, Check, Loader2, AlertCircle } from "lucide-react";
+import { FileUp, Check, Loader2, AlertCircle, Plus as PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { approveDutyChart } from "@/services/dutichart";
 
@@ -35,26 +35,19 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
   dutiesCount,
 }) => {
   const [remarks, setRemarks] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [anusuchiFiles, setAnusuchiFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Calculate the target filename that will be used in S3
-  const getTargetFilename = () => {
-    if (!file) return "";
-    const ext = file.name.split('.').pop();
-    const cleanOffice = officeName.replace(/\s+/g, "_");
-    const cleanChart = chartName.replace(/\s+/g, "_");
-    return `${cleanOffice}_${cleanChart}_anusuchi1.${ext}`;
-  };
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+    if (e.target.files) {
+      setAnusuchiFiles(prev => [...prev, ...Array.from(e.target.files!)]);
     }
   };
 
   const handleApprove = async () => {
-    if (!file) {
+    if (anusuchiFiles.length === 0) {
       toast.error("Please upload the approved Anusuchi 1 document.");
       return;
     }
@@ -62,7 +55,9 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append("approval_document", file);
+      anusuchiFiles.forEach((f) => {
+        formData.append("anusuchi_documents", f);
+      });
       if (remarks) {
         formData.append("approval_remarks", remarks);
       }
@@ -72,7 +67,7 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
       onSuccess();
       onOpenChange(false);
       // Reset form
-      setFile(null);
+      setAnusuchiFiles([]);
       setRemarks("");
     } catch (error: any) {
       console.error("Approval error:", error);
@@ -98,46 +93,57 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="approval_document" className="text-sm font-bold flex items-center gap-2">
-              Approved Anusuchi 1 <span className="text-destructive">*</span>
-            </Label>
-            <div 
-              className={`border-2 border-dashed rounded-lg p-6 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
-                file ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 hover:border-primary/50 bg-slate-50/50'
-              }`}
-              onClick={() => document.getElementById('approval_document')?.click()}
-            >
-              <FileUp className={`w-8 h-8 ${file ? 'text-emerald-500' : 'text-slate-400'}`} />
-              <div className="text-center">
-                {file ? (
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-emerald-700 break-all">
-                      {getTargetFilename()}
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      Original: {file.name}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm font-medium text-slate-700">
-                    Click to upload Anusuchi 1 (PDF/Image)
-                  </p>
-                )}
-                <p className="text-[10px] text-slate-500 mt-1">Max size: 5MB</p>
+          <div className="space-y-4 p-4 border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
+                  <FileUp className="h-4 w-4" />
+                  स्वीकृत अनुसूची कागजातहरू *
+                </h3>
+                <p className="text-xs text-emerald-600/80">
+                  Upload multiple signed/approved documents for this chart.
+                </p>
               </div>
-              <Input
-                id="approval_document"
-                type="file"
-                className="hidden"
-                accept=".pdf,image/*"
-                onChange={handleFileChange}
-              />
+              <label className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 cursor-pointer transition-colors shadow-sm self-start">
+                <PlusIcon className="h-3.5 w-3.5" />
+                Add File(s)
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept=".pdf,image/*"
+                  onChange={handleFileChange}
+                />
+              </label>
             </div>
-            {file && (
-              <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-                <Check className="w-3 h-3" /> File selected and will be renamed for storage
-              </p>
+
+            {anusuchiFiles.length > 0 && (
+              <div className="grid grid-cols-1 gap-2">
+                {anusuchiFiles.map((file, idx) => (
+                  <div key={`new-${idx}`} className="flex items-center justify-between p-2 bg-white border border-emerald-100 rounded-md shadow-sm group">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-[10px] text-emerald-600 font-bold italic">अनुसूची - १</span>
+                        <span className="text-xs font-medium truncate text-slate-700">{file.name}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAnusuchiFiles(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-xs text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {anusuchiFiles.length === 0 && (
+              <div className="text-center py-4 border border-emerald-100 border-dashed rounded-md bg-white/50">
+                <p className="text-xs text-emerald-600/60 italic">No documents added yet. At least one is required for approval.</p>
+              </div>
             )}
           </div>
 
@@ -166,7 +172,7 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
           </Button>
           <Button 
             onClick={handleApprove} 
-            disabled={loading || !file}
+            disabled={loading || anusuchiFiles.length === 0}
             className="bg-emerald-600 hover:bg-emerald-700 gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}

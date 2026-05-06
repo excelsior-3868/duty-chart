@@ -5,7 +5,7 @@ import { getDutyCharts, getDutyChartById, patchDutyChart, deleteDutyChart, downl
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import { useAuth } from "@/context/AuthContext";
-import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save, ChevronsUpDown } from "lucide-react";
+import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save, ChevronsUpDown, Plus, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
@@ -62,6 +62,9 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     scheduleIds: [] as string[],
     status: "draft" as "draft" | "approved",
   });
+
+  const [anusuchiFiles, setAnusuchiFiles] = useState<File[]>([]);
+  const [existingAnusuchi, setExistingAnusuchi] = useState<any[]>([]);
 
   const [initialChart, setInitialChart] = useState<DutyChartDTO | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,6 +142,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         status: "draft",
       });
       setInitialChart(null);
+      setAnusuchiFiles([]);
+      setExistingAnusuchi([]);
       setIsSubmitting(false);
       setErrors({});
       setImportFile(null);
@@ -155,7 +160,12 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        if (!selectedChartId) return;
+        if (!selectedChartId) {
+          setExistingAnusuchi([]);
+          setAnusuchiFiles([]);
+          return;
+        }
+        setAnusuchiFiles([]);
         const chart = await getDutyChartById(parseInt(selectedChartId));
         setInitialChart(chart);
         setFormData({
@@ -166,6 +176,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           scheduleIds: (chart.schedules || []).map(String),
           status: (chart.status as "draft" | "approved") || "draft",
         });
+        setExistingAnusuchi((chart as any).anusuchi_documents || []);
         const officeId = chart.office ? chart.office : undefined;
         const scheds = await getSchedules(officeId);
         setSchedules(scheds);
@@ -293,6 +304,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       if (formData.end_date) formDataPayload.append("end_date", formData.end_date);
       formData.scheduleIds.forEach((id) => formDataPayload.append("schedule_ids", id));
       formDataPayload.append("chart_id", selectedChartId);
+      formDataPayload.append("status", formData.status);
+      
+      if (!isDryRun) {
+        anusuchiFiles.forEach((file) => {
+          formDataPayload.append("anusuchi_documents", file);
+        });
+      }
+
       if (isDryRun) formDataPayload.append("dry_run", "true");
 
       const response = await importDutyChartExcel(formDataPayload);
@@ -357,8 +376,18 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     const initialSchedules = (initialChart?.schedules || []).map(String);
     const newScheduleIds = formData.scheduleIds.filter(id => !initialSchedules.includes(id));
 
-    if (newScheduleIds.length === 0) {
-      toast.error("No new schedules have been selected.");
+    if (newScheduleIds.length === 0 && !importFile) {
+      // Check if we are just updating status or other metadata
+      if (formData.status === initialChart?.status && formData.name === initialChart?.name && 
+          formData.effective_date === initialChart?.effective_date && formData.end_date === initialChart?.end_date &&
+          anusuchiFiles.length === 0) {
+        toast.error("No changes detected.");
+        return;
+      }
+    }
+
+    if (formData.status === "approved" && existingAnusuchi.length === 0 && anusuchiFiles.length === 0) {
+      toast.error("At least one Approved Anusuchi Document is required for Approved status.");
       return;
     }
 
@@ -413,7 +442,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     setIsSubmitting(true);
     setErrors({});
     try {
-      const payload: Partial<DutyChartDTO> = {
+      const payloadData: any = {
         name: formData.name || undefined,
         effective_date: formData.effective_date || undefined,
         end_date: formData.end_date || undefined,
@@ -421,6 +450,24 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         schedules: formData.scheduleIds.map(id => parseInt(id)),
         status: formData.status,
       };
+
+      let payload: any = payloadData;
+      if (anusuchiFiles.length > 0) {
+        payload = new FormData();
+        Object.keys(payloadData).forEach(key => {
+          if (payloadData[key] !== undefined) {
+            if (key === 'schedules' && Array.isArray(payloadData[key])) {
+              payloadData[key].forEach((id: number) => payload.append('schedules', String(id)));
+            } else {
+              payload.append(key, String(payloadData[key]));
+            }
+          }
+        });
+        anusuchiFiles.forEach(file => {
+          payload.append('anusuchi_documents', file);
+        });
+      }
+
       const updatedChart = await patchDutyChart(parseInt(selectedChartId), payload);
       toast.success("Duty Chart updated successfully");
       setShowManualConfirm(false);
@@ -564,31 +611,137 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                 </div>
 
                 {selectedChartId && (
-                  <div>
-                    <label className={labelClass}>
-                      Edit Duty Chart Name
-                      <span className="ml-1 text-[10px] text-muted-foreground font-normal">(Click save to rename)</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        className={inputClass}
-                        value={formData.name}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
-                        placeholder="Duty Chart Name"
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={handleRename}
-                        disabled={isSubmitting}
-                        title="Update Name Only"
-                        className="shrink-0 aspect-square"
-                      >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      </Button>
+                  <div className="space-y-4">
+                    <div>
+                      <label className={labelClass}>
+                        Edit Duty Chart Name
+                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">(Click save to rename)</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.name}
+                          onChange={(e) => handleInputChange("name", e.target.value)}
+                          placeholder="Duty Chart Name"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={handleRename}
+                          disabled={isSubmitting}
+                          title="Update Name Only"
+                          className="shrink-0 aspect-square"
+                        >
+                          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        </Button>
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Status *</label>
+                        <Select
+                          value={formData.status}
+                          onValueChange={(val: any) => handleInputChange("status", val)}
+                        >
+                          <SelectTrigger className={inputClass}>
+                            <SelectValue placeholder="Select Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="draft">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                Draft (No SMS)
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="approved">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                Approved (Sends SMS)
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedChartId && formData.status === "approved" && (
+                  <div className="space-y-4 p-4 border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
+                          <FileUp className="h-4 w-4" />
+                          स्वीकृत अनुसूची कागजातहरू *
+                        </h3>
+                        <p className="text-xs text-emerald-600/80">
+                          Upload multiple signed/approved documents for this chart.
+                        </p>
+                      </div>
+                      <label className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 cursor-pointer transition-colors shadow-sm self-start">
+                        <Plus className="h-3.5 w-3.5" />
+                        Add File(s)
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              setAnusuchiFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {(existingAnusuchi.length > 0 || anusuchiFiles.length > 0) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* Existing Files */}
+                        {existingAnusuchi.map((doc, idx) => (
+                          <div key={`existing-${idx}`} className="flex items-center justify-between p-2 bg-white border border-emerald-100 rounded-md shadow-sm group">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="text-[10px] text-emerald-600 font-bold">अनुसूची - १</span>
+                                <a href={doc.file} target="_blank" rel="noopener noreferrer" className="text-xs font-medium truncate text-blue-600 hover:underline">
+                                  {doc.file.split('/').pop()}
+                                </a>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-gray-400 italic">Saved</span>
+                          </div>
+                        ))}
+                        
+                        {/* New Files */}
+                        {anusuchiFiles.map((file, idx) => (
+                          <div key={`new-${idx}`} className="flex items-center justify-between p-2 bg-white border border-emerald-100 rounded-md shadow-sm group">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="text-[10px] text-emerald-600 font-bold italic">अनुसूची - १</span>
+                                <span className="text-xs font-medium truncate text-slate-700">{file.name}</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAnusuchiFiles(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-xs text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {existingAnusuchi.length === 0 && anusuchiFiles.length === 0 && (
+                      <div className="text-center py-4 border border-emerald-100 border-dashed rounded-md bg-white/50">
+                        <p className="text-xs text-emerald-600/60 italic">No documents added yet. At least one is required for approved status.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

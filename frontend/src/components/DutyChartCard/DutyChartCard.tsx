@@ -1,6 +1,6 @@
 import { createDutyChart, type DutyChart as DutyChartDTO, downloadImportTemplate, importDutyChartExcel } from "@/services/dutichart";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle, ChevronsUpDown } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle, ChevronsUpDown, Plus, FileUp } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import {
   Select,
@@ -89,6 +89,8 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
     shiftIds: [] as string[],
     status: "draft" as "draft" | "approved",
   });
+
+  const [anusuchiFiles, setAnusuchiFiles] = useState<File[]>([]);
 
   const [offices, setOffices] = useState<Office[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -180,6 +182,10 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       toast.error("At least one shift must be selected");
       return false;
     }
+    if (formData.status === "approved" && anusuchiFiles.length === 0) {
+      toast.error("At least one Approved Anusuchi Document is required for Approved status.");
+      return false;
+    }
     return true;
   };
 
@@ -192,8 +198,15 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       formDataPayload.append("name", formData.name);
       formDataPayload.append("effective_date", formData.effective_date);
       if (formData.end_date) formDataPayload.append("end_date", formData.end_date);
+      formDataPayload.append("status", formData.status);
       formData.shiftIds.forEach((id) => formDataPayload.append("schedule_ids", id));
       if (isDryRun) formDataPayload.append("dry_run", "true");
+      
+      if (!isDryRun) {
+        anusuchiFiles.forEach((file) => {
+          formDataPayload.append("anusuchi_documents", file);
+        });
+      }
 
       const response = await importDutyChartExcel(formDataPayload);
 
@@ -227,14 +240,33 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   const processManualCreation = async () => {
     setIsSubmitting(true);
     try {
-      const newChart = await createDutyChart({
+      const newChartData = {
         name: formData.name,
         office: parseInt(formData.office),
         effective_date: formData.effective_date,
         end_date: formData.end_date || undefined,
         schedules: formData.shiftIds.map((id) => parseInt(id)),
         status: formData.status,
-      });
+      } as any;
+      
+      let payload: any = newChartData;
+
+      // If there are files, we MUST use FormData
+      if (anusuchiFiles.length > 0) {
+        payload = new FormData();
+        payload.append("name", formData.name);
+        payload.append("office", formData.office);
+        payload.append("effective_date", formData.effective_date);
+        if (formData.end_date) payload.append("end_date", formData.end_date);
+        formData.shiftIds.forEach(id => payload.append("schedules", id));
+        payload.append("status", formData.status);
+        
+        anusuchiFiles.forEach(file => {
+          payload.append("anusuchi_documents", file);
+        });
+      }
+
+      const newChart = await createDutyChart(payload);
       onCreated?.(newChart);
       toast.success("Duty Chart Created Successfully");
       setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [], status: "draft" });
@@ -491,6 +523,65 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             </Select>
           </div>
         </div>
+
+        {formData.status === "approved" && (
+          <div className="space-y-4 p-4 border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
+                  <FileUp className="h-4 w-4" />
+                  स्वीकृत अनुसूची कागजातहरू *
+                </h3>
+                <p className="text-xs text-emerald-600/80">
+                  Upload multiple signed/approved documents for this chart.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 cursor-pointer transition-colors shadow-sm self-start">
+                <Plus className="h-3.5 w-3.5" />
+                Add File(s)
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setAnusuchiFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            
+            {anusuchiFiles.length > 0 && (
+              <div className="grid grid-cols-1 gap-2">
+                {anusuchiFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 bg-white border border-emerald-100 rounded-md shadow-sm group">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-[10px] text-emerald-600 font-bold italic">अनुसूची - १</span>
+                        <span className="text-xs font-medium truncate text-slate-700">{file.name}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAnusuchiFiles(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-xs text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {anusuchiFiles.length === 0 && (
+              <div className="text-center py-4 border border-emerald-100 border-dashed rounded-md bg-white/50">
+                <p className="text-xs text-emerald-600/60 italic">No documents added yet. At least one is required for approved status.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
