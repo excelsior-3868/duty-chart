@@ -98,6 +98,7 @@ import Reports from "@/pages/Reports";
 import UserWiseReport from "@/pages/reports/UserWiseReport";
 import DutyReportAnusuchi1 from "@/pages/reports/DutyReportAnusuchi1";
 import UserWiseReportNew from "@/pages/reports/UserWiseReportNew";
+import SummaryReport from "@/pages/reports/SummaryReport";
 import Settings from "@/pages/Settings";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -239,6 +240,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute>
                 <UserWiseReportNew />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.SUMMARY_REPORT,
+            element: (
+              <ProtectedRoute>
+                <SummaryReport />
               </ProtectedRoute>
             ),
           },

@@ -130,6 +130,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
         href: ROUTES.ANNEX_II_REPORT,
         icon: 'FileText',
         color: 'text-pink-500'
+      },
+      {
+        title: 'Total Duty Analysis',
+        href: ROUTES.SUMMARY_REPORT,
+        icon: 'BarChart3',
+        color: 'text-indigo-500'
       }
     ]
   },
@@ -221,7 +227,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-64 transform border-r bg-[hsl(var(--sidebar-bg))] transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col",
+        "fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-[280px] transform border-r bg-[hsl(var(--sidebar-bg))] transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
     >
@@ -242,7 +248,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                     >
                       <div className="flex items-center gap-3 w-full">
                         {IconComponent && <IconComponent className={cn("h-5 w-5 shrink-0", item.color)} />}
-                        <span className="text-sm font-medium whitespace-normal leading-tight text-left">{item.title}</span>
+                        <span className="text-sm font-medium whitespace-nowrap leading-tight text-left">{item.title}</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pb-0 pt-1 pl-6 space-y-1">
@@ -269,7 +275,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                               }
                             >
                               {ChildIcon && <ChildIcon className={cn("h-4 w-4 shrink-0", child.color)} />}
-                              <span className="whitespace-normal leading-tight text-left">{child.title}</span>
+                              <span className="whitespace-nowrap leading-tight text-left">{child.title}</span>
                             </NavLink>
                           </Button>
                         );

@@ -34,7 +34,7 @@ const Login = () => {
     const [showOTP, setShowOTP] = useState(false);
     const [otp, setOtp] = useState("");
     const [login2FAInfo, setLogin2FAInfo] = useState<{ '2fa_required'?: boolean, phone_mask?: string, username?: string } | null>(null);
-    const [timer, setTimer] = useState(300);
+    const [timer, setTimer] = useState(60);
     const [canResend, setCanResend] = useState(false);
 
     useEffect(() => {
@@ -64,7 +64,7 @@ const Login = () => {
                 employee_id: formData.username.trim(),
                 password: formData.password,
             });
-            setTimer(300);
+            setTimer(60);
             setCanResend(false);
             setOtp("");
             toast.success("A new verification code has been sent.");
@@ -97,7 +97,7 @@ const Login = () => {
             if (res.data['2fa_required']) {
                 setLogin2FAInfo(res.data);
                 setShowOTP(true);
-                setTimer(300);
+                setTimer(60);
                 setCanResend(false);
                 setOtp("");
                 // toast.info(`Two-Factor Authentication required. OTP sent to ${res.data.phone_mask}`);
@@ -190,7 +190,7 @@ const Login = () => {
 
     // Auto verify when all digits are entered
     useEffect(() => {
-        if (otp.length === 4 && !submitting && showOTP) {
+        if (otp.length === 6 && !submitting && showOTP) {
             handleVerify2FA();
         }
     }, [otp, showOTP]);
@@ -353,11 +353,11 @@ const Login = () => {
                             <div className="flex justify-center">
                                 <Input
                                     id="2fa-otp"
-                                    placeholder="••••"
+                                    placeholder="••••••"
                                     value={otp}
                                     onChange={(e) => setOtp(e.target.value)}
                                     className="text-center text-3xl tracking-[1em] h-16 w-full max-w-[240px] border-2 border-gray-100 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-bold placeholder:text-gray-200"
-                                    maxLength={4}
+                                    maxLength={6}
                                     required
                                     autoFocus
                                     autoComplete="one-time-code"

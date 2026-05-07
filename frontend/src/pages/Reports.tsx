@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, TrendingUp } from "lucide-react";
 import { ROUTES } from "@/utils/constants";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -79,7 +79,25 @@ function Reports() {
           </CardContent>
         </Card>
 
-        {/* New Reports New Card */}
+        {/* New Summary Analysis Report Card */}
+        <Card className="md:col-span-4 shadow-md hover:shadow-lg transition-shadow border-indigo-100 bg-indigo-50/20">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-indigo-600" />
+              <CardTitle>Total Duty Analysis Report (Office-wise)</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Comprehensive analysis of duties and man-hours per employee. Select any office and date range to see total performance metrics.
+            </p>
+            <Button onClick={() => (window.location.href = ROUTES.SUMMARY_REPORT)} className="bg-indigo-600 hover:bg-indigo-700 w-full font-bold">
+              Open Analysis Report
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Existing Anusuchi-2 Card (modified to fit 2-cols) */}
         <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow border-primary/10">
           <CardHeader>
             <div className="flex items-center gap-2">

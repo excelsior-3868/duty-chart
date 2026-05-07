@@ -66,7 +66,8 @@ def _handle_duty_assignment_notification(instance):
         duty_date = "Unknown Date"
         if instance.date:
             try:
-                duty_date = instance.date.strftime("%Y-%m-%d")
+                import nepali_datetime
+                duty_date = nepali_datetime.date.from_datetime_date(instance.date).strftime("%Y-%m-%d")
             except Exception:
                 duty_date = str(instance.date)
 

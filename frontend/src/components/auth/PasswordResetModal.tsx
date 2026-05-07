@@ -38,7 +38,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
     const [maskedPhone, setMaskedPhone] = useState("");
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [timer, setTimer] = useState(300); // 5 minutes
+    const [timer, setTimer] = useState(60); // 60 seconds for resend
     const [canResend, setCanResend] = useState(false);
 
     useEffect(() => {
@@ -80,7 +80,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
             } else {
                 toast.success("OTP sent.");
             }
-            setTimer(300);
+            setTimer(60);
             setCanResend(false);
             setOtp("");
             setStep("VALIDATE");
@@ -109,6 +109,13 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
             setIsLoading(false);
         }
     };
+    
+    // Auto verify when 6 digits are entered
+    useEffect(() => {
+        if (otp.length === 6 && !isLoading && step === "VALIDATE") {
+            handleValidateOTP({ preventDefault: () => {} } as React.FormEvent);
+        }
+    }, [otp, step]);
 
     const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();

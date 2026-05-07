@@ -111,7 +111,7 @@ export const MainLayout = () => {
         <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
 
         {/* Main Content */}
-        <main className="flex-1 lg:ml-64 no-scrollbar">
+        <main className="flex-1 lg:ml-[280px] no-scrollbar">
           <div className="min-h-[calc(100vh-4rem)] pt-16 no-scrollbar">
             <Outlet />
           </div>

@@ -6,6 +6,9 @@ import nepali_datetime
 from django.http import FileResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.utils import timezone
+import datetime
+from datetime import timedelta
 from django.contrib.auth import get_user_model
 
 from docx import Document
@@ -846,3 +849,95 @@ class DutyReportNewFileView(APIView):
         doc.save(bio)
         bio.seek(0)
         return FileResponse(bio, as_attachment=True, filename=f"Duty_Report_New_{date_from}_{date_to}.docx", content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+class SummaryReportView(APIView):
+    permission_classes = [IsAdminOrSelf]
+
+    def get(self, request):
+        office_id = request.GET.get("office_id")
+        date_from = request.GET.get("date_from")
+        date_to = request.GET.get("date_to")
+        user_id = request.GET.get("user_id")
+        user_ids = request.GET.get("user_ids")
+
+        if not (date_from and date_to):
+            return Response({"error": "Date range is required"}, status=400)
+
+        qs = Duty.objects.select_related("user", "schedule", "office", "duty_chart").filter(
+            date__range=[date_from, date_to]
+        )
+
+        # Permission check
+        can_see_any_office = request.user.is_staff or user_has_permission_slug(request.user, "duties.create_any_office_chart")
+        if not can_see_any_office:
+            allowed_offices = get_allowed_office_ids(request.user)
+            qs = qs.filter(office_id__in=allowed_offices)
+
+        if office_id and office_id != "all":
+            qs = qs.filter(office_id=office_id)
+        
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        
+        if user_ids:
+            try:
+                uid_list = [int(u) for u in user_ids.split(",") if u.strip().isdigit()]
+                if uid_list:
+                    qs = qs.filter(user_id__in=uid_list)
+            except:
+                pass
+
+        # Aggregate data
+        summary = {}
+        for d in qs:
+            if not d.user: continue
+            uid = d.user.id
+            if uid not in summary:
+                summary[uid] = {
+                    "user_id": uid,
+                    "full_name": d.user.full_name,
+                    "employee_id": d.user.employee_id,
+                    "office_name": d.office.name if d.office else "-",
+                    "total_duties": 0,
+                    "total_hours": 0.0,
+                    "chart_breakdown": {}, # { chart_name: { shift_name: count } }
+                    "dates": []
+                }
+            
+            summary[uid]["total_duties"] += 1
+            summary[uid]["dates"].append({
+                "date": str(d.date),
+                "chart": d.duty_chart.name if d.duty_chart and d.duty_chart.name else "Other/Manual",
+                "shift": d.schedule.name if d.schedule else "No Shift",
+                "day": d.date.strftime('%A')
+            })
+            
+            chart_name = d.duty_chart.name if d.duty_chart and d.duty_chart.name else "Other/Manual"
+            if chart_name not in summary[uid]["chart_breakdown"]:
+                summary[uid]["chart_breakdown"][chart_name] = {}
+            
+            # Calculate hours and count shift
+            if d.schedule:
+                s = d.schedule
+                start = datetime.datetime.combine(datetime.date.today(), s.start_time)
+                end = datetime.datetime.combine(datetime.date.today(), s.end_time)
+                if end <= start:
+                    end += datetime.timedelta(days=1)
+                hours = (end - start).total_seconds() / 3600
+                summary[uid]["total_hours"] += hours
+                
+                # Count by shift name under the chart
+                summary[uid]["chart_breakdown"][chart_name].setdefault(s.name, 0)
+                summary[uid]["chart_breakdown"][chart_name][s.name] += 1
+            else:
+                # If no schedule, still count the chart occurrence
+                summary[uid]["chart_breakdown"][chart_name].setdefault("No Shift", 0)
+                summary[uid]["chart_breakdown"][chart_name]["No Shift"] += 1
+        
+        # Format results
+        for uid in summary:
+            summary[uid]["dates"].sort(key=lambda x: x["date"])
+        
+        # Sort by total duties desc
+        result = sorted(summary.values(), key=lambda x: x['total_duties'], reverse=True)
+        return Response(result)

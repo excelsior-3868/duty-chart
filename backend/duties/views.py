@@ -373,27 +373,32 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             self.save_anusuchi_documents(chart)
             return
 
-        # 2. Network Admin → shared access for peers in same office
-        if user.role == 'NETWORK_ADMIN':
-            creator = chart.created_by
-            if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
-                serializer.save(edited_by=user)
-                self.save_anusuchi_documents(chart)
-                return
-        
-        # 3. Office-level management: allow if the chart belongs to the user's office
-        if user.office_id and chart.office_id == user.office_id:
-            if user_has_permission_slug(user, 'duties.edit_dutychart'):
-                serializer.save(edited_by=user)
-                self.save_anusuchi_documents(chart)
-                return
-
-        # 4. Other roles → must have edit permission AND must be the creator
+        # 2. Permission check: must have edit_dutychart
         if not user_has_permission_slug(user, 'duties.edit_dutychart'):
             raise serializers.ValidationError({"detail": "You do not have permission to edit duty charts."})
 
-        if chart.created_by_id != user.pk:
-            raise serializers.ValidationError({"detail": "You can only edit duty charts that you created or that belong to your office."})
+        # 3. Chart belongs to the user's office
+        if user.office_id and chart.office_id == user.office_id:
+            serializer.save(edited_by=user)
+            self.save_anusuchi_documents(chart)
+            return
+
+        # 4. Cross-office charts: allow if peer of the creator
+        # (same office AND same role as the creator) AND has create_any_office_chart permission.
+        creator = chart.created_by
+        is_peer = (
+            creator and 
+            creator.office_id == user.office_id and 
+            creator.role == user.role and
+            user_has_permission_slug(user, 'duties.create_any_office_chart')
+        )
+
+        if is_peer:
+            serializer.save(edited_by=user)
+            self.save_anusuchi_documents(chart)
+            return
+
+        raise serializers.ValidationError({"detail": "You can only edit duty charts that belong to your office or were created by authorized peers for other offices."})
 
         serializer.save(edited_by=user)
         self.save_anusuchi_documents(chart)

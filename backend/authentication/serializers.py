@@ -77,14 +77,13 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
             raise serializers.ValidationError({"detail": f"Failed to send 2FA OTP: {error}"})
             
         # Create OTP Request in DB
-        otp_code = otp_data.get('otp')
         seq_no = otp_data.get('seq_no')
         
         OTPRequest.objects.filter(user=user, purpose='login_2fa', status='pending').update(status='expired')
         
         OTPRequest.objects.create(
             user=user,
-            otp_code=otp_code,
+            otp_code=None,
             seq_no=seq_no,
             purpose='login_2fa',
             channel='sms_ntc',

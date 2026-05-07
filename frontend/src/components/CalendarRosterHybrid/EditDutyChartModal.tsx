@@ -39,16 +39,12 @@ interface EditDutyChartModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateSuccess?: (updatedChart?: Partial<DutyChartDTO>) => void;
-  initialOfficeId?: string;
-  initialChartId?: string;
 }
 
 export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   open,
   onOpenChange,
   onUpdateSuccess,
-  initialOfficeId,
-  initialChartId,
 }) => {
   const { user, canManageOffice, hasPermission } = useAuth();
   const [charts, setCharts] = useState<DutyChartDTO[]>([]);
@@ -125,11 +121,10 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       };
       load();
 
-      // Pre-populate from the parent calendar's current selection if provided,
-      // otherwise reset to empty.
-      pendingChartIdRef.current = initialChartId || "";
-      setSelectedChartId(""); // will be set properly after charts load
-      setFormData((prev) => ({ ...prev, office: initialOfficeId || "" }));
+      // Otherwise reset to empty.
+      pendingChartIdRef.current = "";
+      setSelectedChartId("");
+      setFormData((prev) => ({ ...prev, office: "" }));
 
       // We also need to clear charts list initially until fetched by office selection
       setCharts([]);
@@ -210,11 +205,18 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           // If there's a pending initial chart ID (from parent screen), apply it
           // after the chart list has loaded — this avoids the stale-closure reset.
           const pending = pendingChartIdRef.current;
-          if (pending && visibleCharts.find(c => String(c.id) === pending)) {
-            setSelectedChartId(pending);
-            pendingChartIdRef.current = ""; // consumed
-          } else if (!visibleCharts.find(c => String(c.id) === selectedChartId)) {
-            setSelectedChartId("");
+          if (pending) {
+            const match = visibleCharts.find(c => String(c.id) === String(pending));
+            if (match) {
+              setSelectedChartId(String(match.id));
+              pendingChartIdRef.current = ""; // consumed
+            }
+          } else if (selectedChartId && visibleCharts.length > 0) {
+            // Only clear if the currently selected chart is definitely NOT in the list for this office
+            const match = visibleCharts.find(c => String(c.id) === String(selectedChartId));
+            if (!match) {
+              setSelectedChartId("");
+            }
           }
           const filtered = await getSchedules(officeId);
           setSchedules(filtered);
@@ -600,6 +602,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                   <div>
                     <label className={labelClass}>Duty Chart *</label>
                     <Select
+                      key={`chart-select-${formData.office}-${charts.length}-${selectedChartId}`}
                       value={selectedChartId}
                       onValueChange={(val) => setSelectedChartId(val)}
                       disabled={!formData.office}

@@ -15,6 +15,7 @@ export const ROUTES = {
   REPORTS: '/reports',
   ANNEX_I_REPORT: '/reports/anusuchi-1',
   ANNEX_II_REPORT: '/reports/userwise-new',
+  SUMMARY_REPORT: '/reports/summary',
   SETTINGS: '/settings',
   CHANGE_PASSWORD: "/change-password",
   LOGIN: '/login',

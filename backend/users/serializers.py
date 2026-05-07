@@ -70,12 +70,32 @@ class UserSerializer(serializers.ModelSerializer):
 
         # RBAC: Check for role changes
         if 'role' in attrs:
-            if not user or (not user.is_superuser and getattr(user, 'role', '') != 'SUPERADMIN' and not self._has_rbac_permission(user)):
-                # If existing user, check if role is actually changing
-                if self.instance and self.instance.role == attrs['role']:
+            target_role = attrs['role']
+            is_super = user and (user.is_superuser or getattr(user, 'role', '') == 'SUPERADMIN')
+            
+            # Check if role is actually changing
+            role_changed = not self.instance or self.instance.role != target_role
+            
+            if role_changed:
+                if is_super:
+                    # SuperAdmin can assign anything
                     pass
                 else:
-                    raise serializers.ValidationError({"role": "You do not have permission to assign roles."})
+                    from users.permissions import user_has_permission_slug
+                    can_manage_users = (
+                        user_has_permission_slug(user, 'users.create_employee') or 
+                        user_has_permission_slug(user, 'users.edit_employee') or 
+                        user_has_permission_slug(user, 'system.manage_rbac')
+                    )
+                    
+                    if can_manage_users:
+                        # Non-superadmins CANNOT assign or remove the SUPERADMIN role
+                        if target_role == 'SUPERADMIN':
+                             raise serializers.ValidationError({"role": "Only SuperAdmins can assign the SuperAdmin role."})
+                        if self.instance and self.instance.role == 'SUPERADMIN':
+                             raise serializers.ValidationError({"role": "Only SuperAdmins can modify a SuperAdmin account."})
+                    else:
+                        raise serializers.ValidationError({"role": "You do not have permission to assign roles."})
         
         return attrs
 

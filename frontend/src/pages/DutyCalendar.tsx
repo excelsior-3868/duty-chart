@@ -37,7 +37,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { getSchedules, type Schedule } from "@/services/schedule";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
     Table,
     TableBody,
@@ -138,7 +138,6 @@ const DutyCalendar = () => {
     // --- State: Schedules (Available Shifts) ---
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [selectedScheduleId, setSelectedScheduleId] = useState<string>("all");
-    const [activeTab, setActiveTab] = useState("calendar");
 
     // --- State: Day Detail Modal ---
     const [showDayDetailModal, setShowDayDetailModal] = useState(false);
@@ -563,19 +562,16 @@ const DutyCalendar = () => {
         if (isSuperAdmin) return true;
         if (!selectedDutyChartInfo) return false;
 
-        // Chart creator (with edit permission) can edit even cross-office charts
-        if (isChartCreator) return true;
-
         // A peer of the creator — same role AND same office as the creator —
-        // can also edit the chart (e.g. another CHRO Network Admin can edit
-        // a chart that was created by a CHRO Network Admin for another office).
+        // can also edit the chart if they have the 'create_any_office_chart' permission.
         const creatorRole = (selectedDutyChartInfo as any).created_by_role;
         const creatorOfficeId = (selectedDutyChartInfo as any).created_by_office;
         if (
             creatorRole &&
             creatorOfficeId &&
             user?.role === creatorRole &&
-            Number(user?.office_id) === Number(creatorOfficeId)
+            Number(user?.office_id) === Number(creatorOfficeId) &&
+            hasPermission('duties.create_any_office_chart')
         ) return true;
 
         // Otherwise, user must belong to the chart's own office
@@ -583,7 +579,7 @@ const DutyCalendar = () => {
             ? Number((selectedDutyChartInfo.office as any)?.id)
             : Number(selectedDutyChartInfo.office);
         return isAssignedToOffice(chartOfficeId);
-    }, [hasPermission, isSuperAdmin, isChartCreator, selectedDutyChartInfo, isAssignedToOffice, user]);
+    }, [hasPermission, isSuperAdmin, selectedDutyChartInfo, isAssignedToOffice, user]);
 
 
     const canDeleteDuty = useMemo(() => {
@@ -773,14 +769,6 @@ const DutyCalendar = () => {
                     </div>
 
                     <div className="flex flex-col md:flex-row items-center gap-4">
-                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
-                            <TabsList className={cn("grid w-full", hasPermission('duties.view_available_shifts') ? "grid-cols-2" : "grid-cols-1")}>
-                                <TabsTrigger value="calendar">Duty Chart Calendar</TabsTrigger>
-                                {hasPermission('duties.view_available_shifts') && (
-                                    <TabsTrigger value="shifts">Available Shift</TabsTrigger>
-                                )}
-                            </TabsList>
-                        </Tabs>
 
                         <div className="flex items-center gap-3">
                             <div className="flex bg-slate-100/50 border rounded-md p-1 items-center shrink-0">
@@ -795,7 +783,7 @@ const DutyCalendar = () => {
                                     <Plus className="w-3.5 h-3.5" /> Create Duty Chart
                                 </Button>
                             )}
-                            {canManageSelectedChart && (
+                            {hasPermission('duties.edit_dutychart') && (
                                 <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => setShowEditDutyChart(true)}>
                                     <Pencil className="w-3.5 h-3.5" /> Edit Chart
                                 </Button>
@@ -942,22 +930,20 @@ const DutyCalendar = () => {
                             </PopoverContent>
                         </Popover>
 
-                        {/* Shift Filter - Only in Calendar Tab */}
-                        {activeTab === "calendar" && (
-                            <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={!selectedDutyChartId}>
-                                <SelectTrigger className="flex-1 min-w-0 h-9 text-xs border-primary/20 bg-primary/5">
-                                    <SelectValue placeholder="All Shifts" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Shifts</SelectItem>
-                                    {schedules.map((s) => (
-                                        <SelectItem key={s.id} value={String(s.id)}>
-                                            {s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
+                        {/* Shift Filter - Always visible now */}
+                        <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={!selectedDutyChartId}>
+                            <SelectTrigger className="flex-1 min-w-0 h-9 text-xs border-primary/20 bg-primary/5">
+                                <SelectValue placeholder="All Shifts" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Shifts</SelectItem>
+                                {schedules.map((s) => (
+                                    <SelectItem key={s.id} value={String(s.id)}>
+                                        {s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
 
                         {/* Display Chart Dates */}
                         {selectedDutyChartInfo && (
@@ -1054,8 +1040,7 @@ const DutyCalendar = () => {
                             </div>
                         )}
 
-                        <Tabs value={activeTab} className={cn("w-full transition-all duration-500", loading && "blur-[2px] opacity-60")}>
-                            <TabsContent value="calendar" className="mt-0">
+                        <div className={cn("w-full transition-all duration-500", loading && "blur-[2px] opacity-60")}>
                                 <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
                                     {/* Header Row */}
                                     <div className="grid grid-cols-7 border-b bg-slate-50">
@@ -1231,80 +1216,7 @@ const DutyCalendar = () => {
                                         })}
                                     </div>
                                 </div>
-                            </TabsContent>
-
-                            {hasPermission('duties.view_available_shifts') && (
-                                <TabsContent value="shifts" className="mt-0">
-
-                                    <div className="border rounded-lg bg-white shadow-sm p-4">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-lg font-semibold flex items-center gap-2">
-                                                <Clock className="w-5 h-5 text-primary" />
-                                                Available Shifts
-                                            </h3>
-                                            <p className="text-sm text-muted-foreground">{schedules.length} shifts defined in this chart</p>
-                                        </div>
-
-                                        {schedules.length === 0 ? (
-                                            <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-lg">
-                                                No schedules found for this chart.
-                                            </div>
-                                        ) : (
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead className="w-16">Theme</TableHead>
-                                                        <TableHead>Shift Name</TableHead>
-                                                        <TableHead className="text-center">Alias</TableHead>
-                                                        <TableHead className="text-center">Type</TableHead>
-                                                        <TableHead>Start Time</TableHead>
-                                                        <TableHead>End Time</TableHead>
-                                                        <TableHead>Status</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {schedules.map((s) => {
-                                                        const shiftColor = getShiftColor(s.id);
-                                                        return (
-                                                            <TableRow key={s.id} className="hover:bg-slate-50/50">
-                                                                <TableCell>
-                                                                    <div className={cn("w-5 h-5 rounded border shadow-sm", shiftColor.bg, shiftColor.border)} />
-                                                                </TableCell>
-                                                                <TableCell className="font-semibold">
-                                                                    <span className={cn("text-xs", shiftColor.text)}>
-                                                                        {s.name}
-                                                                    </span>
-                                                                </TableCell>
-                                                                <TableCell className="text-slate-500 text-xs text-center">
-                                                                    {s.alias || "-"}
-                                                                </TableCell>
-                                                                <TableCell className="text-slate-500 text-xs text-center">
-                                                                    {s.shift_type || "-"}
-                                                                </TableCell>
-                                                                <TableCell className="text-slate-700 text-xs font-medium">{s.start_time.slice(0, 5)}</TableCell>
-                                                                <TableCell className="text-slate-700 text-xs font-medium">{s.end_time.slice(0, 5)}</TableCell>
-                                                                <TableCell>
-                                                                    <Badge
-                                                                        variant="secondary"
-                                                                        className={cn(
-                                                                            "capitalize text-[10px] font-medium px-2 py-0 h-5",
-                                                                            s.status === 'office_schedule' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                                                                                s.status === 'template' ? "bg-amber-50 text-amber-600 border-amber-100" : ""
-                                                                        )}
-                                                                    >
-                                                                        {(s.status || 'Active').replace('_', ' ')}
-                                                                    </Badge>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        );
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                        )}
-                                    </div>
-                                </TabsContent>
-                            )}
-                        </Tabs>
+                        </div>
 
                     </div>
                 )}
@@ -1329,8 +1241,6 @@ const DutyCalendar = () => {
                 <EditDutyChartModal
                     open={showEditDutyChart}
                     onOpenChange={setShowEditDutyChart}
-                    initialOfficeId={selectedOfficeId}
-                    initialChartId={selectedDutyChartId}
                     onUpdateSuccess={(updatedChart) => {
                         if (updatedChart?.office && String(updatedChart.office) !== selectedOfficeId) {
                             setSelectedOfficeId(String(updatedChart.office));
