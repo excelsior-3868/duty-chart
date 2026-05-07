@@ -25,7 +25,7 @@ def send_sms(phone, message, user=None, log_id=None):
         "cellNo": phone,
         "message": message,
         "encoding": "E",
-        "systemId": "1"
+        "systemId": getattr(settings, "NTC_SMS_SYSTEM_ID", "1")
     }
     
     if log_id:
@@ -126,10 +126,15 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
             
         full_name = getattr(user, 'full_name', user.username)
         
+        # Get unique shift names for this user in this chart
+        from duties.models import Duty
+        user_shifts = list(Duty.objects.filter(user=user, duty_chart=chart).values_list('schedule__name', flat=True).distinct())
+        shift_str = ", ".join(user_shifts) if user_shifts else "Duty"
+        
         if date_range_str:
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the period {date_range_str}. Please visit https://dutychart.ntc.net.np for details.'
+            sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" for the "{shift_str}" at "{office_name}" for the period {date_range_str}. Please visit https://dutychart.ntc.net.np for details.'
         else:
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}". Please visit https://dutychart.ntc.net.np for details.'
+            sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" for the "{shift_str}" at "{office_name}". Please visit https://dutychart.ntc.net.np for details.'
         
         # Create log
         # We include the chart ID in the reminder_type to satisfy the uniqueness constraint

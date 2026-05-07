@@ -97,6 +97,7 @@ function DutyReportAnusuchi1() {
     const [selectAllUsers, setSelectAllUsers] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [groupByEmployee, setGroupByEmployee] = useState(false);
 
     // Set document title
     useEffect(() => {
@@ -124,6 +125,9 @@ function DutyReportAnusuchi1() {
             async function fetchUsersList() {
                 try {
                     const params: any = { duty_chart_id: selectedDuty };
+                    if (selectedSchedule && selectedSchedule !== "all") {
+                        params.schedule_id = selectedSchedule;
+                    }
                     const res = await api.get("/users/", { params });
                     setUsers(res.data.results || res.data);
                 } catch (err) {
@@ -136,7 +140,7 @@ function DutyReportAnusuchi1() {
             setSelectedUsers([]);
             setSelectAllUsers(true);
         }
-    }, [selectedDuty]);
+    }, [selectedDuty, selectedSchedule]);
 
     /* ================= Fetch schedules when duty changes ================= */
 
@@ -197,10 +201,9 @@ function DutyReportAnusuchi1() {
                 start_date: dateFrom,
                 end_date: dateTo,
                 schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
-                // user_id is not yet supported in this specific preview endpoint for Anusuchi-1,
-                // but we include the UI for consistency and future-proofing.
+                user_id: selectAllUsers ? undefined : selectedUsers.join(","),
                 page: 1,
-                page_size: 50,
+                page_size: 100,
             });
             setPreview(res);
         } catch (err) {
@@ -237,7 +240,8 @@ function DutyReportAnusuchi1() {
                 end_date: dateTo,
                 schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
                 // user_id is handled in the file generation if the backend supports it
-                ...(selectAllUsers ? {} : { user_ids: selectedUsers.join(",") })
+                ...(selectAllUsers ? {} : { user_ids: selectedUsers.join(",") }),
+                group_by_employee: groupByEmployee,
             } as any);
 
             const url = window.URL.createObjectURL(blob);
@@ -382,7 +386,7 @@ function DutyReportAnusuchi1() {
                 </CardHeader>
                 <CardContent className="p-6">
 
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[350px_220px_minmax(220px,1fr)_1fr] items-end">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[2.2fr_1.2fr_320px_1.8fr] items-end">
 
                         {/* 1. Duty Selection */}
                         <div className="space-y-2">
@@ -650,44 +654,64 @@ function DutyReportAnusuchi1() {
                                 </Popover>
                             </div>
                         </div>
-
                     </div>
 
-                    <div className="mt-4 flex flex-col sm:flex-row gap-4 justify-center md:justify-end">
-                        <Button
-                            size="default"
-                            onClick={loadReport}
-                            disabled={loading}
-                            className="min-w-[140px] h-9 text-xs font-bold"
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                        {/* Group by Employee Toggle (Moved here) */}
+                        <div 
+                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                            onClick={() => setGroupByEmployee(!groupByEmployee)}
                         >
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Loader2 className="h-4 w-4 mr-2 opacity-50" />}
-                            Load Preview
-                        </Button>
+                            <Checkbox
+                                id="groupByEmployee"
+                                checked={groupByEmployee}
+                                onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
+                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                            <div className="flex flex-col">
+                                <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                    Group by Employee
+                                </Label>
+                                <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
+                            </div>
+                        </div>
 
-                        <Button
-                            size="default"
-                            onClick={clearPreview}
-                            variant="ghost"
-                            className="min-w-[140px] h-9 text-xs font-bold text-slate-500 hover:text-destructive hover:bg-destructive/5"
-                        >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Clear Preview
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                            <Button
+                                size="default"
+                                onClick={loadReport}
+                                disabled={loading}
+                                className="min-w-[130px] h-9 text-xs font-bold shadow-md"
+                            >
+                                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Clock className="h-4 w-4 mr-2 opacity-70" />}
+                                Load Preview
+                            </Button>
 
-                        <Button
-                            size="default"
-                            onClick={downloadReport}
-                            disabled={downloading}
-                            variant="outline"
-                            className="min-w-[140px] h-9 text-xs font-bold border-primary text-primary hover:bg-primary/10 shadow-sm"
-                        >
-                            {downloading ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                                <Download className="h-4 w-4 mr-2" />
-                            )}
-                            Download DOCX
-                        </Button>
+                            <Button
+                                size="default"
+                                onClick={clearPreview}
+                                variant="ghost"
+                                className="min-w-[130px] h-9 text-xs font-bold text-slate-500 hover:text-destructive hover:bg-destructive/5"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Clear
+                            </Button>
+
+                            <Button
+                                size="default"
+                                onClick={downloadReport}
+                                disabled={downloading}
+                                variant="outline"
+                                className="min-w-[130px] h-9 text-xs font-bold border-primary text-primary hover:bg-primary/10 shadow-sm"
+                            >
+                                {downloading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                    <Download className="h-4 w-4 mr-2" />
+                                )}
+                                Download DOCX
+                            </Button>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

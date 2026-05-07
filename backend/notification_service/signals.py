@@ -80,7 +80,7 @@ def _handle_duty_assignment_notification(instance):
             
             # Custom Message
             office_name = instance.office.name if instance.office else "Unknown Office"
-            sms_message = f'Dear {full_name}, You have been assigned to "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit https://dutychart.ntc.net.np for the detail.'
+            sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit https://dutychart.ntc.net.np for the detail.'
             
             # Idempotency: Try to create the SMSLog entry first
             try:

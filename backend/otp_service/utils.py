@@ -43,7 +43,7 @@ def send_otp_ntc(phone):
     url = f"{base_url}/sendotp"
     payload = {
         "mobileNumber": phone,
-        "systemId": "1"
+        "systemId": getattr(settings, "NTC_SMS_SYSTEM_ID", "1")
     }
 
     try:

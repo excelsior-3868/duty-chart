@@ -140,7 +140,7 @@ def send_daily_duty_reminders():
         office_name = duty.office.name if duty.office else "Unknown Office"
         
         # Individual Reminder Message
-        sms_message = f'Reminder: Dear {full_name}, you have a duty "{schedule_name}" at "{office_name}" today ({today}). Visit https://dutychart.ntc.net.np for details.'
+        sms_message = f'Reminder: Dear {full_name}, you have a duty chart "{chart_name}" shift "{schedule_name}" at "{office_name}" today ({today}). Visit https://dutychart.ntc.net.np for details.'
         
         try:
              # Idempotency for daily reminders too

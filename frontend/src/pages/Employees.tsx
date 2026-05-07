@@ -34,6 +34,7 @@ import { getOffices, type Office } from "@/services/offices";
 import api from "@/services/api";
 import { Protect } from "@/components/auth/Protect";
 import { Switch } from "@/components/ui/switch";
+
 import {
   Table,
   TableBody,
@@ -51,9 +52,36 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+/**
+ * One global, non-passive wheel listener on document.
+ * When the mouse is over a [cmdk-list] element (the scrollable list inside
+ * any CommandList popover), this intercepts the event and manually scrolls
+ * the list — preventing it from propagating to the Radix Dialog overlay.
+ */
+function useCmdkScrollFix() {
+  useEffect(() => {
+    const handler = (e: WheelEvent) => {
+      const target = e.target as HTMLElement;
+      const list = target.closest('[cmdk-list]') as HTMLElement | null;
+      if (!list) return;
+      e.stopPropagation();
+      const { scrollTop, scrollHeight, clientHeight } = list;
+      const atTop = scrollTop === 0 && e.deltaY < 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight && e.deltaY > 0;
+      if (!atTop && !atBottom) {
+        e.preventDefault();
+        list.scrollTop += e.deltaY;
+      }
+    };
+    document.addEventListener("wheel", handler, { passive: false, capture: true });
+    return () => document.removeEventListener("wheel", handler, { capture: true } as any);
+  }, []);
+}
+
 const Employees = () => {
   const { user, hasPermission } = useAuth();
-
+  // Fix mouse-wheel scrolling inside all cmdk CommandList popovers in this page
+  useCmdkScrollFix();
 
   const queryClient = useQueryClient();
 
@@ -180,7 +208,10 @@ const Employees = () => {
     staleTime: 15 * 60 * 1000,
   });
 
-  const metaLoading = !directorates.length && !departments.length && !offices.length && !positions.length;
+  const posList = Array.isArray(positions) ? positions : (positions as any)?.results || [];
+  const respList = Array.isArray(responsibilities) ? responsibilities : (responsibilities as any)?.results || [];
+
+  const metaLoading = !directorates.length && !departments.length && !offices.length && !posList.length;
 
 
 
@@ -217,7 +248,8 @@ const Employees = () => {
   function getPositionName(posIdOrObj: any): string {
     if (!posIdOrObj) return "-";
     const posId = typeof posIdOrObj === "object" ? posIdOrObj.id : posIdOrObj;
-    const pos = positions.find((p) => p.id === posId);
+    const posList = Array.isArray(positions) ? positions : (positions as any)?.results || [];
+    const pos = posList.find((p: any) => p.id === posId);
     return pos ? pos.name : String(posIdOrObj);
   }
 
@@ -326,7 +358,8 @@ const Employees = () => {
   // Load org hierarchy lists and positions in parallel
   // Use useMemo to sort positions by level descending
   const sortedPositions = useMemo(() => {
-    return [...positions].sort((a, b) => (b.level || 0) - (a.level || 0));
+    const list = Array.isArray(positions) ? positions : (positions as any)?.results || [];
+    return [...list].sort((a, b) => (b.level || 0) - (a.level || 0));
   }, [positions]);
   useEffect(() => {
     document.title = "Employees - NT Duty Chart Management";
@@ -565,7 +598,7 @@ const Employees = () => {
               </div>
               <div className="space-y-2">
                 <Label>Responsibility</Label>
-                <Popover open={openResponsibilityCombobox} onOpenChange={setOpenResponsibilityCombobox}>
+                <Popover open={openResponsibilityCombobox} onOpenChange={setOpenResponsibilityCombobox} modal={true}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -574,7 +607,7 @@ const Employees = () => {
                       className="w-full justify-between font-normal"
                     >
                       {responsibility
-                        ? responsibilities.find((r: any) => r.id === responsibility)?.name
+                        ? respList.find((r: any) => r.id === responsibility)?.name
                         : "Select responsibility"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -582,36 +615,44 @@ const Employees = () => {
                   <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                     <Command>
                       <CommandInput placeholder="Search responsibility..." />
-                      <CommandList className="max-h-[300px] overflow-y-auto">
-                        <CommandEmpty>No responsibility found.</CommandEmpty>
-                        <CommandGroup>
-                          {responsibilities.map((r: any) => (
-                            <CommandItem
-                              key={r.id}
-                              value={r.name}
-                              onSelect={() => {
-                                setResponsibility(r.id === responsibility ? null : r.id);
-                                setOpenResponsibilityCombobox(false);
-                              }}
-                            >
-                              <Check
+                      <div className="max-h-[300px] overflow-y-auto">
+                        <CommandList>
+                          <CommandEmpty>No responsibility found.</CommandEmpty>
+                          <CommandGroup>
+                            {respList.map((r: any) => (
+                              <CommandItem
+                                key={r.id}
+                                value={r.name}
+                                onSelect={() => {
+                                  setResponsibility(r.id === responsibility ? null : r.id);
+                                  setOpenResponsibilityCombobox(false);
+                                }}
                                 className={cn(
-                                  "mr-2 h-4 w-4",
-                                  responsibility === r.id ? "opacity-100" : "opacity-0"
+                                  "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                  responsibility === r.id
+                                    ? "bg-primary text-white"
+                                    : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
                                 )}
-                              />
-                              {r.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    responsibility === r.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {r.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </div>
                     </Command>
                   </PopoverContent>
                 </Popover>
               </div>
               <div className="space-y-2">
                 <Label>Designation / Position</Label>
-                <Popover open={openPositionCombobox} onOpenChange={setOpenPositionCombobox}>
+                <Popover open={openPositionCombobox} onOpenChange={setOpenPositionCombobox} modal={true}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -628,29 +669,37 @@ const Employees = () => {
                   <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                     <Command>
                       <CommandInput placeholder="Search position..." />
-                      <CommandList className="max-h-[300px] overflow-y-auto">
-                        <CommandEmpty>No position found.</CommandEmpty>
-                        <CommandGroup>
-                          {sortedPositions.map((p) => (
-                            <CommandItem
-                              key={p.id}
-                              value={p.name}
-                              onSelect={() => {
-                                setSelectedPosition(p.id === selectedPosition ? null : p.id);
-                                setOpenPositionCombobox(false);
-                              }}
-                            >
-                              <Check
+                      <div className="max-h-[300px] overflow-y-auto">
+                        <CommandList>
+                          <CommandEmpty>No position found.</CommandEmpty>
+                          <CommandGroup>
+                            {sortedPositions.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => {
+                                  setSelectedPosition(p.id === selectedPosition ? null : p.id);
+                                  setOpenPositionCombobox(false);
+                                }}
                                 className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedPosition === p.id ? "opacity-100" : "opacity-0"
+                                  "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                  selectedPosition === p.id
+                                    ? "bg-primary text-white"
+                                    : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
                                 )}
-                              />
-                              {p.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedPosition === p.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {p.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </div>
                     </Command>
                   </PopoverContent>
                 </Popover>
@@ -663,7 +712,7 @@ const Employees = () => {
               <div className="text-sm font-medium">Step 2: Organization</div>
               <div className="space-y-2">
                 <Label>Office</Label>
-                <Popover open={openOfficeCombobox} onOpenChange={setOpenOfficeCombobox}>
+                <Popover open={openOfficeCombobox} onOpenChange={setOpenOfficeCombobox} modal={true}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -680,29 +729,31 @@ const Employees = () => {
                   <PopoverContent className="w-[400px] p-0">
                     <Command>
                       <CommandInput placeholder="Search office..." />
-                      <CommandList>
-                        <CommandEmpty>No office found.</CommandEmpty>
-                        <CommandGroup>
-                          {offices.map((o) => (
-                            <CommandItem
-                              key={o.id}
-                              value={o.name}
-                              onSelect={() => {
-                                setSelectedOffice(o.id);
-                                setOpenOfficeCombobox(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedOffice === o.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {o.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
+                      <div className="max-h-[300px] overflow-y-auto">
+                        <CommandList>
+                          <CommandEmpty>No office found.</CommandEmpty>
+                          <CommandGroup>
+                            {offices.map((o) => (
+                              <CommandItem
+                                key={o.id}
+                                value={o.name}
+                                onSelect={() => {
+                                  setSelectedOffice(o.id);
+                                  setOpenOfficeCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedOffice === o.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {o.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </div>
                     </Command>
                   </PopoverContent>
                 </Popover>
@@ -715,7 +766,9 @@ const Employees = () => {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
+                    {user?.role === 'SUPERADMIN' && (
+                      <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
+                    )}
                     <SelectItem value="OFFICE_ADMIN">Office Admin</SelectItem>
                     <SelectItem value="NETWORK_ADMIN">Network Admin</SelectItem>
                     <SelectItem value="USER">User</SelectItem>

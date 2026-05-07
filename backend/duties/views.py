@@ -446,9 +446,8 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         if not approval_doc and anusuchi_docs:
             approval_doc = anusuchi_docs[0]
 
-        # Validation
-        if not approval_doc and not anusuchi_docs:
-            return Response({"detail": "An approved Anusuchi 1 document is required for approval."}, status=status.HTTP_400_BAD_REQUEST)
+        # Approval document is now optional
+        pass
 
         with transaction.atomic():
             chart.status = 'approved'
@@ -611,46 +610,42 @@ class DutyViewSet(viewsets.ModelViewSet):
 
             office_id = self.request.data.get("office")
             chart_id = self.request.data.get("duty_chart")
-
-            # Network Admin special handling
-            if user.role == 'NETWORK_ADMIN':
-                if chart_id:
-                    chart = DutyChart.objects.filter(id=chart_id).first()
-                    if chart:
-                        creator = chart.created_by
-                        if creator and creator.role == 'NETWORK_ADMIN' and creator.office_id == user.office_id:
-                            serializer.save()
-                            return
-            
-            # Office Admin / Same Office handling
-            if chart_id:
-                chart = DutyChart.objects.filter(id=chart_id).first()
-                if chart and user.office_id and chart.office_id == user.office_id:
-                    if user_has_permission_slug(user, 'duties.assign_employee'):
-                        serializer.save()
-                        return
-
-            allowed = get_allowed_office_ids(user)
-            if office_id is None:
-                if chart_id:
-                    chart = DutyChart.objects.filter(id=chart_id).first()
-                    office_id = getattr(chart, "office_id", None)
-            if not office_id or int(office_id) not in allowed:
-                raise serializers.ValidationError("Not allowed to create duty for this office.")
-
-            # Check if the assigned user belongs to the same office (unless permission allows otherwise)
             target_user_id = self.request.data.get("user")
+
+            if not office_id and chart_id:
+                chart = DutyChart.objects.filter(id=chart_id).first()
+                office_id = getattr(chart, "office_id", None)
+            
+            if not office_id:
+                raise serializers.ValidationError("Office ID is required.")
+
+            # 1. Check if the ADMIN is allowed to manage this office
+            managed_offices = get_managed_office_ids(user)
+            can_manage_office = int(office_id) in managed_offices
+            
+            # If not explicitly managed, check for global assignment permission
+            if not can_manage_office:
+                 if user_has_permission_slug(user, 'duties.assign_any_office_employee'):
+                      can_manage_office = True
+                 # Network Admin special handling
+                 elif user.role == 'NETWORK_ADMIN' and chart_id:
+                      chart = DutyChart.objects.filter(id=chart_id).first()
+                      if chart and chart.created_by and chart.created_by.role == 'NETWORK_ADMIN' and chart.created_by.office_id == user.office_id:
+                           can_manage_office = True
+
+            if not can_manage_office:
+                raise serializers.ValidationError(f"You do not have permission to assign duties for the office ID {office_id}. You need the 'Assign Employee (Any Office)' permission.")
+
+            # 2. Check if the TARGET USER belongs to the same office (unless permission allows otherwise)
             if target_user_id:
                  from users.models import User
                  target_user = User.objects.filter(id=target_user_id).first()
-                 
                  if target_user and target_user.office_id:
                       if int(target_user.office_id) != int(office_id):
-                          if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
-                              raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name}) to this chart.")
+                           if not user_has_permission_slug(user, 'duties.assign_any_office_employee'):
+                                raise serializers.ValidationError(f"You cannot assign employees from other offices ({target_user.office.name if target_user.office else 'N/A'}) to this chart.")
             
             serializer.save()
-
 
     def perform_update(self, serializer):
         user = self.request.user
@@ -732,7 +727,8 @@ class DutyViewSet(viewsets.ModelViewSet):
                 if not user_has_permission_slug(user, 'duties.assign_employee'):
                     raise serializers.ValidationError("You do not have permission to assign employees.")
                 
-                allowed_offices = get_allowed_office_ids(user)
+                managed_offices = get_managed_office_ids(user)
+                can_assign_any = is_super or user_has_permission_slug(user, 'duties.assign_any_office_employee')
                 is_network_admin = user.role == 'NETWORK_ADMIN'
 
                 chart_cache = {}
@@ -756,8 +752,9 @@ class DutyViewSet(viewsets.ModelViewSet):
                         raise serializers.ValidationError(f"Not allowed to assign duty for chart ID {cid}.")
 
                     oid = _to_int(item.get("office"))
-                    if oid is None or oid not in allowed_offices:
-                        raise serializers.ValidationError(f"Not allowed to assign duty for office ID {item.get('office')}.")
+                    if not can_assign_any:
+                        if oid is None or oid not in managed_offices:
+                            raise serializers.ValidationError(f"Not allowed to assign duty for office ID {item.get('office')}. You need the 'Assign Employee (Any Office)' permission.")
 
             # 2. Preparation
             created, updated = 0, 0
@@ -1158,8 +1155,10 @@ class DutyChartExportPreview(APIView):
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
         page = int(request.query_params.get("page") or 1)
-        page_size = int(request.query_params.get("page_size") or 10)
+        page_size = int(request.query_params.get("page_size") or 100)
         schedule_id = request.query_params.get("schedule_id")
+        user_ids_raw = request.query_params.get("user_id") or request.query_params.get("user_ids")
+        user_ids = [int(x) for x in user_ids_raw.split(',')] if user_ids_raw else []
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1174,6 +1173,9 @@ class DutyChartExportPreview(APIView):
 
         if schedule_id and schedule_id != "all":
             qs = qs.filter(schedule_id=schedule_id)
+        
+        if user_ids:
+            qs = qs.filter(user_id__in=user_ids)
 
         if scope == "range":
             if not start_date_str or not end_date_str:
@@ -1183,7 +1185,6 @@ class DutyChartExportPreview(APIView):
             if not start_date or not end_date:
                 return Response({"detail": "Invalid start_date or end_date"}, status=status.HTTP_400_BAD_REQUEST)
             qs = qs.filter(date__gte=start_date, date__lte=end_date)
-
         # Remove qs.count() to save a database trip as it's not used in the UI
         # Pagination
         offset = (page - 1) * page_size
@@ -1268,6 +1269,9 @@ class DutyChartExportFile(APIView):
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
         schedule_id = request.query_params.get("schedule_id")
+        user_ids_raw = request.query_params.get("user_id") or request.query_params.get("user_ids")
+        user_ids = [int(x) for x in user_ids_raw.split(',')] if user_ids_raw else []
+        group_by_employee = request.query_params.get("group_by_employee") == "true"
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1279,6 +1283,9 @@ class DutyChartExportFile(APIView):
 
         if schedule_id and schedule_id != "all":
             qs = qs.filter(schedule_id=schedule_id)
+        
+        if user_ids:
+            qs = qs.filter(user_id__in=user_ids)
 
         if scope == "range":
             if not start_date_str or not end_date_str:
@@ -1323,35 +1330,84 @@ class DutyChartExportFile(APIView):
         else:
             classification = getattr(chart, "name", "-") or "-"
 
-        rows = []
-        for d in qs.order_by("date"):
-            user = d.user
-            office = d.office
-            schedule = d.schedule
-            pos = getattr(user, "position", None) if user else None
+        if group_by_employee:
+            # Group duties by user
+            grouped_data = {}
+            for d in qs.order_by("date"):
+                uid = d.user_id
+                if uid not in grouped_data:
+                    grouped_data[uid] = {
+                        'duty': d,
+                        'dates': []
+                    }
+                grouped_data[uid]['dates'].append(d.date)
 
-            # Timing for individual row
-            timing = ""
-            if schedule:
-                st = schedule.start_time.strftime("%H:%M")
-                et = schedule.end_time.strftime("%H:%M")
-                timing = f"\n({st} - {et})"
+            rows = []
+            for uid, data in grouped_data.items():
+                d = data['duty']
+                user = d.user
+                office = d.office
+                schedule = d.schedule
+                pos = getattr(user, "position", None) if user else None
 
-            rows.append(
-                [
-                    f"{d.date.isoformat()}{timing}",
-                    getattr(user, "employee_id", "") or "",
-                    (getattr(user, "full_name", "") or getattr(user, "username", "")) if user else "",
-                    getattr(user, "phone_number", "") if user else "",
-                    getattr(getattr(user, "directorate", None), "name", "") if user else "",
-                    getattr(getattr(user, "department", None), "name", "") if user else "",
-                    getattr(office, "name", "") or (getattr(getattr(user, "office", None), "name", "") if user else ""),
-                    getattr(schedule, "name", "") or "",
-                    getattr(schedule, "start_time", None).strftime("%H:%M") if getattr(schedule, "start_time", None) else "",
-                    getattr(schedule, "end_time", None).strftime("%H:%M") if getattr(schedule, "end_time", None) else "",
-                    getattr(pos, "alias", None) or getattr(pos, "name", "-") if pos else "-",
-                ]
-            )
+                # Timing for individual row
+                timing = ""
+                if schedule:
+                    st = schedule.start_time.strftime("%H:%M")
+                    et = schedule.end_time.strftime("%H:%M")
+                    timing = f"\n({st} - {et})"
+
+                # Format dates: sort them, join with comma
+                sorted_dates = sorted(data['dates'])
+                date_str = ", ".join([dt.isoformat() for dt in sorted_dates])
+
+                rows.append(
+                    [
+                        f"{date_str}{timing}",
+                        getattr(user, "employee_id", "") or "",
+                        (getattr(user, "full_name", "") or getattr(user, "username", "")) if user else "",
+                        getattr(user, "phone_number", "") if user else "",
+                        getattr(getattr(user, "directorate", None), "name", "") if user else "",
+                        getattr(getattr(user, "department", None), "name", "") if user else "",
+                        getattr(office, "name", "") or (getattr(getattr(user, "office", None), "name", "") if user else ""),
+                        getattr(schedule, "name", "") or "",
+                        getattr(schedule, "start_time", None).strftime("%H:%M") if getattr(schedule, "start_time", None) else "",
+                        getattr(schedule, "end_time", None).strftime("%H:%M") if getattr(schedule, "end_time", None) else "",
+                        getattr(pos, "alias", None) or getattr(pos, "name", "-") if pos else "-",
+                        getattr(getattr(user, "responsibility", None), "name", "-") if user else "-",
+                    ]
+                )
+        else:
+            rows = []
+            for d in qs.order_by("date"):
+                user = d.user
+                office = d.office
+                schedule = d.schedule
+                pos = getattr(user, "position", None) if user else None
+
+                # Timing for individual row
+                timing = ""
+                if schedule:
+                    st = schedule.start_time.strftime("%H:%M")
+                    et = schedule.end_time.strftime("%H:%M")
+                    timing = f"\n({st} - {et})"
+
+                rows.append(
+                    [
+                        f"{d.date.isoformat()}{timing}",
+                        getattr(user, "employee_id", "") or "",
+                        (getattr(user, "full_name", "") or getattr(user, "username", "")) if user else "",
+                        getattr(user, "phone_number", "") if user else "",
+                        getattr(getattr(user, "directorate", None), "name", "") if user else "",
+                        getattr(getattr(user, "department", None), "name", "") if user else "",
+                        getattr(office, "name", "") or (getattr(getattr(user, "office", None), "name", "") if user else ""),
+                        getattr(schedule, "name", "") or "",
+                        getattr(schedule, "start_time", None).strftime("%H:%M") if getattr(schedule, "start_time", None) else "",
+                        getattr(schedule, "end_time", None).strftime("%H:%M") if getattr(schedule, "end_time", None) else "",
+                        getattr(pos, "alias", None) or getattr(pos, "name", "-") if pos else "-",
+                        getattr(getattr(user, "responsibility", None), "name", "-") if user else "-",
+                    ]
+                )
 
         # Pre-translate unique names to avoid sequential API call bottleneck
         unique_names = list(set(r[2] for r in rows if r[2]))
@@ -1362,7 +1418,7 @@ class DutyChartExportFile(APIView):
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.title = "Duty Export"
-            headers = ["Date", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position"]
+            headers = ["Date", "Employee ID", "Employee Name", "Phone", "Directorate", "Department", "Office", "Schedule", "Start Time", "End Time", "Position", "Responsibility"]
             ws.append(headers)
             
             # Bold headers
@@ -1410,15 +1466,22 @@ class DutyChartExportFile(APIView):
                 phone_np = to_nepali_digits(r[3])
                 
                 # Column 6: Date handling (Convert to Nepali digits)
-                just_date = r[0].split('\n')[0]
-                if nepali_datetime:
-                   try:
-                       d_obj = datetime.date.fromisoformat(just_date)
-                       n_date = nepali_datetime.date.from_datetime_date(d_obj)
-                       just_date = str(n_date)
-                   except:
-                       pass
-                timeline_np = to_nepali_digits(just_date.replace('-', '/'))
+                date_input = r[0].split('\n')[0]
+                date_parts = [d.strip() for d in date_input.split(',')]
+                nepali_dates = []
+                
+                for d_str in date_parts:
+                    converted_d = d_str
+                    if nepali_datetime:
+                        try:
+                            d_obj = datetime.date.fromisoformat(d_str)
+                            n_date = nepali_datetime.date.from_datetime_date(d_obj)
+                            converted_d = str(n_date)
+                        except:
+                            pass
+                    nepali_dates.append(converted_d.replace('-', '/'))
+                
+                timeline_np = to_nepali_digits(", ".join(nepali_dates))
 
                 row_data = [sn_np, pos, name_np, phone_np, "", "", timeline_np, ""]
                 table_rows_html += "<tr>" + "".join([f"<td>{cell}</td>" for cell in row_data]) + "</tr>"
@@ -1652,15 +1715,22 @@ class DutyChartExportFile(APIView):
                 row_cells[5].text = ""     # Target
 
                 # Column 6: Date
-                just_date = r[0].split('\n')[0]
-                if nepali_datetime:
-                   try:
-                       d_obj = datetime.date.fromisoformat(just_date)
-                       n_date = nepali_datetime.date.from_datetime_date(d_obj)
-                       just_date = str(n_date)
-                   except:
-                       pass
-                row_cells[6].text = to_nepali_digits(just_date.replace('-', '/'))
+                date_input = r[0].split('\n')[0]
+                date_parts = [d.strip() for d in date_input.split(',')]
+                nepali_dates = []
+                
+                for d_str in date_parts:
+                    converted_d = d_str
+                    if nepali_datetime:
+                        try:
+                            d_obj = datetime.date.fromisoformat(d_str)
+                            n_date = nepali_datetime.date.from_datetime_date(d_obj)
+                            converted_d = str(n_date)
+                        except:
+                            pass
+                    nepali_dates.append(converted_d.replace('-', '/'))
+                
+                row_cells[6].text = to_nepali_digits(", ".join(nepali_dates))
                 row_cells[7].text = ""
 
                 # Align data rows
@@ -1736,6 +1806,7 @@ class DutyChartImportTemplateView(APIView):
         office_id = request.query_params.get("office_id")
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
+        chart_id = request.query_params.get("chart_id")
         # Handle both 'schedule_ids' and Axios-style 'schedule_ids[]'
         schedule_ids = request.query_params.getlist("schedule_ids") or request.query_params.getlist("schedule_ids[]")
 
@@ -1756,17 +1827,28 @@ class DutyChartImportTemplateView(APIView):
         if not (start_date and end_date):
             return Response({"detail": "Invalid dates"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Fetch existing duties if editing
+        existing_duties_map = {} # (date, schedule_id) -> list of duties
+        if chart_id:
+            from .models import Duty
+            existing_duties = Duty.objects.filter(duty_chart_id=chart_id).select_related('user', 'user__position', 'schedule')
+            for d in existing_duties:
+                key = (d.date, d.schedule_id)
+                if key not in existing_duties_map:
+                    existing_duties_map[key] = []
+                existing_duties_map[key].append(d)
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Duty Import Template"
 
-        headers = ["Date (BS)", "Search Employee", "Employee ID", "Employee Name", "Phone", "Office", "Schedule", "Start Time", "End Time", "Position"]
+        headers = ["Date (BS)", "Search Employee", "Employee ID", "Employee Name", "Phone", "Office", "Schedule", "Start Time", "End Time", "Position", "Responsibility", "Duty ID (Do not edit)"]
         ws.append(headers)
 
         # Create a reference sheet for employees
         ws_users = wb.create_sheet("Reference")
-        # Column Order: 1: Search Key (Lookup), 2: Full Name, 3: Employee ID, 4: Phone, 5: Position, 6: Office
-        ws_users.append(["Search Key", "Full Name", "Employee ID", "Phone", "Position", "Office"])
+        # Column Order: 1: Search Key (Lookup), 2: Full Name, 3: Employee ID, 4: Phone, 5: Position, 6: Office, 7: Responsibility
+        ws_users.append(["Search Key", "Full Name", "Employee ID", "Phone", "Position", "Office", "Responsibility"])
         
         from users.models import User
         from django.db.models import Q
@@ -1774,13 +1856,13 @@ class DutyChartImportTemplateView(APIView):
                          user_has_permission_slug(request.user, 'duties.assign_any_office_employee')
 
         if can_assign_all:
-            users = User.objects.filter(is_activated=True).select_related('directorate', 'department', 'position', 'office')
+            users = User.objects.filter(is_activated=True).select_related('directorate', 'department', 'position', 'office', 'responsibility')
         else:
             # Strictly use the primary office relationship
             users = User.objects.filter(
                 office=office,
                 is_activated=True
-            ).select_related('directorate', 'department', 'position', 'office')
+            ).select_related('directorate', 'department', 'position', 'office', 'responsibility')
         
         for u in users:
             office_name = getattr(u.office, 'name', 'N/A')
@@ -1791,7 +1873,8 @@ class DutyChartImportTemplateView(APIView):
                 u.employee_id,
                 u.phone_number,
                 getattr(u.position, 'name', ''),
-                office_name
+                office_name,
+                getattr(u.responsibility, 'name', '')
             ])
 
         # Fill the main duty sheet
@@ -1800,30 +1883,48 @@ class DutyChartImportTemplateView(APIView):
         for sch in schedules:
             for i in range(days):
                 duty_date = start_date + timedelta(days=i)
-                # 2 slots per date/schedule
-                for _ in range(2):
-                    # Reference sheet columns: 1:Key, 2:Name, 3:ID, 4:Phone, 5:Position, 6:Office
+                
+                # Get existing assignments for this day/shift
+                current_assignments = existing_duties_map.get((duty_date, sch.id), [])
+                
+                # We always show at least 2 rows per day/shift. 
+                # If there are more than 2 existing assignments, show all of them.
+                slots_to_fill = max(2, len(current_assignments))
+                
+                for j in range(slots_to_fill):
+                    # Reference sheet columns: 1:Key, 2:Name, 3:ID, 4:Phone, 5:Position, 6:Office, 7:Responsibility
                     def vlookup_f(col):
                         # Use wildcards on both sides ("*" & B2 & "*") to allow searching by ID OR Name
-                        return f'=IF(ISBLANK(B{row_idx}), "", IFERROR(VLOOKUP("*" & B{row_idx} & "*", Reference!$A$2:$F$10000, {col}, FALSE), ""))'
+                        return f'=IF(ISBLANK(B{row_idx}), "", IFERROR(VLOOKUP("*" & B{row_idx} & "*", Reference!$A$2:$G$10000, {col}, FALSE), ""))'
 
                     if nepali_datetime:
                         bs_date_str = nepali_datetime.date.from_datetime_date(duty_date).strftime("%Y-%m-%d")
                     else:
                         bs_date_str = duty_date.isoformat()
 
-                    ws.append([
+                    existing_d = current_assignments[j] if j < len(current_assignments) else None
+                    
+                    if existing_d and existing_d.user:
+                        # User requested to only show dates/slots that have not been updated (assigned)
+                        # So we skip already assigned slots in the template
+                        continue
+                    
+                    row_data = [
                         bs_date_str,
-                        "",           # Search Employee (Dropdown Box) - Column B
-                        vlookup_f(3), # Employee ID - Column C
-                        vlookup_f(2), # Employee Name - Column D
-                        vlookup_f(4), # Phone - Column E
-                        vlookup_f(6), # Office - Column F
+                        "",           # Search Employee
+                        vlookup_f(3), # ID
+                        vlookup_f(2), # Name
+                        vlookup_f(4), # Phone
+                        vlookup_f(6), # Office
                         sch.name,
                         sch.start_time.strftime("%H:%M"),
                         sch.end_time.strftime("%H:%M"),
-                        vlookup_f(5)  # Position - Column J
-                    ])
+                        vlookup_f(5), # Position
+                        vlookup_f(7), # Responsibility
+                        ""            # Duty ID
+                    ]
+                    
+                    ws.append(row_data)
                     row_idx += 1
 
         # Add Data Validation for the Search Box (Column B)
@@ -1839,6 +1940,7 @@ class DutyChartImportTemplateView(APIView):
         ws.column_dimensions['E'].width = 15
         ws.column_dimensions['F'].width = 30
         ws.column_dimensions['J'].width = 25
+        ws.column_dimensions['K'].width = 25
 
         bio = BytesIO()
         wb.save(bio)
@@ -2116,7 +2218,8 @@ class DutyChartImportView(APIView):
                             errors.append(f"Row {row_num}: Time mismatch for '{sch_name}'. Expected {sch_start_str}-{sch_end_str}, found {excel_start}-{excel_end}.")
                             continue
 
-                        # --- E. Collision Detection (Global & Internal) ---
+                        # --- E. Collision Detection & Update Logic ---
+                        duty_id = row.get("Duty ID (Do not edit)")
                         assignment_key = (user.id, duty_date, schedule.id)
                         
                         # 1. Internal check (Duplicate in file)
@@ -2125,8 +2228,28 @@ class DutyChartImportView(APIView):
                             continue
                         seen_in_file.add(assignment_key)
 
-                        # 2. Global check (Existing in database across all charts)
-                        if Duty.objects.filter(user=user, date=duty_date, schedule=schedule).exists():
+                        # 2. Update or Create Logic
+                        existing_duty = None
+                        if not pd.isna(duty_id) and str(duty_id).strip():
+                            try:
+                                existing_duty = Duty.objects.filter(id=int(float(duty_id)), duty_chart=chart).first()
+                            except:
+                                pass
+                        
+                        if not existing_duty:
+                            # Search by natural key within the SAME chart
+                            existing_duty = Duty.objects.filter(duty_chart=chart, date=duty_date, schedule=schedule, user=user).first()
+                        
+                        # --- REDUNDANCY CHECK ---
+                        # If the assignment already exists and it's for the SAME user, skip it.
+                        # This avoids "Update" rows in preview that don't actually change anything.
+                        if existing_duty and existing_duty.user_id == user.id:
+                            continue
+
+                        # 3. Global collision check (Check other charts)
+                        # We only check for collisions in OTHER charts.
+                        other_collision = Duty.objects.filter(user=user, date=duty_date, schedule=schedule).exclude(duty_chart=chart).exists()
+                        if other_collision:
                             errors.append(f"Row {row_num}: {user.full_name} is already assigned to {sch_name} on {duty_date} in another duty chart.")
                             continue
 
@@ -2143,18 +2266,27 @@ class DutyChartImportView(APIView):
                             "employee_name": user.full_name or user.username,
                             "schedule": sch_name_str,
                             "time": f"{sch_start_str} - {sch_end_str}",
-                            "office": office.name
+                            "office": office.name,
+                            "action": "Update" if existing_duty else "Create"
                         })
 
                         if not dry_run:
-                            # --- G. Create Duty ---
-                            Duty.objects.create(
-                                user=user,
-                                office=office,
-                                schedule=schedule,
-                                date=duty_date,
-                                duty_chart=chart
-                            )
+                            if existing_duty:
+                                # Update existing
+                                existing_duty.user = user
+                                existing_duty.office = office
+                                existing_duty.schedule = schedule
+                                existing_duty.date = duty_date
+                                existing_duty.save()
+                            else:
+                                # Create new
+                                Duty.objects.create(
+                                    user=user,
+                                    office=office,
+                                    schedule=schedule,
+                                    date=duty_date,
+                                    duty_chart=chart
+                                )
                             assigned_users.add(user)
                         created_count += 1
                     except Exception as e:

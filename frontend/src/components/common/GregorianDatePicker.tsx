@@ -15,9 +15,18 @@ interface GregorianDatePickerProps {
     onChange: (isoValue: string) => void;
     className?: string;
     placeholder?: string;
+    minDate?: Date;
+    maxDate?: Date;
 }
 
-export function GregorianDatePicker({ value, onChange, className, placeholder = "mm/dd/yyyy" }: GregorianDatePickerProps) {
+export function GregorianDatePicker({ 
+    value, 
+    onChange, 
+    className, 
+    placeholder = "mm/dd/yyyy",
+    minDate,
+    maxDate
+}: GregorianDatePickerProps) {
     const date = value ? parseISO(value) : undefined;
 
     const [isOpen, setIsOpen] = React.useState(false);
@@ -41,6 +50,11 @@ export function GregorianDatePicker({ value, onChange, className, placeholder = 
                 <Calendar
                     mode="single"
                     selected={date}
+                    disabled={(date) => {
+                        if (minDate && date < minDate) return true;
+                        if (maxDate && date > maxDate) return true;
+                        return false;
+                    }}
                     onSelect={(d) => {
                         if (d) {
                             const iso = format(d, "yyyy-MM-dd");

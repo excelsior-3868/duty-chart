@@ -113,6 +113,7 @@ import AccountingOfficesPage from "@/pages/AccountingOfficesPage";
 import CCOfficesPage from "@/pages/CCOfficesPage";
 import ApiDocsPage from "@/pages/ApiDocsPage";
 import ArchitecturePage from "@/pages/ArchitecturePage";
+import PositionsResponsibilitiesPage from "@/pages/PositionsResponsibilitiesPage";
 import MyDuties from "@/pages/MyDuties";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Outlet } from "react-router-dom";
@@ -286,6 +287,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute requiredPermission="org.view_cc_office">
                 <CCOfficesPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.POSITIONS_RESPONSIBILITIES,
+            element: (
+              <ProtectedRoute requiredPermission="system.view_settings">
+                <PositionsResponsibilitiesPage />
               </ProtectedRoute>
             ),
           },

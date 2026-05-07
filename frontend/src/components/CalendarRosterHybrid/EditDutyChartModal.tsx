@@ -39,12 +39,16 @@ interface EditDutyChartModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateSuccess?: (updatedChart?: Partial<DutyChartDTO>) => void;
+  initialOfficeId?: string;
+  initialChartId?: string;
 }
 
 export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   open,
   onOpenChange,
-  onUpdateSuccess
+  onUpdateSuccess,
+  initialOfficeId,
+  initialChartId,
 }) => {
   const { user, canManageOffice, hasPermission } = useAuth();
   const [charts, setCharts] = useState<DutyChartDTO[]>([]);
@@ -75,6 +79,9 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  // Holds the chart ID to auto-select after the office's chart list loads.
+  // A ref is used so the async fetchByOffice closure can read the latest value.
+  const pendingChartIdRef = React.useRef<string>("");
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [previewStats, setPreviewStats] = useState({ total: 0 });
@@ -118,10 +125,11 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       };
       load();
 
-      // Set initial state based on props or default empty
-      // Clear selections on open
-      setSelectedChartId("");
-      setFormData((prev) => ({ ...prev, office: "" }));
+      // Pre-populate from the parent calendar's current selection if provided,
+      // otherwise reset to empty.
+      pendingChartIdRef.current = initialChartId || "";
+      setSelectedChartId(""); // will be set properly after charts load
+      setFormData((prev) => ({ ...prev, office: initialOfficeId || "" }));
 
       // We also need to clear charts list initially until fetched by office selection
       setCharts([]);
@@ -198,7 +206,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
           const visibleCharts = chartsRes;
 
           setCharts(visibleCharts);
-          if (!visibleCharts.find(c => String(c.id) === selectedChartId)) {
+
+          // If there's a pending initial chart ID (from parent screen), apply it
+          // after the chart list has loaded — this avoids the stale-closure reset.
+          const pending = pendingChartIdRef.current;
+          if (pending && visibleCharts.find(c => String(c.id) === pending)) {
+            setSelectedChartId(pending);
+            pendingChartIdRef.current = ""; // consumed
+          } else if (!visibleCharts.find(c => String(c.id) === selectedChartId)) {
             setSelectedChartId("");
           }
           const filtered = await getSchedules(officeId);
@@ -261,21 +276,12 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
 
     setIsDownloadingTemplate(true);
     try {
-      // EXCLUDE existing shifts from the template
-      const initialSchedules = (initialChart?.schedules || []).map(String);
-      const newScheduleIds = formData.scheduleIds.filter(id => !initialSchedules.includes(id));
-
-      if (newScheduleIds.length === 0) {
-        toast.error("All selected shifts are already in this chart. Please select at least one new shift to download a template.");
-        setIsDownloadingTemplate(false);
-        return;
-      }
-
       await downloadImportTemplate({
         office_id: parseInt(formData.office),
         start_date: formData.effective_date,
         end_date: formData.end_date,
-        schedule_ids: newScheduleIds.map(id => parseInt(id))
+        schedule_ids: formData.scheduleIds.map(id => parseInt(id)),
+        chart_id: selectedChartId ? parseInt(selectedChartId) : undefined
       });
       toast.success("Template download started");
     } catch (error) {
@@ -797,16 +803,21 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                               <button
                                 type="button"
                                 key={s.id}
-                                onClick={() => !isExisting && toggleSchedule(String(s.id))}
-                                disabled={isExisting}
+                                onClick={() => toggleSchedule(String(s.id))}
                                 className={`flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors ${selected
-                                  ? "border-primary bg-primary/10 text-primary"
+                                  ? "border-primary bg-primary/10 text-primary font-medium"
                                   : "border-[hsl(var(--gray-300))] hover:border-primary/50 hover:bg-[hsl(var(--card))]"
-                                  } ${isExisting ? "opacity-70 cursor-not-allowed bg-slate-50" : ""}`}
-                                title={isExisting ? "Existing shifts cannot be removed" : ""}
+                                  }`}
                               >
-                                <span>{s.name} – {s.start_time} to {s.end_time}</span>
-                                {selected && <Check className={`h-3 w-3 ${isExisting ? "text-primary/50" : "text-primary"}`} />}
+                                <div className="flex items-center gap-2">
+                                  <span>{s.name} – {s.start_time.slice(0, 5)} to {s.end_time.slice(0, 5)}</span>
+                                  {isExisting && (
+                                    <Badge variant="outline" className="text-[9px] py-0 px-1.5 bg-blue-50 text-blue-600 border-blue-100 font-normal">
+                                      Duty Added
+                                    </Badge>
+                                  )}
+                                </div>
+                                {selected && <Check className="h-3.5 w-3.5 text-primary" />}
                               </button>
                             );
                           })}
@@ -938,10 +949,10 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
               <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
               <div>
                 <p className="text-sm font-semibold text-primary/90">
-                  Ready to append {previewStats.total} duty assignments.
+                  Ready to process {previewStats.total} duty assignments.
                 </p>
                 <p className="text-xs text-primary/70">
-                  Please review the details below. Assignments will be added to the existing duty chart.
+                  Please review the details below. Existing duties in this chart will be updated if modified, and new ones will be added.
                 </p>
               </div>
             </div>
@@ -955,6 +966,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                     <TableHead>Employee</TableHead>
                     <TableHead>Shift</TableHead>
                     <TableHead>Time</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -979,6 +991,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">{duty.time}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={duty.action === "Update" ? "secondary" : "default"}
+                          className={duty.action === "Update" ? "bg-blue-100 text-blue-700 hover:bg-blue-200" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}
+                        >
+                          {duty.action || "Create"}
+                        </Badge>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

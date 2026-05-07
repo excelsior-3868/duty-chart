@@ -57,6 +57,7 @@ interface PreviewDuty {
   schedule: string;
   time: string;
   office: string;
+  action?: "Update" | "Create";
 }
 
 interface DutyChartCardProps {
@@ -750,6 +751,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                     <TableHead>Employee</TableHead>
                     <TableHead>Shift</TableHead>
                     <TableHead>Time</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -774,6 +776,14 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">{duty.time}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={duty.action === "Update" ? "secondary" : "default"}
+                          className={duty.action === "Update" ? "bg-blue-100 text-blue-700 hover:bg-blue-200" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}
+                        >
+                          {duty.action || "Create"}
+                        </Badge>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

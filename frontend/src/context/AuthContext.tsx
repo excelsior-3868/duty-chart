@@ -134,13 +134,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const canManageOffice = (officeId: number): boolean => {
     if (!user) return false;
 
-    // If user has 'view_any_office_chart' or 'create_any_office_chart', they can manage any office
-    if (user.permissions.includes('duties.view_any_office_chart') ||
-      user.permissions.includes('duties.create_any_office_chart')) {
+    // SuperAdmin can manage everything
+    if (user.role === 'SUPERADMIN') return true;
+
+    // If they are explicitly assigned to the office (primary or secondary)
+    if (isAssignedToOffice(officeId)) return true;
+
+    // If they have the explicit permission to manage any office's assignments
+    if (user.permissions.includes('duties.assign_any_office_employee')) {
       return true;
     }
 
-    return isAssignedToOffice(officeId);
+    return false;
   };
 
   const isAssignedToOffice = (officeId: number): boolean => {

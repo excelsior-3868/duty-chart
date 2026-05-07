@@ -47,11 +47,7 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
   };
 
   const handleApprove = async () => {
-    if (anusuchiFiles.length === 0) {
-      toast.error("Please upload the approved Anusuchi 1 document.");
-      return;
-    }
-
+    // Document upload is now optional
     setLoading(true);
     try {
       const formData = new FormData();
@@ -98,7 +94,7 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
               <div>
                 <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
                   <FileUp className="h-4 w-4" />
-                  स्वीकृत अनुसूची कागजातहरू *
+                  स्वीकृत अनुसूची कागजातहरू
                 </h3>
                 <p className="text-xs text-emerald-600/80">
                   Upload multiple signed/approved documents for this chart.
@@ -142,7 +138,7 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
             
             {anusuchiFiles.length === 0 && (
               <div className="text-center py-4 border border-emerald-100 border-dashed rounded-md bg-white/50">
-                <p className="text-xs text-emerald-600/60 italic">No documents added yet. At least one is required for approval.</p>
+                <p className="text-xs text-emerald-600/60 italic">No documents added yet. (Optional)</p>
               </div>
             )}
           </div>
@@ -172,7 +168,7 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
           </Button>
           <Button 
             onClick={handleApprove} 
-            disabled={loading || anusuchiFiles.length === 0}
+            disabled={loading}
             className="bg-emerald-600 hover:bg-emerald-700 gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}

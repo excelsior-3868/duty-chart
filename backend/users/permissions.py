@@ -58,9 +58,8 @@ class AdminOrReadOnly(BasePermission):
             return True
         if IsOfficeAdmin().has_permission(request, view):
             return True
-        # Allow partial updates (like profile pic) if target is self
-        # This is checked further in has_object_permission
-        return request.user and request.user.is_authenticated
+        # If not SuperAdmin or OfficeAdmin, deny write permissions
+        return False
 
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:

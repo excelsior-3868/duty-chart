@@ -7,6 +7,7 @@ import { getUsers, getUser, type User } from "@/services/users";
 import { getOffice, type Office } from "@/services/offices";
 import { bulkUpsertDuties, createDuty, getDutiesFiltered } from "@/services/dutiesService";
 import { getSchedules, getScheduleById, type Schedule } from "@/services/schedule";
+import { type DutyChart } from "@/services/dutichart";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange, Search, Check, ChevronsUpDown, Loader2 } from "lucide-react";
@@ -35,6 +36,7 @@ interface CreateDutyModalProps {
   onOpenChange: (open: boolean) => void;
   officeId: number;
   dutyChartId: number;
+  dutyChartInfo?: DutyChart | null;
   dateISO: string; // yyyy-MM-dd
   scheduleId?: number; // resolved schedule id for the clicked shift
   onCreated?: () => void; // callback to refresh duties after successful create
@@ -45,6 +47,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   onOpenChange,
   officeId,
   dutyChartId,
+  dutyChartInfo,
   dateISO: initialDateISO,
   scheduleId: initialScheduleId,
   onCreated,
@@ -64,6 +67,18 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   const [isRange, setIsRange] = useState(false);
   const [dateMode, setDateMode] = useState<"AD" | "BS">("BS");
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
+
+  const minDate = dutyChartInfo?.effective_date || "";
+  const maxDate = dutyChartInfo?.end_date || "";
+
+  const formatDisplayDate = (iso: string) => {
+    if (!iso) return "—";
+    if (dateMode === "BS") {
+      const nd = new NepaliDate(new Date(iso));
+      return `${(nd.getMonth() + 1).toString().padStart(2, '0')}/${nd.getDate().toString().padStart(2, '0')}/${nd.getYear()}`;
+    }
+    return format(parseISO(iso), "MM/dd/yyyy");
+  };
 
 
   useEffect(() => {
@@ -173,6 +188,20 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       toast.error("Backdated assignment not allowed", {
         description: "Employee assignment in the past is not allowed."
       });
+      return;
+    }
+
+    // Duty Chart Date Range Validation
+    if (minDate && dateISO < minDate) {
+      toast.error(`Date cannot be before Duty Chart start date (${formatDisplayDate(minDate)})`);
+      return;
+    }
+    if (maxDate && dateISO > maxDate) {
+      toast.error(`Date cannot be after Duty Chart end date (${formatDisplayDate(maxDate)})`);
+      return;
+    }
+    if (isRange && maxDate && endDateISO > maxDate) {
+      toast.error(`End date cannot be after Duty Chart end date (${formatDisplayDate(maxDate)})`);
       return;
     }
 
@@ -330,8 +359,13 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
               <DialogTitle>Create Duty</DialogTitle>
               <DialogDescription>
                 Assign an employee to this schedule for a specific date.
+                {dutyChartInfo && (
+                  <span className="block mt-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 w-fit shadow-sm">
+                    Effective: {formatDisplayDate(minDate)} — {formatDisplayDate(maxDate)}
+                  </span>
+                )}
                 {dutyChartId && (
-                  <span className="block mt-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">
+                  <span className="block mt-2 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit">
                     Note: SMS notifications are only sent for Approved charts.
                   </span>
                 )}
@@ -469,11 +503,15 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                   <GregorianDatePicker
                     value={dateISO}
                     onChange={setDateISO}
+                    minDate={minDate ? parseISO(minDate) : undefined}
+                    maxDate={maxDate ? parseISO(maxDate) : undefined}
                   />
                 ) : (
                   <NepaliDatePicker
                     value={dateISO}
                     onChange={setDateISO}
+                    minDate={minDate}
+                    maxDate={maxDate}
                   />
                 )}
               </div>
@@ -485,11 +523,15 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                     <GregorianDatePicker
                       value={endDateISO}
                       onChange={setEndDateISO}
+                      minDate={minDate ? parseISO(minDate) : undefined}
+                      maxDate={maxDate ? parseISO(maxDate) : undefined}
                     />
                   ) : (
                     <NepaliDatePicker
                       value={endDateISO}
                       onChange={setEndDateISO}
+                      minDate={minDate}
+                      maxDate={maxDate}
                     />
                   )}
                 </div>

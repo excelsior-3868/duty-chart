@@ -7,7 +7,10 @@ export interface Position {
 }
 
 export const getPositions = async (): Promise<Position[]> => {
-  const res = await api.get<Position[]>("/positions/");
+  const res = await api.get<any>("/positions/", { params: { page_size: 1000 } });
+  if (res.data.results && Array.isArray(res.data.results)) {
+    return res.data.results;
+  }
   return res.data;
 };
 

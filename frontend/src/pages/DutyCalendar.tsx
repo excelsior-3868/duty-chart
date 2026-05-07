@@ -1,15 +1,15 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@/utils/constants";
 import NepaliDate from "nepali-date-converter";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2, Info, FileText, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2, Info, FileText, ExternalLink, Upload, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getOffices, type Office } from "@/services/offices";
-import { getDutyCharts, getDutyChartById, approveDutyChart, type DutyChart as DutyChartInfo } from "@/services/dutichart";
+import { getDutyCharts, getDutyChartById, approveDutyChart, patchDutyChart, type DutyChart as DutyChartInfo } from "@/services/dutichart";
 import { getDutiesFiltered, type Duty, deleteDuty } from "@/services/dutiesService";
 import { getUser, type User } from "@/services/users";
 import { getOffice as getOfficeDetail, type Office as OfficeInfo } from "@/services/offices";
@@ -47,7 +47,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 
 // Interface for Duty Chart (simplified)
@@ -130,8 +130,10 @@ const DutyCalendar = () => {
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
     const [showApproveModal, setShowApproveModal] = useState(false);
-
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploadingDocument, setIsUploadingDocument] = useState(false);
 
     // --- State: Schedules (Available Shifts) ---
     const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -158,7 +160,7 @@ const DutyCalendar = () => {
 
     // --- 1. Load Offices ---
     useEffect(() => {
-        document.title = "Duty Calendar - NT Duty Chart Management System";
+        document.title = "Duty Chart Calendar - NT Duty Chart Management System";
         const load = async () => {
             try {
                 const res = await getOffices();
@@ -557,8 +559,31 @@ const DutyCalendar = () => {
     }, [selectedDutyChartId, selectedOfficeId, selectedDutyChartInfo, canManageOffice, hasPermission]);
 
     const canManageSelectedChart = useMemo(() => {
-        return hasPermission('duties.edit_dutychart');
-    }, [hasPermission]);
+        if (!hasPermission('duties.edit_dutychart')) return false;
+        if (isSuperAdmin) return true;
+        if (!selectedDutyChartInfo) return false;
+
+        // Chart creator (with edit permission) can edit even cross-office charts
+        if (isChartCreator) return true;
+
+        // A peer of the creator — same role AND same office as the creator —
+        // can also edit the chart (e.g. another CHRO Network Admin can edit
+        // a chart that was created by a CHRO Network Admin for another office).
+        const creatorRole = (selectedDutyChartInfo as any).created_by_role;
+        const creatorOfficeId = (selectedDutyChartInfo as any).created_by_office;
+        if (
+            creatorRole &&
+            creatorOfficeId &&
+            user?.role === creatorRole &&
+            Number(user?.office_id) === Number(creatorOfficeId)
+        ) return true;
+
+        // Otherwise, user must belong to the chart's own office
+        const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+            ? Number((selectedDutyChartInfo.office as any)?.id)
+            : Number(selectedDutyChartInfo.office);
+        return isAssignedToOffice(chartOfficeId);
+    }, [hasPermission, isSuperAdmin, isChartCreator, selectedDutyChartInfo, isAssignedToOffice, user]);
 
 
     const canDeleteDuty = useMemo(() => {
@@ -573,6 +598,31 @@ const DutyCalendar = () => {
             : Number(selectedDutyChartInfo.office);
         return isAssignedToOffice(chartOfficeId);
     }, [selectedDutyChartInfo, hasPermission, isSuperAdmin, isChartCreator, isAssignedToOffice]);
+
+    const handleUploadAdditionalDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !selectedDutyChartId) return;
+
+        setIsUploadingDocument(true);
+        try {
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('anusuchi_documents', file);
+            });
+
+            await patchDutyChart(parseInt(selectedDutyChartId), formData);
+            toast.success("Document(s) uploaded successfully");
+            
+            // Refresh chart info to show new documents
+            await fetchDutyChartInfo();
+        } catch (error) {
+            console.error("Failed to upload document:", error);
+            toast.error("Failed to upload document");
+        } finally {
+            setIsUploadingDocument(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const handleDeleteDuty = async () => {
         if (!selectedProfile?.id) return;
@@ -617,7 +667,7 @@ const DutyCalendar = () => {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <PageHeader 
-                            title="Duty Calendar" 
+                            title="Duty Chart Calendar" 
                             subtitle="Manage events and duty schedules." 
                             icon={CalendarIcon} 
                             iconColor="text-emerald-500"
@@ -630,44 +680,78 @@ const DutyCalendar = () => {
                                             <Check className="w-3 h-3" /> Approved
                                         </Badge>
                                         
-                                        {selectedDutyChartInfo && (selectedDutyChartInfo as any).anusuchi_documents?.length > 0 && (
+                                        {selectedDutyChartInfo && (selectedDutyChartInfo.status === 'approved' || (selectedDutyChartInfo as any).anusuchi_documents?.length > 0) && (() => {
+                                            // Document is visible to: SuperAdmin, employees of the chart's office,
+                                            // or the user/network-admin who created this duty chart.
+                                            const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+                                                ? Number((selectedDutyChartInfo.office as any)?.id)
+                                                : Number(selectedDutyChartInfo.office);
+                                            const canSeeDocument = isSuperAdmin || isAssignedToOffice(chartOfficeId) || isChartCreator;
+                                            return canSeeDocument;
+                                        })() && (
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm transition-all hover:scale-110">
                                                         <FileText className="w-4 h-4" />
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-64 p-2" align="start">
+                                                <PopoverContent className="w-72 p-2" align="start">
                                                     <div className="space-y-2">
-                                                        <div className="px-2 py-1 border-b">
+                                                        <div className="px-2 py-1 border-b flex items-center justify-between">
                                                             <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
                                                                 <FileText className="w-3 h-3 text-emerald-600" />
-                                                                स्वीकृत अनुसूची कागजातहरू
+                                                                अनुसूची कागजातहरू
                                                             </h4>
-                                                        </div>
-                                                        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
-                                                            {(selectedDutyChartInfo as any).anusuchi_documents.map((doc: any, idx: number) => (
-                                                                <a 
-                                                                    key={idx}
-                                                                    href={doc.file}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
+                                                            {canManageSelectedChart && (
+                                                                <Button 
+                                                                    variant="default" 
+                                                                    size="sm" 
+                                                                    className="h-7 px-2.5 text-[10px] gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-all shadow-sm"
+                                                                    disabled={isUploadingDocument}
+                                                                    onClick={() => fileInputRef.current?.click()}
                                                                 >
-                                                                    <div className="flex items-center gap-2 min-w-0">
-                                                                        <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0">
-                                                                            <span className="text-[10px] font-bold text-emerald-700">{idx + 1}</span>
+                                                                    {isUploadingDocument ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                                                    थप कागजात
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                        <input 
+                                                            type="file" 
+                                                            ref={fileInputRef} 
+                                                            className="hidden" 
+                                                            multiple 
+                                                            onChange={handleUploadAdditionalDocument}
+                                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                                        />
+                                                        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+                                                            {((selectedDutyChartInfo as any).anusuchi_documents || []).length > 0 ? (
+                                                                (selectedDutyChartInfo as any).anusuchi_documents.map((doc: any, idx: number) => (
+                                                                    <a 
+                                                                        key={idx}
+                                                                        href={doc.file}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
+                                                                    >
+                                                                        <div className="flex items-center gap-2 min-w-0">
+                                                                            <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0">
+                                                                                <span className="text-[10px] font-bold text-emerald-700">{idx + 1}</span>
+                                                                            </div>
+                                                                            <div className="flex flex-col min-w-0">
+                                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase italic">अनुसूची - १</span>
+                                                                                <span className="text-xs font-medium text-slate-600 truncate">
+                                                                                    {doc.file.split('/').pop()}
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
-                                                                        <div className="flex flex-col min-w-0">
-                                                                            <span className="text-[10px] font-bold text-emerald-600 uppercase italic">अनुसूची - १</span>
-                                                                            <span className="text-xs font-medium text-slate-600 truncate">
-                                                                                {doc.file.split('/').pop()}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-500 shrink-0" />
-                                                                </a>
-                                                            ))}
+                                                                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-500 shrink-0" />
+                                                                    </a>
+                                                                ))
+                                                            ) : (
+                                                                <div className="py-4 text-center text-[10px] text-slate-400 italic">
+                                                                    कुनै कागजात अपलोड गरिएको छैन।
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </PopoverContent>
@@ -691,7 +775,7 @@ const DutyCalendar = () => {
                     <div className="flex flex-col md:flex-row items-center gap-4">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-[300px]">
                             <TabsList className={cn("grid w-full", hasPermission('duties.view_available_shifts') ? "grid-cols-2" : "grid-cols-1")}>
-                                <TabsTrigger value="calendar">Duty Calendar</TabsTrigger>
+                                <TabsTrigger value="calendar">Duty Chart Calendar</TabsTrigger>
                                 {hasPermission('duties.view_available_shifts') && (
                                     <TabsTrigger value="shifts">Available Shift</TabsTrigger>
                                 )}
@@ -716,7 +800,15 @@ const DutyCalendar = () => {
                                     <Pencil className="w-3.5 h-3.5" /> Edit Chart
                                 </Button>
                             )}
-                            {canManageSelectedChart && selectedDutyChartInfo?.status === 'draft' && (
+                            {selectedDutyChartInfo?.status === 'draft' && (() => {
+                                // Approval is strictly office-scoped:
+                                // Only SuperAdmin or an employee assigned to the chart's OWN office
+                                // may approve. The chart creator from a different office may NOT approve.
+                                const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
+                                    ? Number((selectedDutyChartInfo.office as any)?.id)
+                                    : Number(selectedDutyChartInfo.office);
+                                return isSuperAdmin || isAssignedToOffice(chartOfficeId);
+                            })() && (
                                 <Button className="gap-2 text-xs h-9 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowApproveModal(true)}>
                                     <Check className="w-3.5 h-3.5" /> Approve & Notify
                                 </Button>
@@ -1237,6 +1329,8 @@ const DutyCalendar = () => {
                 <EditDutyChartModal
                     open={showEditDutyChart}
                     onOpenChange={setShowEditDutyChart}
+                    initialOfficeId={selectedOfficeId}
+                    initialChartId={selectedDutyChartId}
                     onUpdateSuccess={(updatedChart) => {
                         if (updatedChart?.office && String(updatedChart.office) !== selectedOfficeId) {
                             setSelectedOfficeId(String(updatedChart.office));
@@ -1257,6 +1351,7 @@ const DutyCalendar = () => {
                         }}
                         officeId={parseInt(selectedOfficeId)}
                         dutyChartId={parseInt(selectedDutyChartId)}
+                        dutyChartInfo={selectedDutyChartInfo}
                         dateISO={createDutyContext.dateISO}
                         scheduleId={0} // 0 tells modal to ask for schedule
                         onCreated={fetchDuties}

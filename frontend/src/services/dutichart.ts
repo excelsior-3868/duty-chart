@@ -84,6 +84,7 @@ export const downloadImportTemplate = async (params: {
   start_date: string;
   end_date: string;
   schedule_ids: number[];
+  chart_id?: number;
 }) => {
   const response = await api.get("/duty-chart/import-template/", {
     params,

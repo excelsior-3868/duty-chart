@@ -560,6 +560,7 @@ class DutyReportNewFileView(APIView):
         date_to = request.GET.get("date_to")
         schedule_id = request.GET.get("schedule_id")
         office_id = request.GET.get("office_id")
+        group_by_employee = request.GET.get("group_by_employee") == "true"
 
         chart = None
         if duty_id:
@@ -593,6 +594,29 @@ class DutyReportNewFileView(APIView):
             qs = qs.filter(office_id__in=allowed_offices)
 
         qs = qs.order_by("date", "schedule__start_time")
+
+        if group_by_employee:
+            # Group duties by user
+            grouped_data = {}
+            for d in qs:
+                uid = d.user_id
+                if uid not in grouped_data:
+                    grouped_data[uid] = {
+                        'duty': d,
+                        'dates': []
+                    }
+                grouped_data[uid]['dates'].append(d.date)
+            
+            # Reconstruct list of "representative" duties with consolidated dates
+            # We'll use a trick: keep the 'duty' object but we'll override its date representation in the table loop
+            processed_rows = []
+            for uid, data in grouped_data.items():
+                processed_rows.append({
+                    'duty': data['duty'],
+                    'date_str': ", ".join([dt.isoformat() for dt in sorted(data['dates'])])
+                })
+        else:
+            processed_rows = [{'duty': d, 'date_str': d.date.isoformat()} for d in qs]
 
         doc = Document()
         
@@ -748,7 +772,10 @@ class DutyReportNewFileView(APIView):
         def nep(txt): return str(txt).translate(NEP_DIGITS)
 
         sn = 1
-        for d in qs:
+        for row_item in processed_rows:
+            d = row_item['duty']
+            date_input = row_item['date_str']
+
             cells = table.add_row().cells
             cells[0].text = nep(f"{sn}.")
             
@@ -768,14 +795,18 @@ class DutyReportNewFileView(APIView):
             cells[4].text = ""
             cells[5].text = ""
             
-            d_obj = d.date
-            try:
-                if isinstance(d_obj, str): d_obj = datetime.datetime.strptime(d_obj, "%Y-%m-%d").date()
-                nepali_d = nepali_datetime.date.from_datetime_date(d_obj)
-                date_str = nep(str(nepali_d).replace("-", "/"))
-            except:
-                date_str = nep(str(d_obj).replace("-", "/"))
-            cells[6].text = date_str
+            # Date / Timeline in Nepali
+            date_parts = [dp.strip() for dp in date_input.split(',')]
+            nepali_dates = []
+            for d_str in date_parts:
+                try:
+                    d_obj = datetime.datetime.strptime(d_str, "%Y-%m-%d").date()
+                    nepali_d = nepali_datetime.date.from_datetime_date(d_obj)
+                    nepali_dates.append(str(nepali_d).replace("-", "/"))
+                except:
+                    nepali_dates.append(d_str.replace("-", "/"))
+            
+            cells[6].text = nep(", ".join(nepali_dates))
             cells[7].text = ""
 
             for i in range(8):

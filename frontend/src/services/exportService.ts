@@ -15,6 +15,7 @@ export interface ExportPreviewParams {
   page?: number;
   page_size?: number;
   schedule_id?: number | string;
+  group_by_employee?: boolean;
 }
 
 export interface ExportPreviewResponse {
@@ -47,6 +48,7 @@ export interface ExportFileParams {
   start_date?: string;
   end_date?: string;
   schedule_id?: number | string;
+  group_by_employee?: boolean;
 }
 
 export const downloadDutyChartExportFile = async (

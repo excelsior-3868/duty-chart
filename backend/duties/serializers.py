@@ -80,6 +80,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
         data['schedule_names'] = [s.name for s in instance.schedules.all()]
         data['duties_count'] = instance.duties.count()
         data['created_by_role'] = instance.created_by.role if instance.created_by else None
+        data['created_by_office'] = instance.created_by.office_id if instance.created_by else None
         return data
 
 

@@ -16,7 +16,8 @@ import {
   Mail,
   Building2,
   Landmark,
-  Network
+  Network,
+  ShieldCheck
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ROUTES } from '@/utils/constants';
@@ -43,7 +44,7 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     color: 'text-blue-500'
   },
   {
-    title: 'Duty Calendar',
+    title: 'Duty Chart Calendar',
     href: ROUTES.DUTY_CALENDAR,
     icon: 'Calendar',
     permission: 'duties.view_chart',
@@ -102,6 +103,13 @@ const navigationItems: (NavItem & { permission?: string })[] = [
         permission: 'org.view_cc_office',
         color: 'text-sky-500',
       },
+      {
+        title: 'Position and Responsibility',
+        href: ROUTES.POSITIONS_RESPONSIBILITIES,
+        icon: 'ShieldCheck',
+        permission: 'system.view_settings',
+        color: 'text-orange-500',
+      },
     ]
   },
   {
@@ -144,7 +152,8 @@ const iconMap = {
   Clock,
   FileText,
   Building2,
-  Landmark
+  Landmark,
+  ShieldCheck
 };
 
 export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
@@ -231,9 +240,9 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                         "flex items-center"
                       )}
                     >
-                      <div className="flex items-center gap-3">
-                        {IconComponent && <IconComponent className={cn("h-5 w-5", item.color)} />}
-                        <span className="text-sm font-medium">{item.title}</span>
+                      <div className="flex items-center gap-3 w-full">
+                        {IconComponent && <IconComponent className={cn("h-5 w-5 shrink-0", item.color)} />}
+                        <span className="text-sm font-medium whitespace-normal leading-tight text-left">{item.title}</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pb-0 pt-1 pl-6 space-y-1">
@@ -259,8 +268,8 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
                                 )
                               }
                             >
-                              {ChildIcon && <ChildIcon className={cn("h-4 w-4", child.color)} />}
-                              {child.title}
+                              {ChildIcon && <ChildIcon className={cn("h-4 w-4 shrink-0", child.color)} />}
+                              <span className="whitespace-normal leading-tight text-left">{child.title}</span>
                             </NavLink>
                           </Button>
                         );

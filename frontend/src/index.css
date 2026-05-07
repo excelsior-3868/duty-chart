@@ -193,6 +193,18 @@
     height: 0 !important;
   }
 
+  /* CommandList (cmdk) must have a real scrollbar width so the browser
+     correctly identifies it as a scrollable target and delivers wheel events
+     to it instead of passing them up to the Dialog overlay. */
+  [cmdk-list] {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  [cmdk-list]::-webkit-scrollbar {
+    display: none !important;
+  }
+
   /* Hide scrollbar for IE, Edge and Firefox */
   .no-scrollbar,
   html,

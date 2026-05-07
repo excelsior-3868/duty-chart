@@ -7,13 +7,7 @@ from django.core.exceptions import ValidationError
 from .models import User, Position, Role, Permission, RolePermission, UserDashboardOffice, UserResponsibility
 from .serializers import UserSerializer, PositionSerializer, RoleSerializer, PermissionSerializer, UserDashboardOfficeSerializer, UserResponsibilitySerializer
 
-class UserResponsibilityViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = UserResponsibility.objects.all().order_by('name')
-    serializer_class = UserResponsibilitySerializer
-    permission_classes = [permissions.IsAuthenticated]
 from users.permissions import AdminOrReadOnly, IsSuperAdmin, get_allowed_office_ids, ManageRBACOrReadOnly
-
-# Create your views here.
 
 from rest_framework.pagination import PageNumberPagination
 
@@ -21,6 +15,17 @@ class UserPagination(PageNumberPagination):
     page_size = 15
     page_size_query_param = 'page_size'
     max_page_size = 1000
+
+class UserResponsibilityViewSet(viewsets.ModelViewSet):
+    queryset = UserResponsibility.objects.all().order_by('name')
+    serializer_class = UserResponsibilitySerializer
+    permission_classes = [AdminOrReadOnly]
+    pagination_class = UserPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name']
+    ordering_fields = ['name']
+
+# Create your views here.
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.select_related('position', 'office', 'department', 'directorate').prefetch_related('secondary_offices')
@@ -49,12 +54,17 @@ class UserViewSet(viewsets.ModelViewSet):
         office_id = self.request.query_params.get('office', None)
         is_activated = self.request.query_params.get('is_activated', None)
         duty_chart_id = self.request.query_params.get('duty_chart_id', None)
+        schedule_id = self.request.query_params.get('schedule_id', None)
 
         if is_activated is not None:
             queryset = queryset.filter(is_activated=is_activated.lower() == 'true')
 
-        if duty_chart_id:
+        if duty_chart_id and schedule_id and schedule_id != "all":
+            queryset = queryset.filter(duties__duty_chart_id=duty_chart_id, duties__schedule_id=schedule_id).distinct()
+        elif duty_chart_id:
             queryset = queryset.filter(duties__duty_chart_id=duty_chart_id).distinct()
+        elif schedule_id and schedule_id != "all":
+            queryset = queryset.filter(duties__schedule_id=schedule_id).distinct()
 
         if office_id:
             # Include users whose primary office matches OR who have the office as a secondary membership
@@ -175,7 +185,11 @@ class UserViewSet(viewsets.ModelViewSet):
 class PositionViewSet(viewsets.ModelViewSet):
     queryset = Position.objects.all().order_by('name')
     serializer_class = PositionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [AdminOrReadOnly]
+    pagination_class = UserPagination
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'alias']
+    ordering_fields = ['name', 'level']
 
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Permission.objects.filter(is_active=True).order_by('slug')

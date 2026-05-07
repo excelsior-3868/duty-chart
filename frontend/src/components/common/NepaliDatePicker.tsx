@@ -12,6 +12,8 @@ interface NepaliDatePickerProps {
     className?: string;
     label?: string;
     id?: string;
+    minDate?: string; // ISO yyyy-MM-dd
+    maxDate?: string; // ISO yyyy-MM-dd
 }
 
 export const NepaliDatePicker: React.FC<NepaliDatePickerProps> = ({
@@ -19,7 +21,9 @@ export const NepaliDatePicker: React.FC<NepaliDatePickerProps> = ({
     onChange,
     className,
     label,
-    id
+    id,
+    minDate,
+    maxDate
 }) => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -94,7 +98,20 @@ export const NepaliDatePicker: React.FC<NepaliDatePickerProps> = ({
         setViewDate(newDate);
     };
 
+    const isDateDisabled = (day: number) => {
+        try {
+            const current = new NepaliDate(year, month, day).toJsDate();
+            const currentISO = format(current, "yyyy-MM-dd");
+            if (minDate && currentISO < minDate) return true;
+            if (maxDate && currentISO > maxDate) return true;
+            return false;
+        } catch {
+            return true;
+        }
+    };
+
     const handleSelectDay = (day: number) => {
+        if (isDateDisabled(day)) return;
         try {
             const selected = new NepaliDate(year, month, day);
             const adDate = selected.toJsDate();
@@ -193,9 +210,11 @@ export const NepaliDatePicker: React.FC<NepaliDatePickerProps> = ({
                                                         className={cn(
                                                             "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
                                                             active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                                                            today && !active && "bg-accent text-accent-foreground"
+                                                            today && !active && "bg-accent text-accent-foreground",
+                                                            isDateDisabled(day) && "opacity-25 cursor-not-allowed hover:bg-transparent"
                                                         )}
                                                         onClick={() => handleSelectDay(day)}
+                                                        disabled={isDateDisabled(day)}
                                                     >
                                                         {day}
                                                     </Button>
