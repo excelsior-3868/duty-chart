@@ -760,7 +760,9 @@ const DutyCalendar = () => {
                             {selectedDutyChartInfo?.status === 'draft' && (() => {
                                 // Approval is strictly office-scoped:
                                 // Only SuperAdmin or an employee assigned to the chart's OWN office
-                                // may approve. The chart creator from a different office may NOT approve.
+                                // who has the 'approve_dutychart' permission may approve.
+                                if (!hasPermission('duties.approve_dutychart')) return false;
+
                                 const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
                                     ? Number((selectedDutyChartInfo.office as any)?.id)
                                     : Number(selectedDutyChartInfo.office);

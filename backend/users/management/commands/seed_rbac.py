@@ -53,6 +53,7 @@ class Command(BaseCommand):
             {"slug": "org.view_accounting_office", "name": "View Accounting Offices", "description": "Can view and manage accounting offices"},
             {"slug": "org.view_cc_office", "name": "View CC Offices", "description": "Can view and manage CC offices"},
             {"slug": "duties.remove_other_office_employee", "name": "Remove Other Office Employee", "description": "Can remove employees from other offices from a duty chart"},
+            {"slug": "duties.approve_dutychart", "name": "Approve Duty Chart", "description": "Can approve and publish duty charts"},
             
         ]
 
@@ -115,7 +116,7 @@ class Command(BaseCommand):
                 "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view",
                 "system.view_settings", "schedules.view_office_schedule", "duties.view_available_shifts",
                 "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee", "schedules.delete",
-                "duties.delete"
+                "duties.delete", "duties.approve_dutychart"
             ],
 
 
@@ -128,7 +129,8 @@ class Command(BaseCommand):
                 "duties.view_chart", "duties.create_chart", "duties.edit_dutychart",
                 "duties.delete_chart", "duties.delete", "duties.assign_employee",
                 "users.view_employee", "duties.view_schedule",
-                "schedules.view", "schedules.view_office_schedule", "duties.view_available_shifts"
+                "schedules.view", "schedules.view_office_schedule", "duties.view_available_shifts",
+                "duties.approve_dutychart"
             ]
 
         }

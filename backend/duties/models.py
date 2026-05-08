@@ -112,6 +112,13 @@ class DutyChart(AuditableMixin, models.Model):
     )
     approval_document = models.FileField(upload_to=duty_chart_approval_path, null=True, blank=True)
     approval_remarks = models.TextField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='approved_duty_charts'
+    )
+    approval_date = models.DateTimeField(null=True, blank=True)
     def clean(self):
         super().clean()
         if self.end_date and self.end_date < self.effective_date:
@@ -127,6 +134,8 @@ class DutyChart(AuditableMixin, models.Model):
         if action == 'CREATE':
             return f"CONFIGURATION: Created new Duty Chart '{self.name or 'Unnamed'}' for {self.office.name}."
         elif action == 'UPDATE':
+            if changes.get('status', {}).get('new') == 'approved':
+                 return f"APPROVAL: Approved Duty Chart '{self.name or 'Unnamed'}' for {self.office.name}. Notifications dispatched to assigned staff."
             return f"CONFIGURATION: Updated Duty Chart '{self.name or 'Unnamed'}' settings."
         elif action == 'DELETE':
             return f"CONFIGURATION: Deleted Duty Chart '{self.name or 'Unnamed'}' for {self.office.name}."

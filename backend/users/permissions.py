@@ -58,7 +58,21 @@ class AdminOrReadOnly(BasePermission):
             return True
         if IsOfficeAdmin().has_permission(request, view):
             return True
-        # If not SuperAdmin or OfficeAdmin, deny write permissions
+        
+        # Also allow if they have specific duty/schedule management permissions
+        permission_slugs = [
+            'duties.create_dutychart',
+            'duties.edit_dutychart',
+            'duties.approve_dutychart',
+            'duties.assign_employee',
+            'schedules.create',
+            'schedules.edit',
+        ]
+        for slug in permission_slugs:
+            if user_has_permission_slug(request.user, slug):
+                return True
+
+        # If not SuperAdmin, OfficeAdmin, or having specific permissions, deny write permissions
         return False
 
     def has_object_permission(self, request, view, obj):
@@ -79,6 +93,9 @@ class AdminOrReadOnly(BasePermission):
         
         required_slug = permission_map.get(request.method)
         if not required_slug:
+            # Allow POST for custom actions on objects, but still require IsOfficeAdmin or higher
+            if request.method == 'POST':
+                return True
             return False
 
         # Check for permission or the 'any office' override

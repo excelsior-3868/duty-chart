@@ -20,12 +20,8 @@ export interface DutyChart {
 /**
  * Approves a duty chart (publishes it and triggers notifications).
  */
-export const approveDutyChart = async (id: number, formData: FormData): Promise<{ status: string; detail: string }> => {
-  const response = await api.post(`/duty-charts/${id}/approve/`, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
+export const approveDutyChart = async (id: number, payload: FormData | { approval_remarks?: string }): Promise<{ status: string; detail: string }> => {
+  const response = await api.post(`/duty-charts/${id}/approve/`, payload);
   return response.data;
 };
 
@@ -47,8 +43,7 @@ export const getDutyChartById = async (id: number): Promise<DutyChart> => {
 export const createDutyChart = async (
   data: Partial<DutyChart> | FormData
 ): Promise<DutyChart> => {
-  const headers = data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {};
-  const response = await api.post("/duty-charts/", data, { headers });
+  const response = await api.post("/duty-charts/", data);
   return response.data;
 };
 
@@ -66,8 +61,7 @@ export const patchDutyChart = async (
   id: number,
   data: Partial<DutyChart> | FormData
 ): Promise<DutyChart> => {
-  const headers = data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {};
-  const response = await api.patch(`/duty-charts/${id}/`, data, { headers });
+  const response = await api.patch(`/duty-charts/${id}/`, data);
   return response.data;
 };
 
@@ -105,11 +99,7 @@ export const downloadImportTemplate = async (params: {
  * Imports a duty chart via Excel.
  */
 export const importDutyChartExcel = async (formData: FormData) => {
-  const response = await api.post("/duty-chart/import/", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
+  const response = await api.post("/duty-chart/import/", formData);
   return response.data;
 };
 

@@ -665,12 +665,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                                 Draft (No SMS)
                               </div>
                             </SelectItem>
-                            <SelectItem value="approved">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                Approved (Sends SMS)
-                              </div>
-                            </SelectItem>
+                            {hasPermission('duties.approve_dutychart') && (
+                              <SelectItem value="approved">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                  Approved (Sends SMS)
+                                </div>
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

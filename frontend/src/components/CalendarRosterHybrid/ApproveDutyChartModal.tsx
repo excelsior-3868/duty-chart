@@ -50,15 +50,21 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
     // Document upload is now optional
     setLoading(true);
     try {
-      const formData = new FormData();
-      anusuchiFiles.forEach((f) => {
-        formData.append("anusuchi_documents", f);
-      });
-      if (remarks) {
-        formData.append("approval_remarks", remarks);
+      let payload: FormData | { approval_remarks: string };
+      if (anusuchiFiles.length > 0) {
+        const formData = new FormData();
+        anusuchiFiles.forEach((f) => {
+          formData.append("anusuchi_documents", f);
+        });
+        if (remarks?.trim()) {
+          formData.append("approval_remarks", remarks.trim());
+        }
+        payload = formData;
+      } else {
+        payload = { approval_remarks: remarks?.trim() || "" };
       }
 
-      const result = await approveDutyChart(chartId, formData);
+      const result = await approveDutyChart(chartId, payload);
       toast.success(result.detail || "Chart approved and notifications sent.");
       onSuccess();
       onOpenChange(false);
@@ -66,7 +72,12 @@ const ApproveDutyChartModal: React.FC<ApproveDutyChartModalProps> = ({
       setAnusuchiFiles([]);
       setRemarks("");
     } catch (error: any) {
-      console.error("Approval error:", error);
+      console.error("Approval error details:", {
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers,
+        message: error.message
+      });
       const detail = error.response?.data?.detail || "Failed to approve chart.";
       toast.error(detail);
     } finally {

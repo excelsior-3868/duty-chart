@@ -289,6 +289,10 @@ class BulkDocumentUploadView(APIView):
         return Response(DocumentSerializer(documents, many=True).data, status=status.HTTP_201_CREATED)
 
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+@method_decorator(csrf_exempt, name='dispatch')
 class DutyChartViewSet(viewsets.ModelViewSet):
     queryset = DutyChart.objects.all()
     serializer_class = DutyChartSerializer
@@ -302,6 +306,10 @@ class DutyChartViewSet(viewsets.ModelViewSet):
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get', 'post'], permission_classes=[permissions.AllowAny])
+    def ping(self, request):
+        return Response({"message": "pong"})
 
     def get_queryset(self):
         queryset = DutyChart.objects.select_related(
@@ -435,71 +443,129 @@ class DutyChartViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser, JSONParser])
     def approve(self, request, pk=None):
-        chart = self.get_object()
-        if chart.status == 'approved':
-            return Response({"detail": "Chart is already approved."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Permission check: must have edit_dutychart or be SuperAdmin
-        if not user_has_permission_slug(request.user, 'duties.edit_dutychart') and not IsSuperAdmin().has_permission(request, self):
-             return Response({"detail": "You do not have permission to approve duty charts."}, status=status.HTTP_403_FORBIDDEN)
-
-        anusuchi_docs = request.FILES.getlist('anusuchi_documents')
-        approval_doc = request.FILES.get('approval_document')
-        approval_remarks = request.data.get('approval_remarks')
-
-        # If approval_document is missing but anusuchi_documents are present, use the first one
-        if not approval_doc and anusuchi_docs:
-            approval_doc = anusuchi_docs[0]
-
-        # Approval document is now optional
-        pass
-
-        with transaction.atomic():
-            chart.status = 'approved'
-            if approval_doc:
-                chart.approval_document = approval_doc # Still set the main one for legacy
-            chart.approval_remarks = approval_remarks
-            chart.approved_by = request.user
-            chart.approval_date = timezone.now()
-            chart.save()
+        try:
+            print(f"DEBUG: [Approve] ENTERED for chart {pk} by user {request.user.username}", flush=True)
+            print(f"DEBUG: [Approve] Content-Type: {request.content_type}", flush=True)
+            print(f"DEBUG: [Approve] Payload Data: {request.data}", flush=True)
             
-            # Save multiple documents
-            if anusuchi_docs:
-                self.save_anusuchi_documents(chart)
-            elif approval_doc:
-                # If only approval_document was sent, also save it as an AnusuchiDocument record
-                from .models import AnusuchiDocument
-                AnusuchiDocument.objects.create(
-                    duty_chart=chart,
-                    file=approval_doc,
-                    uploaded_by=request.user
-                )
+            chart = self.get_object()
+            print(f"DEBUG: [Approve] Chart found. ID: {chart.id}, Status: {chart.status}", flush=True)
             
-            # Find all unique users in this chart
-            duties = Duty.objects.filter(duty_chart=chart).select_related('user')
-            user_duties = {} # {user_id: [dates]}
-            for d in duties:
-                if d.user:
-                    if d.user_id not in user_duties:
-                        user_duties[d.user_id] = []
-                    user_duties[d.user_id].append(d.date)
+            if chart.status == 'approved':
+                return Response({"detail": "Chart is already approved."}, status=status.HTTP_400_BAD_REQUEST)
             
-            if user_duties:
-                def trigger_approval_sms():
-                    # Batch fetch users to be efficient
-                    users = {u.id: u for u in User.objects.filter(id__in=user_duties.keys())}
-                    for u_id, dates in user_duties.items():
-                        target_user = users.get(u_id)
-                        if not target_user: continue
-                        
-                        send_bulk_assignment_notification([target_user], chart)
+            # Permission check: must have approve_dutychart or be SuperAdmin
+            is_super = IsSuperAdmin().has_permission(request, self)
+            if not is_super:
+                if not user_has_permission_slug(request.user, 'duties.approve_dutychart'):
+                     print(f"DEBUG: [Approve] Permission denied for user {request.user.username}", flush=True)
+                     return Response({"detail": "You do not have permission to approve duty charts."}, status=status.HTTP_403_FORBIDDEN)
                 
-                transaction.on_commit(trigger_approval_sms)
+                # Scoped check
+                allowed_offices = get_managed_office_ids(request.user)
+                can_approve_any = user_has_permission_slug(request.user, 'duties.create_any_office_chart')
+                is_creator = chart.created_by_id == request.user.id
+                user_role = getattr(request.user, 'role', None)
 
+                # NETWORK_ADMIN can approve for any office (same as their creation permission)
+                if user_role == 'NETWORK_ADMIN':
+                    pass # Allowed
+                elif chart.office_id in allowed_offices:
+                    pass # Allowed
+                elif can_approve_any and is_creator:
+                    pass # Allowed
+                else:
+                    print(f"DEBUG: [Approve] Scoped permission denied. User Role: {user_role}, Office: {chart.office_id}, Allowed: {allowed_offices}", flush=True)
+                    return Response({
+                        "detail": "You can only approve duty charts for your own office or those you created with global permissions."
+                    }, status=status.HTTP_403_FORBIDDEN)
+            
+            anusuchi_docs = request.FILES.getlist('anusuchi_documents')
+            approval_doc = request.FILES.get('approval_document')
+            approval_remarks = request.data.get('approval_remarks')
+            print(f"DEBUG: [Approve] Processing files. Anusuchi: {len(anusuchi_docs)}, Remarks: {bool(approval_remarks)}", flush=True)
+
+            if not approval_doc and anusuchi_docs:
+                approval_doc = anusuchi_docs[0]
+
+            with transaction.atomic():
+                chart.status = 'approved'
+                if approval_doc:
+                    chart.approval_document = approval_doc
+                chart.approval_remarks = approval_remarks
+                chart.approved_by = request.user
+                chart.approval_date = timezone.now()
+                chart.save()
+                
+                if anusuchi_docs:
+                    self.save_anusuchi_documents(chart)
+                elif approval_doc:
+                    from .models import AnusuchiDocument
+                    AnusuchiDocument.objects.create(
+                        duty_chart=chart,
+                        file=approval_doc,
+                        uploaded_by=request.user
+                    )
+                
+                duties = Duty.objects.filter(duty_chart=chart).select_related('user')
+                user_duties = {}
+                for d in duties:
+                    if d.user:
+                        if d.user_id not in user_duties:
+                            user_duties[d.user_id] = []
+                        user_duties[d.user_id].append(d.date)
+                
+                if user_duties:
+                    def trigger_approval_sms():
+                        users = {u.id: u for u in User.objects.filter(id__in=user_duties.keys())}
+                        for u_id, dates in user_duties.items():
+                            target_user = users.get(u_id)
+                            if not target_user: continue
+                            send_bulk_assignment_notification([target_user], chart)
+                    
+                    transaction.on_commit(trigger_approval_sms)
+
+            return Response({
+                "status": "approved", 
+                "detail": f"Chart approved and {len(user_duties)} employees notified.",
+                "approval_document": str(chart.approval_document) if chart.approval_document else None
+            })
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"DEBUG: [Approve] CRITICAL ERROR: {str(e)}", flush=True)
+            print(error_trace, flush=True)
+            logger.error(f"Error during duty chart approval: {str(e)}\n{error_trace}")
+            
+            # Return a structured error response
+            error_detail = str(e)
+            if not error_detail:
+                error_detail = "An unknown error occurred during approval."
+            
+            return Response({
+                "detail": error_detail,
+                "error_type": type(e).__name__
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def debug_permissions(self, request, pk=None):
+        chart = self.get_object()
+        user = request.user
+        allowed_offices = get_managed_office_ids(user)
+        has_approve_perm = user_has_permission_slug(user, 'duties.approve_dutychart')
+        can_approve_any = user_has_permission_slug(user, 'duties.create_any_office_chart')
+        
         return Response({
-            "status": "approved", 
-            "detail": f"Chart approved and {len(user_duties)} employees notified.",
-            "approval_document": chart.approval_document.url if chart.approval_document else None
+            "user": user.username,
+            "user_id": user.id,
+            "role": getattr(user, 'role', None),
+            "chart_id": chart.id,
+            "chart_office": chart.office_id,
+            "allowed_offices": list(allowed_offices),
+            "has_approve_perm": has_approve_perm,
+            "can_approve_any": can_approve_any,
+            "is_creator": chart.created_by_id == user.id,
+            "chart_status": chart.status
         })
 
 
