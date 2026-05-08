@@ -466,18 +466,27 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 can_approve_any = user_has_permission_slug(request.user, 'duties.create_any_office_chart')
                 is_creator = chart.created_by_id == request.user.id
                 user_role = getattr(request.user, 'role', None)
+                
+                # Peer approval: allow if user is from the same office & role as the creator
+                # and has the "Any Office" creation permission.
+                creator = chart.created_by
+                is_peer = (
+                    creator and 
+                    creator.office_id == request.user.office_id and 
+                    creator.role == user_role
+                )
 
                 # NETWORK_ADMIN can approve for any office (same as their creation permission)
                 if user_role == 'NETWORK_ADMIN':
                     pass # Allowed
                 elif chart.office_id in allowed_offices:
                     pass # Allowed
-                elif can_approve_any and is_creator:
+                elif can_approve_any and (is_creator or is_peer):
                     pass # Allowed
                 else:
                     print(f"DEBUG: [Approve] Scoped permission denied. User Role: {user_role}, Office: {chart.office_id}, Allowed: {allowed_offices}", flush=True)
                     return Response({
-                        "detail": "You can only approve duty charts for your own office or those you created with global permissions."
+                        "detail": "You can only approve duty charts for your own office or those you/your peers created with global permissions."
                     }, status=status.HTTP_403_FORBIDDEN)
             
             anusuchi_docs = request.FILES.getlist('anusuchi_documents')

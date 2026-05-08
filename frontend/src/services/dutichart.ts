@@ -14,6 +14,7 @@ export interface DutyChart {
   duties_count?: number;
   created_by?: number | null;
   created_by_role?: string | null;
+  created_by_office?: number | null;
   status?: 'draft' | 'approved';
 }
 

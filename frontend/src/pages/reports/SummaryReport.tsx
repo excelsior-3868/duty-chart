@@ -272,9 +272,9 @@ const SummaryReport = () => {
 
             {/* Filters Section */}
             <Card className="border-primary/20 shadow-lg overflow-hidden">
-                <CardHeader className="py-4 border-b">
-                    <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-                        <Search className="h-5 w-5 text-primary" />
+                <CardHeader className="py-3 border-b bg-primary">
+                    <CardTitle className="text-base flex items-center gap-2 text-white">
+                        <BarChart3 className="h-4 w-4 text-white/80" />
                         Report Criteria
                     </CardTitle>
                 </CardHeader>

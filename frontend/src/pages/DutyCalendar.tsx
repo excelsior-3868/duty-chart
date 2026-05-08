@@ -766,7 +766,13 @@ const DutyCalendar = () => {
                                 const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
                                     ? Number((selectedDutyChartInfo.office as any)?.id)
                                     : Number(selectedDutyChartInfo.office);
-                                return isSuperAdmin || isAssignedToOffice(chartOfficeId);
+                                return (
+                                    isSuperAdmin || 
+                                    isAssignedToOffice(chartOfficeId) || 
+                                    (hasPermission('duties.create_any_office_chart') && 
+                                     selectedDutyChartInfo.created_by_office === user?.office_id && 
+                                     selectedDutyChartInfo.created_by_role === user?.role)
+                                );
                             })() && (
                                 <Button className="gap-2 text-xs h-9 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowApproveModal(true)}>
                                     <Check className="w-3.5 h-3.5" /> Approve & Notify

@@ -56,14 +56,16 @@ def send_sms(phone, message, user=None, log_id=None):
         print(f"DEBUG: SMS Gateway Response Status: {response.status_code}")
         print(f"DEBUG: SMS Gateway Raw Response: {response.text}")
         log.response_raw = response.text
-        if response.status_code == 200:
+        # NTC Gateway returns '0' for success. Other codes (like -33) are failures.
+        if response.status_code == 200 and response.text.strip() == "0":
             log.status = 'sent'
             log.save()
             return True, response.text
         else:
             log.status = 'failed'
             log.save()
-            return False, f"HTTP {response.status_code}: {response.text}"
+            error_msg = f"Gateway Error: {response.text}" if response.status_code == 200 else f"HTTP {response.status_code}: {response.text}"
+            return False, error_msg
     except Exception as e:
         log.status = 'error'
         log.response_raw = str(e)

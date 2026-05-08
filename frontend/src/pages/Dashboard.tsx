@@ -563,7 +563,8 @@ const Dashboard = () => {
       icon: LayoutDashboard,
       trend: myCurrentDuty ? (myCurrentDuty.start_time && myCurrentDuty.end_time ? `${myCurrentDuty.start_time.substring(0, 5)} - ${myCurrentDuty.end_time.substring(0, 5)}` : "") : "Free",
       variant: myCurrentDuty ? "success" : "secondary",
-      isDuty: true
+      isDuty: true,
+      valueColor: myCurrentDuty ? "text-emerald-700" : "text-slate-700"
     },
     {
       title: "Upcoming Duty",
@@ -572,7 +573,8 @@ const Dashboard = () => {
       icon: Clock,
       trend: myNextDuty ? `${new NepaliDate(new Date(myNextDuty.date)).format("MMMM DD")} (${format(new Date(myNextDuty.date), "MMM d")}) | ${myNextDuty.start_time?.substring(0, 5)} - ${myNextDuty.end_time?.substring(0, 5)}` : "",
       variant: "secondary",
-      isDuty: false
+      isDuty: false,
+      valueColor: myNextDuty ? "text-blue-700" : "text-slate-700"
     },
     {
       title: `My Duties (${currentBSMonthInfo.name})`,
@@ -581,6 +583,7 @@ const Dashboard = () => {
       icon: CalendarDays,
       trend: "Your shifts this month",
       colorClass: "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none",
+      valueColor: "text-slate-700",
       link: ROUTES.MY_DUTIES
     },
     {
@@ -590,6 +593,7 @@ const Dashboard = () => {
       icon: Building2,
       trend: "Total office shifts",
       colorClass: "bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-none",
+      valueColor: "text-indigo-700",
       link: ROUTES.DUTY_CALENDAR,
       state: { preselect: { officeId: String(user?.office_id || "") } }
     },
@@ -599,7 +603,8 @@ const Dashboard = () => {
       description: "",
       icon: Calendar,
       trend: `Staffs on duty in ${user?.office_name || 'Office'}`,
-      colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100 border-none"
+      colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100 border-none",
+      valueColor: "text-orange-700"
     },
   ];
 
@@ -715,7 +720,7 @@ const Dashboard = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className={`text-xl font-bold ${stat.isDuty && myCurrentDuty ? 'text-emerald-900' : 'text-slate-900'} truncate`} title={stat.value}>
+                <div className={`text-xl font-bold ${stat.valueColor || 'text-slate-900'} truncate`} title={stat.value}>
                   {stat.value}
                 </div>
                 <p className="text-[10px] text-slate-400 mt-0.5">{stat.description}</p>
