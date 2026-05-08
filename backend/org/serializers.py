@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Directorate, Department, Office, SystemSetting, AccountingOffice, CCOffice
+from .models import Directorate, Department, Office, SystemSetting, AccountingOffice, CCOffice, WorkingOffice, Holiday
 
 class DirectorateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='directorate')
@@ -61,7 +61,6 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
 class WorkingOfficeSerializer(serializers.ModelSerializer):
     class Meta:
-        from .models import WorkingOffice
         model = WorkingOffice
         fields = ['id', 'name', 'directorate', 'ac_office', 'cc_office']
     
@@ -71,3 +70,8 @@ class WorkingOfficeSerializer(serializers.ModelSerializer):
         data['ac_office_name'] = instance.ac_office.name if instance.ac_office else None
         data['cc_office_name'] = instance.cc_office.name if instance.cc_office else None
         return data
+
+class HolidaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Holiday
+        fields = ['id', 'date', 'name', 'is_public', 'created_at']

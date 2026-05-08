@@ -64,6 +64,7 @@ class SystemSetting(AuditableMixin, models.Model):
     latest_app_version = models.CharField(max_length=20, default="1.0.0")
     old_app_version = models.CharField(max_length=20, default="1.0.0")
     app_update_url = models.CharField(max_length=255, null=True, blank=True)
+    show_sunday_as_holiday = models.BooleanField(default=False)
 
     def __str__(self):
         return "Global System Settings"
@@ -151,3 +152,25 @@ class WorkingOffice(AuditableMixin, models.Model):
         
     def get_audit_details(self, action, changes):
         return f"CONFIGURATION: {action.title()}d Working Office '{self.name}'."
+
+class Holiday(AuditableMixin, models.Model):
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=255)
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'holiday'
+        ordering = ['date']
+
+    def __str__(self):
+        return f"{self.name} ({self.date})"
+
+    def get_audit_details(self, action, changes):
+        if action == 'CREATE':
+            return f"HOLIDAY: Created new holiday '{self.name}' on {self.date}."
+        elif action == 'UPDATE':
+            return f"HOLIDAY: Updated holiday '{self.name}'."
+        elif action == 'DELETE':
+            return f"HOLIDAY: Deleted holiday '{self.name}'."
+        return ""

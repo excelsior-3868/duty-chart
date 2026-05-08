@@ -735,7 +735,7 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
                     <div
                       key={day.toString()}
                       className={cn(
-                        "p-2 min-h-[100px] border-l last:border-r transition-shadow overflow-hidden min-w-[160px]",
+                        "p-2 h-[180px] border-l last:border-r transition-shadow min-w-[160px] overflow-hidden",
                         canCreateDutyForSelectedChart ? "cursor-pointer hover:ring-2 hover:ring-blue-300" : "cursor-default"
                       )}
                       style={{
@@ -777,32 +777,37 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
                         setCreateDutyOpen(true);
                       }}
                     >
-                      {dayAssignments.length > 0 ? (
-                        <div className="flex flex-col gap-2">
-                          {dayAssignments.map(assignment => (
-                            <Tooltip key={assignment.id}>
-                              <TooltipTrigger asChild>
-                                <div
-                                  className="flex items-center gap-2 p-2 rounded-md border bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow w-full max-w-full"
-                                  onClick={(e) => { e.stopPropagation(); handleAssignmentClick(assignment); }}
-                                >
-                                  <div className={`w-1 h-full min-h-[40px] rounded-full ${getShiftColor(assignment.shift)}`} />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-semibold text-xs sm:text-sm truncate">{assignment.employee_name}</div>
-                                    <div className="text-[11px] sm:text-xs text-muted-foreground truncate">
-                                      {assignment.phone_number || "-"}
+                      <div 
+                        className="h-full overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent overscroll-contain"
+                        onWheel={(e) => e.stopPropagation()}
+                      >
+                        {dayAssignments.length > 0 ? (
+                          <div className="flex flex-col gap-2">
+                            {dayAssignments.map(assignment => (
+                              <Tooltip key={assignment.id}>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    className="flex items-center gap-2 p-2 rounded-md border bg-white shadow-sm cursor-pointer hover:shadow-md transition-shadow w-full max-w-full"
+                                    onClick={(e) => { e.stopPropagation(); handleAssignmentClick(assignment); }}
+                                  >
+                                    <div className={`w-1 h-full min-h-[40px] rounded-full ${getShiftColor(assignment.shift)}`} />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-xs sm:text-sm truncate">{assignment.employee_name}</div>
+                                      <div className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                                        {assignment.phone_number || "-"}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="text-sm font-medium">{assignment.employee_name}</div>
-                                <div className="text-xs text-muted-foreground">{assignment.phone_number || "-"}</div>
-                              </TooltipContent>
-                            </Tooltip>
-                          ))}
-                        </div>
-                      ) : null}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <div className="text-sm font-medium">{assignment.employee_name}</div>
+                                  <div className="text-xs text-muted-foreground">{assignment.phone_number || "-"}</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}

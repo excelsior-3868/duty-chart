@@ -94,9 +94,17 @@ interface SummaryData {
     office_name: string;
     total_duties: number;
     total_hours: number;
-    shifts: Record<string, number>;
-    charts: string[];
-    dates: string[];
+    chart_breakdown: Record<string, {
+        total_duties: number;
+        total_hours: number;
+        shifts: Record<string, number>;
+    }>;
+    dates: {
+        date: string;
+        chart: string;
+        shift: string;
+        day: string;
+    }[];
 }
 
 const SummaryReport = () => {
@@ -114,6 +122,9 @@ const SummaryReport = () => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [officeSearchOpen, setOfficeSearchOpen] = useState(false);
 
+    const [schedules, setSchedules] = useState<any[]>([]);
+    const [selectedScheduleId, setSelectedScheduleId] = useState<string>("all");
+
     useEffect(() => {
         document.title = "Summary Duty Report - NT Duty Chart";
         fetchOffices();
@@ -121,6 +132,7 @@ const SummaryReport = () => {
 
     useEffect(() => {
         fetchUsers();
+        fetchSchedules();
     }, [selectedOfficeId]);
 
     const fetchOffices = async () => {
@@ -149,6 +161,20 @@ const SummaryReport = () => {
         }
     };
 
+    const fetchSchedules = async () => {
+        try {
+            const params: any = {};
+            if (selectedOfficeId !== "all") {
+                params.office = selectedOfficeId;
+            }
+            const res = await api.get("/schedule/", { params });
+            setSchedules(res.data || []);
+            setSelectedScheduleId("all");
+        } catch (err) {
+            console.error("Failed to fetch schedules", err);
+        }
+    };
+
     const handleFetchReport = async () => {
         setLoading(true);
         try {
@@ -157,7 +183,8 @@ const SummaryReport = () => {
                     office_id: selectedOfficeId !== "all" ? selectedOfficeId : undefined,
                     date_from: dateFrom,
                     date_to: dateTo,
-                    user_ids: selectedUsers.length > 0 ? selectedUsers.join(",") : undefined
+                    user_ids: selectedUsers.length > 0 ? selectedUsers.join(",") : undefined,
+                    schedule_id: selectedScheduleId !== "all" ? selectedScheduleId : undefined
                 }
             });
             setReportData(res.data);
@@ -186,11 +213,11 @@ const SummaryReport = () => {
         const rows = reportData.map(row => {
             // Format breakdown: Chart1 (Shift1: 2, Shift2: 1); Chart2 (Shift1: 1)
             const breakdown = Object.entries(row.chart_breakdown || {})
-                .map(([chart, shifts]) => {
-                    const shiftDetails = Object.entries(shifts)
+                .map(([chart, data]) => {
+                    const shiftDetails = Object.entries(data.shifts)
                         .map(([name, count]) => `${name}: ${count}`)
                         .join(", ");
-                    return `${chart} (${shiftDetails})`;
+                    return `${chart} [${data.total_hours.toFixed(1)}h] (${shiftDetails})`;
                 })
                 .join("; ");
 
@@ -252,9 +279,9 @@ const SummaryReport = () => {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                    <div className="grid gap-6 md:grid-cols-12 items-end">
+                    <div className="flex flex-wrap items-end gap-x-6 gap-y-4 w-full">
                         {/* Office Selection */}
-                        <div className="md:col-span-3 space-y-2">
+                        <div className="flex-1 min-w-[200px] space-y-2">
                             <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500">
                                 <Building2 className="h-3 w-3" />
                                 Working Office
@@ -311,8 +338,8 @@ const SummaryReport = () => {
                         </div>
 
                         {/* Date Range Selection - Compact Width */}
-                        <div className="md:col-span-3 space-y-2">
-                            <div className="flex items-center justify-between">
+                        <div className="w-auto space-y-2">
+                            <div className="flex items-center gap-4">
                                 <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500">
                                     <Calendar className="h-3 w-3" />
                                     Date Range
@@ -328,23 +355,44 @@ const SummaryReport = () => {
                                     >AD</button>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5">
                                 {dateMode === "BS" ? (
                                     <>
-                                        <NepaliDatePicker value={dateFrom} onChange={setDateFrom} className="h-10 text-sm w-[130px]" />
-                                        <NepaliDatePicker value={dateTo} onChange={setDateTo} className="h-10 text-sm w-[130px]" />
+                                        <NepaliDatePicker value={dateFrom} onChange={setDateFrom} className="h-10 text-sm w-[115px] px-2" />
+                                        <NepaliDatePicker value={dateTo} onChange={setDateTo} className="h-10 text-sm w-[115px] px-2" />
                                     </>
                                 ) : (
                                     <>
-                                        <GregorianDatePicker value={dateFrom} onChange={setDateFrom} className="h-10 text-sm w-[130px]" />
-                                        <GregorianDatePicker value={dateTo} onChange={setDateTo} className="h-10 text-sm w-[130px]" />
+                                        <GregorianDatePicker value={dateFrom} onChange={setDateFrom} className="h-10 text-sm w-[115px] px-2" />
+                                        <GregorianDatePicker value={dateTo} onChange={setDateTo} className="h-10 text-sm w-[115px] px-2" />
                                     </>
                                 )}
                             </div>
                         </div>
 
+                        {/* Shift Selection */}
+                        <div className="flex-1 min-w-[180px] space-y-2">
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500">
+                                <Clock className="h-3 w-3" />
+                                Shift
+                            </Label>
+                            <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId}>
+                                <SelectTrigger className="w-full h-10 bg-white border-slate-200 text-sm font-medium shadow-sm">
+                                    <SelectValue placeholder="All Shifts" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Shifts</SelectItem>
+                                    {schedules.map((s) => (
+                                        <SelectItem key={s.id} value={String(s.id)}>
+                                            {s.name} ({s.start_time.slice(0, 5)})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         {/* Employee Selection */}
-                        <div className="md:col-span-4 space-y-2">
+                        <div className="flex-1 min-w-[220px] space-y-2">
                             <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500">
                                 <Users className="h-3 w-3" />
                                 Employee Selection
@@ -364,11 +412,11 @@ const SummaryReport = () => {
                                                         <span className="flex items-center gap-1.5">
                                                             {selectedUsers.length === 1 
                                                                 ? users.find(u => u.id === selectedUsers[0])?.full_name 
-                                                                : `${users.find(u => u.id === selectedUsers[0])?.full_name} + ${selectedUsers.length - 1} others`
+                                                                : `${selectedUsers.length} selected`
                                                             }
                                                         </span>
                                                     ) : (
-                                                        "Search and Select Employees..."
+                                                        "Select Employees"
                                                     )}
                                                 </span>
                                             </div>
@@ -378,20 +426,20 @@ const SummaryReport = () => {
                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl border-primary/20" align="start">
                                         <Command className="border-none">
                                             <CommandInput
-                                                placeholder="Search by name, ID or mobile..."
+                                                placeholder="Search employees..."
                                                 className="h-10 text-sm"
                                                 value={searchTerm}
                                                 onValueChange={setSearchTerm}
                                             />
                                             <CommandList className="max-h-64 custom-scrollbar">
                                                 <div className="flex items-center justify-between px-3 py-2 border-b border-slate-50 bg-slate-50/30">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Search Results</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Results</span>
                                                     {selectedUsers.length > 0 && (
                                                         <button 
                                                             onClick={() => setSelectedUsers([])}
                                                             className="text-[10px] font-bold text-primary hover:underline"
                                                         >
-                                                            Clear Selection
+                                                            Clear
                                                         </button>
                                                     )}
                                                 </div>
@@ -429,24 +477,15 @@ const SummaryReport = () => {
                                                                 <div className="flex items-center justify-between w-full">
                                                                     <div className="flex items-center gap-3">
                                                                         <div className="flex flex-col">
-                                                                            <span className="truncate font-semibold">{u.full_name}</span>
-                                                                            <div className="flex items-center gap-2 mt-0.5">
-                                                                                <span className={cn("text-[10px] font-medium", isSelected ? "text-primary/70" : "text-slate-400")}>
-                                                                                    ID: {u.employee_id || "N/A"}
-                                                                                </span>
-                                                                                {u.phone && (
-                                                                                    <span className={cn("text-[10px] font-medium flex items-center gap-1", isSelected ? "text-primary/70" : "text-slate-400")}>
-                                                                                        • {u.phone}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
+                                                                            <span className="truncate font-semibold text-[13px]">{u.full_name}</span>
+                                                                            <span className="text-[10px] text-slate-400">ID: {u.employee_id || "N/A"}</span>
                                                                         </div>
                                                                     </div>
                                                                     {isSelected && <Check className="h-4 w-4 text-primary animate-in zoom-in-50 duration-200" />}
                                                                 </div>
                                                             </CommandItem>
                                                         );
-                                                    })}
+                                                    }).slice(0, 100)}
                                                 </CommandGroup>
                                             </CommandList>
                                         </Command>
@@ -455,7 +494,7 @@ const SummaryReport = () => {
                             </div>
                         </div>
 
-                        <div className="md:col-span-2">
+                        <div className="min-w-[140px] md:w-[160px]">
                             <Button 
                                 onClick={handleFetchReport} 
                                 disabled={loading}
@@ -549,22 +588,25 @@ const SummaryReport = () => {
                                                 <TableCell className="font-semibold text-slate-800 text-sm whitespace-nowrap">{row.full_name}</TableCell>
                                                 <TableCell className="text-slate-600 text-[12px]">{row.office_name}</TableCell>
                                                 <TableCell className="py-3">
-                                                    <div className="flex flex-col gap-3 min-w-[200px]">
-                                                        {Object.entries(row.chart_breakdown || {}).map(([chart, shifts]) => (
-                                                            <div key={chart} className="group/breakdown">
-                                                                <div className="flex items-center gap-2 mb-1.5">
-                                                                    <div className="h-5 w-0.5 bg-primary/30 rounded-full group-hover/breakdown:bg-primary transition-colors" />
-                                                                    <span className="text-[11px] font-bold text-slate-700 tracking-tight">{chart}</span>
+                                                    <div className="space-y-4">
+                                                        {Object.entries(row.chart_breakdown).map(([chartName, chartData]) => (
+                                                            <div key={chartName} className="space-y-2 border-l-2 border-slate-200 pl-4">
+                                                                <div className="flex items-center justify-between">
+                                                                    <h4 className="text-sm font-bold text-slate-700">{chartName}</h4>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[11px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                                                                            {chartData.total_hours.toFixed(1)} Hours
+                                                                        </span>
+                                                                        <span className="text-[11px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                                                                            {chartData.total_duties} Duties
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="flex flex-wrap gap-1.5 pl-2.5">
-                                                                    {Object.entries(shifts).map(([shiftName, count]) => (
-                                                                        <div 
-                                                                            key={shiftName} 
-                                                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200/60 text-[10px]"
-                                                                        >
-                                                                            <span className="text-slate-500 font-medium">{shiftName}</span>
-                                                                            <span className="h-3 w-[1px] bg-slate-300" />
-                                                                            <span className="text-primary font-bold">{count}</span>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {Object.entries(chartData.shifts).map(([shiftName, count]) => (
+                                                                        <div key={shiftName} className="inline-flex items-center border rounded-md px-2 py-1 bg-white shadow-sm">
+                                                                            <span className="text-[11px] text-slate-500 mr-2">{shiftName}</span>
+                                                                            <span className="text-[12px] font-bold text-primary border-l pl-2">{count}</span>
                                                                         </div>
                                                                     ))}
                                                                 </div>

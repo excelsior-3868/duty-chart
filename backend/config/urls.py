@@ -20,7 +20,11 @@ from drf_yasg import openapi
 
 # Local imports
 from users.views import UserViewSet, PositionViewSet, RoleViewSet, PermissionViewSet, UserDashboardOfficeViewSet, UserResponsibilityViewSet
-from org.views import DirectorateViewSet, DepartmentViewSet, OfficeViewSet, SystemSettingViewSet, AccountingOfficeViewSet, CCOfficeViewSet
+from org.views import (
+    DirectorateViewSet, DepartmentViewSet, OfficeViewSet, 
+    SystemSettingViewSet, AccountingOfficeViewSet, CCOfficeViewSet,
+    HolidayViewSet
+)
 from authentication.views import TokenObtainPair2FAView, Verify2FAView
 from duties.views import (
     DutyChartViewSet,
@@ -91,6 +95,7 @@ router.register(r"offices", OfficeViewSet)
 router.register(r"accounting-offices", AccountingOfficeViewSet)
 router.register(r"cc-offices", CCOfficeViewSet)
 router.register(r"system-settings", SystemSettingViewSet, basename="system-settings")
+router.register(r"holidays", HolidayViewSet)
 
 # Duties
 router.register(r"duty-charts", DutyChartViewSet)

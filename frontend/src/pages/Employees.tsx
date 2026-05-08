@@ -135,6 +135,7 @@ const Employees = () => {
   const PAGE_SIZE = 15;
 
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [registrationFilter, setRegistrationFilter] = useState<string>("all");
 
   // Debounce the search query
   useEffect(() => {
@@ -149,12 +150,15 @@ const Employees = () => {
 
   // --- React Query: Fetch Employees ---
   const { data: employeesData, isLoading: loadingEmployees } = useQuery({
-    queryKey: ['users', currentPage, debouncedQuery],
+    queryKey: ['users', currentPage, debouncedQuery, registrationFilter],
     queryFn: async () => {
       const queryParams = new URLSearchParams();
       queryParams.append("page", String(currentPage));
       queryParams.append("page_size", String(PAGE_SIZE));
       if (debouncedQuery) queryParams.append("search", debouncedQuery);
+      if (registrationFilter !== "all") {
+        queryParams.append("is_activated", registrationFilter === "registered" ? "true" : "false");
+      }
       const res = await api.get(`/users/?${queryParams.toString()}`);
       return res.data;
     },
@@ -800,14 +804,34 @@ const Employees = () => {
       <Card className="border-none shadow-sm bg-white">
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by Name, ID, Mobile, Email, Office, or Status..."
-                className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary h-11"
-                value={nameQuery}
-                onChange={(e) => setNameQuery(e.target.value)}
-              />
+            <div className="relative w-full flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by Name, ID, Mobile, Email, Office, or Status..."
+                  className="pl-9 bg-slate-50/50 border-slate-200 focus-visible:ring-primary h-11"
+                  value={nameQuery}
+                  onChange={(e) => setNameQuery(e.target.value)}
+                />
+              </div>
+              <div className="w-full md:w-48">
+                <Select
+                  value={registrationFilter}
+                  onValueChange={(v) => {
+                    setRegistrationFilter(v);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-11 bg-slate-50/50 border-slate-200">
+                    <SelectValue placeholder="Registration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Employees</SelectItem>
+                    <SelectItem value="registered">Registered (Yes)</SelectItem>
+                    <SelectItem value="unregistered">Not Registered (No)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1255,40 +1279,38 @@ const Employees = () => {
                   </Popover>
                 </div>
 
-                {(hasPermission('users.edit_employee') || hasPermission('users.create_any_office_employee')) && (
-                  <div className="flex items-center gap-6 mt-4">
-                    <div className="flex items-center gap-2">
-                      <Label>Active</Label>
-                      <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4 cursor-pointer" />
+                  <div className="flex flex-col md:flex-row gap-4 mt-4">
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <Label>Active</Label>
+                        <input type="checkbox" checked={!!selectedEmployee.is_active} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_active: e.target.checked })} className="w-4 h-4 cursor-pointer" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label>Registered</Label>
+                        <input type="checkbox" checked={!!selectedEmployee.is_activated} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_activated: e.target.checked })} className="w-4 h-4 cursor-pointer" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Label>Registered</Label>
-                      <input type="checkbox" checked={!!selectedEmployee.is_activated} onChange={(e) => setSelectedEmployee({ ...selectedEmployee, is_activated: e.target.checked })} className="w-4 h-4 cursor-pointer" />
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {hasPermission('system.manage_rbac') && (
-                <div className="space-y-4">
-                  <h4 className="text-md font-semibold">Access Control</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="flex-1 min-w-[200px]">
                       <Label>Role</Label>
-                      <Select value={selectedEmployee.role || ""} onValueChange={async (v) => {
-                        setSelectedEmployee({ ...selectedEmployee, role: v });
-                        const r = roles.find((x: any) => x.slug === v);
-                        if (r?.id) {
-                          try {
-                            const pRes = await api.get(`/roles/${r.id}/permissions/`);
-                            setRolePermsPreview(pRes.data?.permissions || []);
-                          } catch {
+                      <Select
+                        value={selectedEmployee.role || ""}
+                        onValueChange={async (v) => {
+                          setSelectedEmployee({ ...selectedEmployee, role: v });
+                          const r = roles.find((x: any) => x.slug === v);
+                          if (r?.id) {
+                            try {
+                              const pRes = await api.get(`/roles/${r.id}/permissions/`);
+                              setRolePermsPreview(pRes.data?.permissions || []);
+                            } catch {
+                              setRolePermsPreview([]);
+                            }
+                          } else {
                             setRolePermsPreview([]);
                           }
-                        } else {
-                          setRolePermsPreview([]);
-                        }
-                      }}>
+                        }}
+                        disabled={selectedEmployee.role === 'SUPERADMIN' && user?.role !== 'SUPERADMIN'}
+                      >
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
@@ -1298,17 +1320,24 @@ const Employees = () => {
                             { slug: "OFFICE_ADMIN", name: "Office Admin" },
                             { slug: "NETWORK_ADMIN", name: "Network Admin" },
                             { slug: "USER", name: "User" }
-                          ]).map((r: any) => (
-                            <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
-                          ))}
+                          ])
+                            .filter(r => r.slug !== 'SUPERADMIN' || user?.role === 'SUPERADMIN')
+                            .map((r: any) => (
+                              <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label>Effective Permissions (by role)</Label>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {(rolePermsPreview || []).map((p) => <Badge key={p} variant="secondary">{p}</Badge>)}
-                      </div>
+                  </div>
+              </div>
+
+              {hasPermission('system.manage_rbac') && (
+                <div className="space-y-4">
+                  <h4 className="text-md font-semibold">Role Permissions Preview</h4>
+                  <div>
+                    <Label>Effective Permissions (by role)</Label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(rolePermsPreview || []).map((p) => <Badge key={p} variant="secondary">{p}</Badge>)}
                     </div>
                   </div>
                 </div>

@@ -522,7 +522,19 @@ class DutyViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = Duty.objects.all()
+        queryset = Duty.objects.select_related(
+            'user',
+            'user__office',
+            'user__office__directorate',
+            'user__office__ac_office',
+            'user__office__cc_office',
+            'user__position',
+            'user__responsibility',
+            'office',
+            'schedule',
+            'duty_chart',
+            'duty_chart__office'
+        ).all()
         office_id = self.request.query_params.get("office", None)
         user_id = self.request.query_params.get("user", None)
         schedule_id = self.request.query_params.get("schedule", None)

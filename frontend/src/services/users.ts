@@ -21,15 +21,19 @@ export interface User {
   responsibility_name?: string | null;
 }
 
-// GET all users (optionally filtered by office and activation status)
-export const getUsers = async (officeId?: number, isActivated?: boolean): Promise<User[]> => {
-  const params: any = {};
+// GET all users (optionally filtered by office, activation status, and search query)
+export const getUsers = async (
+  officeId?: number,
+  isActivated?: boolean,
+  search?: string,
+  pageSize: number = 1000
+): Promise<User[]> => {
+  const params: any = { page_size: pageSize };
   if (typeof officeId === "number") params.office = officeId;
   if (typeof isActivated === "boolean") params.is_activated = isActivated;
+  if (search) params.search = search;
 
-  // Request a large page size for the dashboard/dropdowns if not specified otherwise
-  // or handle pagination if the API enforces it.
-  const res = await api.get<any>("/users/?page_size=1000", { params });
+  const res = await api.get<any>("/users/", { params });
   if (res.data.results && Array.isArray(res.data.results)) {
     return res.data.results;
   }

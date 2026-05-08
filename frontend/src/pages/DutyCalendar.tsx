@@ -13,6 +13,7 @@ import { getDutyCharts, getDutyChartById, approveDutyChart, patchDutyChart, type
 import { getDutiesFiltered, type Duty, deleteDuty } from "@/services/dutiesService";
 import { getUser, type User } from "@/services/users";
 import { getOffice as getOfficeDetail, type Office as OfficeInfo } from "@/services/offices";
+import api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import CreateDutyModal from "@/components/CalendarRosterHybrid/CreateDutyModal";
 import CreateDutyChartModal from "@/components/CalendarRosterHybrid/CreateDutyChartModal";
@@ -139,9 +140,13 @@ const DutyCalendar = () => {
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [selectedScheduleId, setSelectedScheduleId] = useState<string>("all");
 
+    // --- State: Holidays ---
+    const [holidays, setHolidays] = useState<any[]>([]);
+
     // --- State: Day Detail Modal ---
     const [showDayDetailModal, setShowDayDetailModal] = useState(false);
     const [selectedDateForDetail, setSelectedDateForDetail] = useState<Date | null>(null);
+    const [systemSettings, setSystemSettings] = useState<any>(null);
 
     const { user, hasPermission, canManageOffice, isAssignedToOffice } = useAuth();
     const location = useLocation();
@@ -162,13 +167,19 @@ const DutyCalendar = () => {
         document.title = "Duty Chart Calendar - NT Duty Chart Management System";
         const load = async () => {
             try {
-                const res = await getOffices();
-                setOffices(res.map((o: any) => ({
+                const [officesRes, holidaysRes, settingsRes] = await Promise.all([
+                    getOffices(),
+                    api.get('holidays/'),
+                    api.get('system-settings/')
+                ]);
+                setOffices(officesRes.map((o: any) => ({
                     ...o,
                     id: o.id
                 })));
+                setHolidays(holidaysRes.data);
+                setSystemSettings(settingsRes.data);
             } catch (e) {
-                console.error("Failed to load offices", e);
+                console.error("Failed to load initial data", e);
             }
         };
         load();
@@ -273,46 +284,6 @@ const DutyCalendar = () => {
     }, [fetchDutyChartInfo]);
 
 
-    // --- 5. Enrich Duties with User/Office Info ---
-    useEffect(() => {
-        const missingUserIds = new Set<number>();
-        (duties || []).forEach((d) => {
-            if (d.user && !usersCache.has(d.user)) missingUserIds.add(d.user);
-        });
-        if (missingUserIds.size === 0) return;
-        const fetchUsers = async () => {
-            const newCache = new Map(usersCache);
-            await Promise.all(Array.from(missingUserIds).map(async (id) => {
-                try {
-                    const u = await getUser(id);
-                    newCache.set(id, u);
-                } catch (e) { }
-            }));
-            setUsersCache(newCache);
-        };
-        fetchUsers();
-    }, [duties]);
-
-    useEffect(() => {
-        const missingOfficeIds = new Set<number>();
-        (duties || []).forEach((d) => {
-            if (d.office && !officesCache.has(d.office)) missingOfficeIds.add(d.office);
-        });
-        if (missingOfficeIds.size === 0) return;
-        const fetchOffices = async () => {
-            const newCache = new Map(officesCache);
-            await Promise.all(Array.from(missingOfficeIds).map(async (id) => {
-                try {
-                    const o = await getOfficeDetail(id);
-                    newCache.set(id, o);
-                } catch (e) { }
-            }));
-            setOfficesCache(newCache);
-        };
-        fetchOffices();
-    }, [duties]);
-
-
     // --- 6. Transform Duties to Assignments UI Model ---
     const assignments = useMemo<DutyAssignment[]>(() => {
         const resolveAvatar = (path: string | null | undefined) => {
@@ -324,8 +295,6 @@ const DutyCalendar = () => {
 
         return (duties || []).map((d) => {
             const name = d.user_name || "Unknown";
-            const userDetail = d.user ? usersCache.get(d.user) : undefined;
-            const officeDetail = d.office ? officesCache.get(d.office) : undefined;
             return {
                 id: String(d.id),
                 employee_name: name,
@@ -334,21 +303,21 @@ const DutyCalendar = () => {
                 end_time: d.end_time || "",
                 date: new Date(d.date),
                 shift: d.schedule_name || "Shift",
-                phone_number: userDetail?.phone_number || "",
-                email: userDetail?.email || "",
-                directorate: officeDetail?.directorate_name || "",
-                department: officeDetail?.department_name || "",
-                position: userDetail?.position_name || d.position_name || "",
+                phone_number: d.phone_number || "",
+                email: d.email || "",
+                directorate: d.user_office_directorate_name || "",
+                department: d.user_office_ac_office_name || "",
+                position: d.position_name || "",
                 office: d.office_name || "",
-                avatar: resolveAvatar(userDetail?.image),
+                avatar: resolveAvatar(d.image),
                 schedule_id: d.schedule,
                 alias: d.alias,
-                employee_id: userDetail?.employee_id || "",
-                employee_office_id: userDetail?.office ?? null,
-                responsibility: userDetail?.responsibility_name || d.responsibility_name || "",
+                employee_id: d.employee_id || "",
+                employee_office_id: d.user_office_id ?? null,
+                responsibility: d.responsibility_name || "",
             } as DutyAssignment;
         });
-    }, [duties, usersCache, officesCache]);
+    }, [duties]);
 
     const selectedProfile = useMemo(() =>
         assignments.find(a => a.id === selectedAssignmentId) || null
@@ -428,12 +397,12 @@ const DutyCalendar = () => {
             .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
     }, [assignments, selectedDateForDetail, selectedScheduleId]);
 
-    // Close day detail modal if it becomes empty (e.g. after successful delete)
+    // Close day detail modal logic (only clear selection when closed manually or by external triggers)
     useEffect(() => {
-        if (showDayDetailModal && modalAssignments.length === 0) {
-            setShowDayDetailModal(false);
+        if (!showDayDetailModal) {
+            setSelectedDutyIds(new Set());
         }
-    }, [modalAssignments.length, showDayDetailModal]);
+    }, [showDayDetailModal]);
 
     // Bulk Delete Logic
     const toggleDutySelection = (id: string) => {
@@ -1118,32 +1087,52 @@ const DutyCalendar = () => {
                                                 <div
                                                     key={date.toString()}
                                                     className={cn(
-                                                        "border-b border-r p-2 relative transition-colors hover:bg-slate-50 group",
+                                                        "border-b border-r p-2 relative transition-colors hover:bg-slate-50 group min-h-[120px] flex flex-col",
                                                         !isCurrentMonth ? "bg-slate-50/50" : "bg-white",
                                                         (idx + 1) % 7 === 0 ? "border-r-0" : ""
                                                     )}
-                                                    onClick={() => {
-                                                        if (selectedDutyChartId && selectedOfficeId) {
-                                                            setSelectedDateForDetail(date);
+                                                    onClick={(e) => {
+                                                        setSelectedDateForDetail(date);
+                                                        setTimeout(() => {
                                                             setShowDayDetailModal(true);
-                                                        }
+                                                        }, 10);
                                                     }}
                                                 >
-                                                    <div className="flex justify-between items-start mb-0.5 pointer-events-none">
+
+                                                    <div className="flex justify-between items-start mb-1 relative z-10">
                                                         <span className={cn(
                                                             "text-base font-bold select-none",
                                                             !isCurrentMonth ? "text-slate-400" : "text-slate-900",
-                                                            isSaturday && isCurrentMonth ? "text-red-500" : "",
+                                                            (
+                                                                isSaturday || 
+                                                                (systemSettings?.show_sunday_as_holiday && date.getDay() === 0) ||
+                                                                holidays.some(h => h.date === format(date, "yyyy-MM-dd"))
+                                                            ) && isCurrentMonth ? "text-red-500" : "",
                                                             isTodayDate ? "text-white bg-primary rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
                                                         )}>
                                                             {dateMode === "BS" ? nd.getDate() : format(date, "d")}
                                                         </span>
+
+                                                        {(() => {
+                                                            const dateStr = format(date, "yyyy-MM-dd");
+                                                            const holiday = holidays.find(h => h.date === dateStr);
+                                                            if (!holiday) return null;
+                                                            return (
+                                                                <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
+                                                                    <Badge variant="destructive" className="h-3.5 px-1 text-[7px] font-black uppercase leading-none shrink-0">Holiday</Badge>
+                                                                    <span className="text-[9px] font-bold text-red-600 truncate">
+                                                                        {holiday.name}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })()}
+
                                                         <span className="text-[10px] text-slate-400 font-medium select-none">
                                                             {dateMode === "BS" ? format(date, "d") : nd.getDate()}
                                                         </span>
                                                     </div>
 
-                                                    <div className="space-y-1 overflow-y-auto max-h-[90px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                                    <div className="space-y-1 overflow-y-auto max-h-[100px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative z-20">
                                                         {dayAssignments.map((assignment: any) => {
                                                             const shiftColor = getShiftColor(assignment.schedule_id);
                                                             const isUnassigned = assignment.type === 'unassigned';
@@ -1193,12 +1182,12 @@ const DutyCalendar = () => {
                                                             dateStr >= selectedDutyChartInfo.effective_date &&
                                                             (!selectedDutyChartInfo.end_date || dateStr <= selectedDutyChartInfo.end_date);
 
-                                                        if (canAssignDuties && dateStr >= todayStr && isDateInChartRange) {
+                                                        if (canAssignDuties && isDateInChartRange) {
                                                             return (
                                                                 <Button
                                                                     variant="secondary"
                                                                     size="icon"
-                                                                    className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100"
+                                                                    className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 z-50"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         setCreateDutyContext({ dateISO: dateStr });
@@ -1424,7 +1413,14 @@ const DutyCalendar = () => {
                                             <div className={cn("w-1.5 h-10 rounded-full shrink-0", shiftColor.accent)} />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-start gap-2">
-                                                    <div className="font-bold text-slate-800 text-sm truncate">{a.employee_name}</div>
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <div className="font-bold text-slate-800 text-sm truncate">{a.employee_name}</div>
+                                                        {holidays.some(h => h.date === format(selectedDateForDetail || new Date(), "yyyy-MM-dd")) && (
+                                                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] py-0 px-1.5 h-4 font-bold whitespace-nowrap">
+                                                                Holiday Duty
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <Badge variant="outline" className={cn("text-[10px] py-0 px-1.5 h-4 font-semibold capitalize whitespace-nowrap", shiftColor.text, shiftColor.border, shiftColor.bg)}>
                                                         {a.shift}
                                                     </Badge>

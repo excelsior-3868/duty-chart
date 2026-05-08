@@ -15,7 +15,8 @@ class AuditableMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._audit_original_state = self._get_model_state()
+        # Capture state only when needed to prevent recursion during bulk fetches
+        self._audit_original_state = None
 
     def _get_model_state(self):
         """
@@ -68,7 +69,7 @@ class AuditableMixin:
                 changes = {k: {'old': None, 'new': v} for k, v in current_state.items() if v is not None}
             else:
                 for field, new_val in current_state.items():
-                    old_val = self._audit_original_state.get(field)
+                    old_val = self._audit_original_state.get(field) if self._audit_original_state else None
                     if new_val != old_val:
                         changes[field] = {'old': old_val, 'new': new_val}
             

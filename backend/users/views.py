@@ -67,13 +67,11 @@ class UserViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(duties__schedule_id=schedule_id).distinct()
 
         if office_id:
-            # Include users whose primary office matches OR who have the office as a secondary membership
+            # Optimize: only use distinct if we are checking secondary_offices
             queryset = queryset.filter(
                 Q(office_id=office_id) | Q(secondary_offices__id=office_id)
             ).distinct()
         else:
-            # Default to authenticated user's office context when available
-            # EXCEPT if user has permission to assign any office employees (global access)
             user = self.request.user
             from users.permissions import user_has_permission_slug
             can_see_all = getattr(user, 'role', None) == 'SUPERADMIN' or \

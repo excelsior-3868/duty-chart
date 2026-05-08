@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock, Loader2, Smartphone, Upload, CheckCircle2 } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock, Loader2, Smartphone, Upload, CheckCircle2, Calendar } from 'lucide-react';
 import { RBACAdmin } from "@/components/settings/RBACAdmin";
 import { useEffect, useState, useRef } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
+import { HolidayManager } from "@/components/settings/HolidayManager";
 
 const Settings = () => {
   const { hasPermission, hasRole } = useAuth();
@@ -26,7 +27,8 @@ const Settings = () => {
     auto_logout_idle: true,
     latest_app_version: "1.0.0",
     old_app_version: "1.0.0",
-    app_update_url: ""
+    app_update_url: "",
+    show_sunday_as_holiday: false
   });
 
   useEffect(() => {
@@ -115,6 +117,10 @@ const Settings = () => {
           <TabsTrigger value="general" className="flex items-center gap-2">
             <SettingsIcon className="h-4 w-4" />
             General
+          </TabsTrigger>
+          <TabsTrigger value="holidays" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Holidays
           </TabsTrigger>
           {hasPermission('system.manage_rbac') && (
             <TabsTrigger value="rbac" className="flex items-center gap-2">
@@ -339,6 +345,15 @@ const Settings = () => {
             <RBACAdmin />
           </TabsContent>
         )}
+
+        <TabsContent value="holidays">
+          <HolidayManager 
+            settings={settings} 
+            setSettings={setSettings} 
+            onSave={handleSave}
+            saving={saving}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );

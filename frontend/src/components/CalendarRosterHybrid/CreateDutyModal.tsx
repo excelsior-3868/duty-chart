@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +10,10 @@ import { getSchedules, getScheduleById, type Schedule } from "@/services/schedul
 import { type DutyChart } from "@/services/dutichart";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
-import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange, Search, Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Hash, Plus, SwitchCamera, CalendarRange, Search, Check, ChevronsUpDown, Loader2, X, ListFilter } from "lucide-react";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
 import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
-import { addDays, eachDayOfInterval, format, parseISO } from "date-fns";
+import { addDays, eachDayOfInterval, format, parseISO, isSameDay } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import {
@@ -29,6 +29,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 interface CreateDutyModalProps {
@@ -64,9 +67,11 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
 
   const [dateISO, setDateISO] = useState(initialDateISO);
   const [endDateISO, setEndDateISO] = useState(initialDateISO);
-  const [isRange, setIsRange] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<string[]>([initialDateISO]);
   const [dateMode, setDateMode] = useState<"AD" | "BS">("BS");
+  const [selectionMode, setSelectionMode] = useState<"single" | "range" | "multiple">("single");
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const minDate = dutyChartInfo?.effective_date || "";
   const maxDate = dutyChartInfo?.end_date || "";
@@ -85,6 +90,7 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     if (initialDateISO) {
       setDateISO(initialDateISO);
       setEndDateISO(initialDateISO);
+      setSelectedDates([initialDateISO]);
     }
   }, [initialDateISO]);
 
@@ -102,10 +108,8 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     const load = async () => {
       try {
         setLoading(true);
-        // Only users with duties.assign_any_office_employee can see employees from all offices.
-        // Everyone else is restricted to the duty chart's office.
         const canAssignAny = hasPermission("duties.assign_any_office_employee");
-        const res = await getUsers(canAssignAny ? undefined : officeId, true);
+        const res = await getUsers(canAssignAny ? undefined : officeId, true, searchQuery, 100);
         setUsers(res);
       } catch (e) {
         console.error("Failed to load users:", e);
@@ -114,8 +118,19 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
         setLoading(false);
       }
     };
-    load();
-  }, [open, officeId, hasPermission]);
+    
+    // Immediate load for initial or cleared search, otherwise debounce
+    if (searchQuery === "") {
+        load();
+        return;
+    }
+
+    const timer = setTimeout(() => {
+        load();
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [open, officeId, hasPermission, searchQuery]);
 
   useEffect(() => {
     if (!open) return;
@@ -128,7 +143,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     loadOffice();
   }, [open, officeId]);
 
-  // Load schedule details if ID provided (or selected)
   useEffect(() => {
     if (!open || !selectedScheduleId) {
       setScheduleDetail(null);
@@ -143,7 +157,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     loadSchedule();
   }, [open, selectedScheduleId]);
 
-  // Fetch all schedules if no scheduleId provided
   useEffect(() => {
     if (!open || initialScheduleId) return;
     const loadSchedules = async () => {
@@ -183,26 +196,39 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       return;
     }
 
-    const todayStr = format(new Date(), "yyyy-MM-dd");
-    if (dateISO < todayStr) {
-      toast.error("Backdated assignment not allowed", {
-        description: "Employee assignment in the past is not allowed."
-      });
-      return;
-    }
-
-    // Duty Chart Date Range Validation
-    if (minDate && dateISO < minDate) {
-      toast.error(`Date cannot be before Duty Chart start date (${formatDisplayDate(minDate)})`);
-      return;
-    }
-    if (maxDate && dateISO > maxDate) {
-      toast.error(`Date cannot be after Duty Chart end date (${formatDisplayDate(maxDate)})`);
-      return;
-    }
-    if (isRange && maxDate && endDateISO > maxDate) {
-      toast.error(`End date cannot be after Duty Chart end date (${formatDisplayDate(maxDate)})`);
-      return;
+    if (selectionMode === "single") {
+        if (minDate && dateISO < minDate) {
+            toast.error(`Date cannot be before Duty Chart start date (${formatDisplayDate(minDate)})`);
+            return;
+        }
+        if (maxDate && dateISO > maxDate) {
+            toast.error(`Date cannot be after Duty Chart end date (${formatDisplayDate(maxDate)})`);
+            return;
+        }
+    } else if (selectionMode === "range") {
+        if (minDate && dateISO < minDate) {
+            toast.error(`Start date cannot be before Duty Chart start date (${formatDisplayDate(minDate)})`);
+            return;
+        }
+        if (maxDate && endDateISO > maxDate) {
+            toast.error(`End date cannot be after Duty Chart end date (${formatDisplayDate(maxDate)})`);
+            return;
+        }
+        if (new Date(endDateISO) < new Date(dateISO)) {
+            toast.error("End date cannot be before start date");
+            return;
+        }
+    } else if (selectionMode === "multiple") {
+        if (selectedDates.length === 0) {
+            toast.error("Please select at least one date");
+            return;
+        }
+        for (const d of selectedDates) {
+            if ((minDate && d < minDate) || (maxDate && d > maxDate)) {
+                toast.error(`Some dates are outside the chart range (${formatDisplayDate(minDate)} - ${formatDisplayDate(maxDate)})`);
+                return;
+            }
+        }
     }
 
     const finalScheduleId = initialScheduleId || parseInt(selectedScheduleId);
@@ -211,7 +237,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       return;
     }
 
-    // Helper to get time in minutes for comparison
     const timeToMinutes = (timeStr: string) => {
       const [h, m] = timeStr.split(':').map(Number);
       return h * 60 + m;
@@ -222,41 +247,26 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       const e1 = timeToMinutes(end1);
       const s2 = timeToMinutes(start2);
       const e2 = timeToMinutes(end2);
-      // (StartA < EndB) and (EndA > StartB)
       return s1 < e2 && e1 > s2;
     };
 
     try {
       setLoading(true);
 
-      // Validate Time Overlap on Frontend before sending
-      // Ideally we fetch user's duties for this date range
-      // We know the date(s) we are assigning.
+      let datesToCheck: string[] = [];
+      if (selectionMode === "single") {
+        datesToCheck = [dateISO];
+      } else if (selectionMode === "range") {
+        datesToCheck = eachDayOfInterval({ start: parseISO(dateISO), end: parseISO(endDateISO) }).map(d => format(d, "yyyy-MM-dd"));
+      } else {
+        datesToCheck = selectedDates;
+      }
 
-      const datesToCheck = isRange
-        ? eachDayOfInterval({ start: parseISO(dateISO), end: parseISO(endDateISO) }).map(d => format(d, "yyyy-MM-dd"))
-        : [dateISO];
-
-      // For each date, check existing duties
-      // We can optimize by fetching range or loop. 
-      // Since users won't usually select huge ranges, 1-by-1 or smart filter is fine.
-      // The `getDutiesFiltered` doesn't support date__in or range yet via simple params without backend changes or multiple calls.
-      // But wait, the user *approved* backend validation. Frontend validation is " nice to have " but backend is CRITICAL.
-      // To provide immediate feedback, let's just make a best-effort check or rely on backend error message.
-      // Actually, the user specifically asked for "validation where User cant be assigned...".
-      // If I do strictly backend, it matches the request "Just implement this validation".
-      // However, a frontend pre-check is better UX.
-      // Let's do a fetch for the specific single date if not range, or just rely on backend if range is complex.
-
-      if (!isRange) {
+      if (selectionMode === "single") {
         const existing = await getDutiesFiltered({ user: parseInt(selectedUserId), date: dateISO });
-        // Check overlap with requested schedule
         let currentSchedule = scheduleDetail;
         if (!currentSchedule && finalScheduleId) {
-          // If we don't have detail (e.g. from props only id), find it in 'schedules' list
           currentSchedule = schedules.find(s => s.id === finalScheduleId) || null;
-          // If still null (maybe because it was passed as initialScheduleId but not loaded in list),
-          // we might skip frontend check or fetch it.
           if (!currentSchedule && initialScheduleId) {
             currentSchedule = await getScheduleById(initialScheduleId);
           }
@@ -266,7 +276,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
           for (const d of existing) {
             if (d.start_time && d.end_time && currentSchedule.start_time && currentSchedule.end_time) {
               if (isOverlap(currentSchedule.start_time, currentSchedule.end_time, d.start_time, d.end_time)) {
-                // Found overlap
                 const offName = d.office_name || "another office";
                 toast.error(`Time overlap detected! User already is assigned to ${d.schedule_name} at ${offName} (${d.start_time} - ${d.end_time}) on this date.`);
                 setLoading(false);
@@ -277,21 +286,9 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
         }
       }
 
-
-      if (isRange) {
-        if (isRange && new Date(endDateISO) < new Date(dateISO)) {
-          toast.error("End date cannot be before start date");
-          setLoading(false);
-          return;
-        }
-
-        const dates = eachDayOfInterval({
-          start: parseISO(dateISO),
-          end: parseISO(endDateISO)
-        });
-
-        const duties = dates.map(d => ({
-          date: format(d, "yyyy-MM-dd"),
+      if (selectionMode !== "single") {
+        const duties = datesToCheck.map(d => ({
+          date: d,
           user: parseInt(selectedUserId),
           office: officeId,
           schedule: finalScheduleId,
@@ -322,17 +319,14 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
       console.error("Error creating duty:", error);
       let msg = "Failed to create duty.";
       const data = error?.response?.data;
-
       if (data) {
         if (typeof data === 'string') {
-          // It's probably an HTML 500 page
           msg = "Internal Server Error (500). Please check backend logs.";
         } else if (data.non_field_errors) {
           msg = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
         } else if (data.detail) {
           msg = data.detail;
         } else {
-          // If it's a field-specific error (like {date: ["..."]}), show the first one
           const keys = Object.keys(data);
           if (keys.length > 0) {
             const firstKey = keys[0];
@@ -348,12 +342,10 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   };
 
 
-  const inputClass = "w-full rounded-md border text-sm px-3 py-2 bg-[hsl(var(--card-bg))] border-[hsl(var(--gray-300))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--blue-200))] focus:border-[hsl(var(--inoc-blue))]";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md md:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md md:max-w-lg max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="p-6 pb-2">
           <div className="flex items-center justify-between mr-6">
             <div>
               <DialogTitle>Create Duty</DialogTitle>
@@ -362,11 +354,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                 {dutyChartInfo && (
                   <span className="block mt-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 w-fit shadow-sm">
                     Effective: {formatDisplayDate(minDate)} — {formatDisplayDate(maxDate)}
-                  </span>
-                )}
-                {dutyChartId && (
-                  <span className="block mt-2 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 w-fit">
-                    Note: SMS notifications are only sent for Approved charts.
                   </span>
                 )}
               </DialogDescription>
@@ -389,10 +376,11 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             </div>
           </div>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Employee *</label>
+        <form onSubmit={handleSubmit} className="text-xs sm:text-sm flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Employee *</label>
               <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -411,14 +399,22 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search employee by name, ID or email..." />
-                    <CommandList>
-                      <div
-                        className="max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent"
-                        onWheel={(e) => e.stopPropagation()}
-                      >
-                        <CommandEmpty>No employee found.</CommandEmpty>
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Search employee by name, ID or email..." 
+                      onValueChange={setSearchQuery}
+                    />
+                    <CommandList className="max-h-[350px]">
+                        {loading && (
+                          <div className="flex items-center justify-center p-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                          </div>
+                        )}
+                        {!loading && users.length === 0 && (
+                          <div className="py-6 text-center text-sm text-slate-500">
+                            No employee found.
+                          </div>
+                        )}
                         <CommandGroup>
                           {users.map((u) => (
                             <CommandItem
@@ -446,14 +442,12 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                             </CommandItem>
                           ))}
                         </CommandGroup>
-                      </div>
                     </CommandList>
                   </Command>
                 </PopoverContent>
               </Popover>
             </div>
 
-            {/* If no initialScheduleId, allow selection */}
             {!initialScheduleId && (
               <div className="space-y-1">
                 <label className="text-sm font-medium">Shift *</label>
@@ -477,67 +471,104 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
-              <div className="flex items-center gap-2">
-                <CalendarRange className="w-4 h-4 text-slate-500" />
-                <span className="text-sm font-medium">Date Range Mode</span>
+            <div className="flex flex-col p-2 bg-slate-50 rounded-lg border border-slate-200 gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarRange className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm font-medium">Assignment Mode</span>
+                </div>
+                <div className="flex bg-white border rounded-md p-1 items-center">
+                  {(["single", "range", "multiple"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setSelectionMode(mode)}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all capitalize ${selectionMode === mode ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+                    >{mode}</button>
+                  ))}
+                </div>
               </div>
-              <div className="flex bg-white border rounded-md p-1 items-center">
-                <button
-                  type="button"
-                  onClick={() => setIsRange(false)}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-sm transition-all ${!isRange ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                >Single</button>
-                <button
-                  type="button"
-                  onClick={() => setIsRange(true)}
-                  className={`px-3 py-1 text-[10px] font-bold rounded-sm transition-all ${isRange ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
-                >Range</button>
-              </div>
+              <p className="text-[10px] text-muted-foreground leading-tight italic">
+                {selectionMode === "single" && "Assign to a specific date."}
+                {selectionMode === "range" && "Assign to a continuous range of dates."}
+                {selectionMode === "multiple" && "Pick multiple specific dates from the calendar."}
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">{isRange ? "Start Date *" : "Date *"}</label>
-                {dateMode === "AD" ? (
-                  <GregorianDatePicker
-                    value={dateISO}
-                    onChange={setDateISO}
-                    minDate={minDate ? parseISO(minDate) : undefined}
-                    maxDate={maxDate ? parseISO(maxDate) : undefined}
-                  />
-                ) : (
-                  <NepaliDatePicker
-                    value={dateISO}
-                    onChange={setDateISO}
-                    minDate={minDate}
-                    maxDate={maxDate}
-                  />
-                )}
-              </div>
+            <div className="grid grid-cols-1 gap-4">
+              {selectionMode !== "multiple" ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">{selectionMode === "range" ? "Start Date *" : "Date *"}</label>
+                    {dateMode === "AD" ? (
+                      <GregorianDatePicker
+                        value={dateISO}
+                        onChange={setDateISO}
+                        minDate={minDate ? parseISO(minDate) : undefined}
+                        maxDate={maxDate ? parseISO(maxDate) : undefined}
+                      />
+                    ) : (
+                      <NepaliDatePicker
+                        value={dateISO}
+                        onChange={setDateISO}
+                        minDate={minDate}
+                        maxDate={maxDate}
+                      />
+                    )}
+                  </div>
 
-              {isRange && (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">End Date *</label>
-                  {dateMode === "AD" ? (
-                    <GregorianDatePicker
-                      value={endDateISO}
-                      onChange={setEndDateISO}
-                      minDate={minDate ? parseISO(minDate) : undefined}
-                      maxDate={maxDate ? parseISO(maxDate) : undefined}
-                    />
-                  ) : (
-                    <NepaliDatePicker
-                      value={endDateISO}
-                      onChange={setEndDateISO}
+                  {selectionMode === "range" && (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">End Date *</label>
+                      {dateMode === "AD" ? (
+                        <GregorianDatePicker
+                          value={endDateISO}
+                          onChange={setEndDateISO}
+                          minDate={minDate ? parseISO(minDate) : undefined}
+                          maxDate={maxDate ? parseISO(maxDate) : undefined}
+                        />
+                      ) : (
+                        <NepaliDatePicker
+                          value={endDateISO}
+                          onChange={setEndDateISO}
+                          minDate={minDate}
+                          maxDate={maxDate}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Dates *</label>
+                  <div className="border rounded-md p-3 bg-slate-50/50">
+                    <MultipleDateSelector
                       minDate={minDate}
                       maxDate={maxDate}
+                      selectedDates={selectedDates}
+                      onDatesChange={setSelectedDates}
+                      dateMode={dateMode}
                     />
-                  )}
+                    
+                    <div className="mt-3 flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1">
+                      {selectedDates.length === 0 && <span className="text-[10px] text-muted-foreground italic">No dates selected yet...</span>}
+                      {selectedDates.map(d => (
+                        <Badge key={d} variant="secondary" className="pl-2 pr-1 py-0.5 gap-1 text-[10px] font-bold">
+                          {formatDisplayDate(d)}
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedDates(selectedDates.filter(x => x !== d))}
+                            className="hover:bg-slate-200 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-
           </div>
 
           <div className="space-y-3 pt-3 border-t">
@@ -554,7 +585,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
 
             {selectedUserDetail && (
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-                {/* Contact Section */}
                 <div className="bg-primary/5 p-3 border-b border-primary/10">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col">
@@ -567,8 +597,6 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                     </div>
                   </div>
                 </div>
-
-                {/* Organization Section */}
                 <div className="bg-slate-50/80 p-3">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col">
@@ -583,9 +611,10 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                 </div>
               </div>
             )}
+            </div>
           </div>
 
-          <DialogFooter className="pt-4">
+          <DialogFooter className="p-4 sm:p-6 pt-2 border-t bg-slate-50/50 shrink-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -595,6 +624,118 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+interface MultipleDateSelectorProps {
+  minDate: string;
+  maxDate: string;
+  selectedDates: string[];
+  onDatesChange: (dates: string[]) => void;
+  dateMode: "AD" | "BS";
+}
+
+const MultipleDateSelector = ({ minDate, maxDate, selectedDates, onDatesChange, dateMode }: MultipleDateSelectorProps) => {
+  const [open, setOpen] = useState(false);
+  const allDatesInRange = React.useMemo(() => {
+    if (!minDate || !maxDate) return [];
+    try {
+      const start = parseISO(minDate);
+      const end = parseISO(maxDate);
+      return eachDayOfInterval({ start, end }).map(d => format(d, "yyyy-MM-dd"));
+    } catch (e) {
+      return [];
+    }
+  }, [minDate, maxDate]);
+
+  const toggleDate = (date: string) => {
+    if (selectedDates.includes(date)) {
+      onDatesChange(selectedDates.filter(d => d !== date));
+    } else {
+      onDatesChange([...selectedDates, date].sort());
+    }
+  };
+
+  const selectAll = () => onDatesChange(allDatesInRange);
+  const clearAll = () => onDatesChange([]);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" type="button" className="w-full flex items-center gap-2 h-9">
+          <ListFilter className="w-4 h-4" />
+          Select Multiple Dates ({selectedDates.length})
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-bold flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4 text-primary" />
+            Pick Dates for Assignment
+          </DialogTitle>
+          <DialogDescription className="text-[11px]">
+            Showing all available dates between {minDate} and {maxDate}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between py-2 border-y my-2">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            {selectedDates.length} selected
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" type="button" onClick={selectAll} className="h-7 text-[10px] px-2 font-bold">Select All</Button>
+            <Button variant="ghost" size="sm" type="button" onClick={clearAll} className="h-7 text-[10px] px-2 font-bold text-red-500 hover:text-red-600">Clear</Button>
+          </div>
+        </div>
+
+        <ScrollArea className="h-[300px] pr-4">
+          <div className="space-y-1">
+            {allDatesInRange.map((dateStr) => {
+              const isSelected = selectedDates.includes(dateStr);
+              const d = new Date(dateStr);
+              const nd = new NepaliDate(d);
+              const bsStr = `${nd.getYear()}-${(nd.getMonth() + 1).toString().padStart(2, '0')}-${nd.getDate().toString().padStart(2, '0')}`;
+              const dayName = format(d, "EEEE");
+              const isSaturday = d.getDay() === 6;
+
+              return (
+                <div 
+                  key={dateStr}
+                  className={cn(
+                    "flex items-center space-x-3 p-2 rounded-md transition-colors cursor-pointer hover:bg-slate-50",
+                    isSelected ? "bg-primary/5" : ""
+                  )}
+                  onClick={() => toggleDate(dateStr)}
+                >
+                  <Checkbox 
+                    checked={isSelected}
+                    onCheckedChange={() => toggleDate(dateStr)}
+                    className="h-4 w-4"
+                  />
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="flex items-center justify-between">
+                      <span className={cn("text-xs font-bold", isSaturday ? "text-red-500" : "text-slate-800")}>
+                        {dateMode === "AD" ? format(d, "MMM dd, yyyy") : bsStr}
+                      </span>
+                      <span className="text-[9px] font-medium text-slate-400">{dayName}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500">
+                      {dateMode === "AD" ? bsStr : format(d, "MMM dd, yyyy")}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+
+        <DialogFooter className="mt-4">
+          <Button type="button" className="w-full font-bold" onClick={() => setOpen(false)}>
+            Done Selection
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

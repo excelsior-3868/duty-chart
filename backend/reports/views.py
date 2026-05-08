@@ -859,11 +859,21 @@ class SummaryReportView(APIView):
         date_to = request.GET.get("date_to")
         user_id = request.GET.get("user_id")
         user_ids = request.GET.get("user_ids")
+        schedule_id = request.GET.get("schedule_id")
 
         if not (date_from and date_to):
             return Response({"error": "Date range is required"}, status=400)
 
-        qs = Duty.objects.select_related("user", "schedule", "office", "duty_chart").filter(
+        qs = Duty.objects.select_related(
+            "user", 
+            "user__office", 
+            "user__office__directorate", 
+            "user__office__ac_office", 
+            "user__office__cc_office",
+            "schedule", 
+            "office", 
+            "duty_chart"
+        ).filter(
             date__range=[date_from, date_to]
         )
 
@@ -886,6 +896,9 @@ class SummaryReportView(APIView):
                     qs = qs.filter(user_id__in=uid_list)
             except:
                 pass
+
+        if schedule_id and schedule_id != "all":
+            qs = qs.filter(schedule_id=schedule_id)
 
         # Aggregate data
         summary = {}
@@ -914,7 +927,13 @@ class SummaryReportView(APIView):
             
             chart_name = d.duty_chart.name if d.duty_chart and d.duty_chart.name else "Other/Manual"
             if chart_name not in summary[uid]["chart_breakdown"]:
-                summary[uid]["chart_breakdown"][chart_name] = {}
+                summary[uid]["chart_breakdown"][chart_name] = {
+                    "total_duties": 0,
+                    "total_hours": 0.0,
+                    "shifts": {}
+                }
+            
+            summary[uid]["chart_breakdown"][chart_name]["total_duties"] += 1
             
             # Calculate hours and count shift
             if d.schedule:
@@ -925,14 +944,15 @@ class SummaryReportView(APIView):
                     end += datetime.timedelta(days=1)
                 hours = (end - start).total_seconds() / 3600
                 summary[uid]["total_hours"] += hours
+                summary[uid]["chart_breakdown"][chart_name]["total_hours"] += hours
                 
                 # Count by shift name under the chart
-                summary[uid]["chart_breakdown"][chart_name].setdefault(s.name, 0)
-                summary[uid]["chart_breakdown"][chart_name][s.name] += 1
+                summary[uid]["chart_breakdown"][chart_name]["shifts"].setdefault(s.name, 0)
+                summary[uid]["chart_breakdown"][chart_name]["shifts"][s.name] += 1
             else:
                 # If no schedule, still count the chart occurrence
-                summary[uid]["chart_breakdown"][chart_name].setdefault("No Shift", 0)
-                summary[uid]["chart_breakdown"][chart_name]["No Shift"] += 1
+                summary[uid]["chart_breakdown"][chart_name]["shifts"].setdefault("No Shift", 0)
+                summary[uid]["chart_breakdown"][chart_name]["shifts"]["No Shift"] += 1
         
         # Format results
         for uid in summary:

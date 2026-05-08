@@ -157,6 +157,8 @@ class DutySerializer(serializers.ModelSerializer):
         data['position_name'] = user.position.name if user and user.position else None
         data['responsibility_name'] = user.responsibility.name if user and user.responsibility else None
         data['email'] = user.email if user else None
+        data['employee_id'] = getattr(user, 'employee_id', None)
+        data['image'] = user.image.url if user and user.image else None
         return data
 
 
