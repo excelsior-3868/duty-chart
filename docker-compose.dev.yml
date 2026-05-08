@@ -1,0 +1,79 @@
+services:
+  # Backend (Django)
+  dcms-backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: dcms-backend-dev
+    volumes:
+      - ./backend:/app
+      - ./mobile-app:/app/mobile-app # Corrected path from .env.docker
+    ports:
+      - "8802:8000"
+    env_file:
+      - .env.dev
+    depends_on:
+      - dcms-redis-dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Broker
+  dcms-redis-dev:
+    image: redis:7-alpine
+    container_name: dcms-redis-dev
+    ports:
+      - "6379:6379"
+
+  # Celery Worker
+  dcms-worker-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: dcms-worker-dev
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./mobile-app:/app/mobile-app
+    env_file:
+      - .env.dev
+    depends_on:
+      - dcms-backend-dev
+      - dcms-redis-dev
+
+  # Celery Beat
+  dcms-beat-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: dcms-beat-dev
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env.dev
+    depends_on:
+      - dcms-backend-dev
+      - dcms-redis-dev
+
+  # Frontend (Vite)
+  dcms-frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: dcms-frontend-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "8083:8083"
+    environment:
+      - VITE_API_BASE_URL=http://172.16.62.125:8802/api
+    depends_on:
+      - dcms-backend-dev
+
+networks:
+  default:
+    name: dcms-dev-network
