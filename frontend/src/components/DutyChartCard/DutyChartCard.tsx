@@ -183,10 +183,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       toast.error("At least one shift must be selected");
       return false;
     }
-    if (formData.status === "approved" && anusuchiFiles.length === 0) {
-      toast.error("At least one Approved Anusuchi Document is required for Approved status.");
-      return false;
-    }
+    // Document validation removed as per user request
     return true;
   };
 
@@ -499,7 +496,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Status *</label>
+            <label className={labelClass}>Status</label>
             <Select
               value={formData.status}
               onValueChange={(val: any) => handleInputChange("status", val)}
@@ -531,10 +528,10 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
               <div>
                 <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
                   <FileUp className="h-4 w-4" />
-                  स्वीकृत अनुसूची कागजातहरू *
+                  स्वीकृत अनुसूची कागजातहरू
                 </h3>
                 <p className="text-xs text-emerald-600/80">
-                  Upload multiple signed/approved documents for this chart.
+                  Upload multiple signed/approved documents for this chart. (Optional)
                 </p>
               </div>
               <label className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 cursor-pointer transition-colors shadow-sm self-start">
@@ -578,7 +575,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
 
             {anusuchiFiles.length === 0 && (
               <div className="text-center py-4 border border-emerald-100 border-dashed rounded-md bg-white/50">
-                <p className="text-xs text-emerald-600/60 italic">No documents added yet. At least one is required for approved status.</p>
+                <p className="text-xs text-emerald-600/60 italic">No documents added yet. (Optional)</p>
               </div>
             )}
           </div>

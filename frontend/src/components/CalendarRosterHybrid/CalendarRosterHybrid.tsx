@@ -168,22 +168,24 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
   }, [offices, user?.office_id]);
 
   // Fetch selected duty chart details (office, date range) for permission scoping
-  useEffect(() => {
+  const fetchDutyChartInfo = useCallback(async () => {
     const dutyChartIdNum = selectedDutyChartId ? parseInt(selectedDutyChartId) : undefined;
     if (!dutyChartIdNum) {
       setSelectedDutyChartInfo(null);
       return;
     }
-    (async () => {
-      try {
-        const info = await getDutyChartById(dutyChartIdNum);
-        setSelectedDutyChartInfo(info);
-      } catch (e) {
-        console.error("Failed to load duty chart info:", e);
-        setSelectedDutyChartInfo(null);
-      }
-    })();
+    try {
+      const info = await getDutyChartById(dutyChartIdNum);
+      setSelectedDutyChartInfo(info);
+    } catch (e) {
+      console.error("Failed to load duty chart info:", e);
+      setSelectedDutyChartInfo(null);
+    }
   }, [selectedDutyChartId]);
+
+  useEffect(() => {
+    fetchDutyChartInfo();
+  }, [fetchDutyChartInfo]);
 
   // Remove old auto-select effects since parent handles it now
 
@@ -828,7 +830,11 @@ export const CalendarRosterHybrid: React.FC<CalendarRosterHybridProps> = ({
       <EditDutyChartModal
         open={showEditDutyChart}
         onOpenChange={setShowEditDutyChart}
-        onUpdateSuccess={onDutyChartUpdated}
+        onUpdateSuccess={(updatedChart) => {
+          fetchDutyChartInfo();
+          fetchDuties();
+          onDutyChartUpdated?.(updatedChart);
+        }}
       />
 
       {/* Quick Assign Modal */}

@@ -55,6 +55,7 @@ const MyDuties = () => {
     // Filters
     const [selectedChartId, setSelectedChartId] = useState<string>("all");
     const [selectedShiftId, setSelectedShiftId] = useState<string>("all");
+    const [isFirstLoad, setIsFirstLoad] = useState(true);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -67,12 +68,36 @@ const MyDuties = () => {
         enabled: !!user?.office_id,
     });
 
+
     // Fetch Duties
     const { data: duties = [], isLoading } = useQuery({
         queryKey: ['duties', 'my', user?.id],
         queryFn: () => user?.id ? getDutiesFiltered({ user: user.id }) : Promise.resolve([]),
         enabled: !!user?.id,
     });
+
+    // Auto-select latest chart for which user has assignments
+    React.useEffect(() => {
+        if (!isFirstLoad) return;
+        if (dutyCharts.length > 0 && !isLoading) {
+            // Find unique chart IDs from user's duties
+            const assignedChartIds = new Set(duties.map(d => String(d.duty_chart)));
+            
+            // dutyCharts is ordered by -id (latest first)
+            // Find the first chart that has at least one assignment
+            const latestAssignedChart = dutyCharts.find(c => assignedChartIds.has(String(c.id)));
+            
+            const targetChart = latestAssignedChart || dutyCharts[0];
+            
+            if (targetChart) {
+                setSelectedChartId(String(targetChart.id));
+                if (targetChart.effective_date) {
+                    setCurrentDate(new Date(targetChart.effective_date));
+                }
+            }
+            setIsFirstLoad(false);
+        }
+    }, [dutyCharts, duties, isFirstLoad, isLoading]);
     // BS date helpers (needed by filteredDuties and calendar)
     const currentNepaliDate = useMemo(() => new NepaliDate(currentDate), [currentDate]);
     const yearBS = currentNepaliDate.getYear();

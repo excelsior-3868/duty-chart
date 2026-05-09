@@ -1245,6 +1245,7 @@ const DutyCalendar = () => {
                             // Refresh current view
                             fetchDutyCharts();
                             fetchDuties();
+                            fetchDutyChartInfo();
                         }
                     }}
                 />

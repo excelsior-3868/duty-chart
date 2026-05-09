@@ -394,10 +394,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       }
     }
 
-    if (formData.status === "approved" && existingAnusuchi.length === 0 && anusuchiFiles.length === 0) {
-      toast.error("At least one Approved Anusuchi Document is required for Approved status.");
-      return;
-    }
+    // Document validation removed as per user request
 
     setShowManualConfirm(true);
   };
@@ -650,31 +647,42 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className={labelClass}>Status *</label>
-                        <Select
-                          value={formData.status}
-                          onValueChange={(val: any) => handleInputChange("status", val)}
-                        >
-                          <SelectTrigger className={inputClass}>
-                            <SelectValue placeholder="Select Status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="draft">
-                              <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                                Draft (No SMS)
-                              </div>
-                            </SelectItem>
-                            {hasPermission('duties.approve_dutychart') && (
-                              <SelectItem value="approved">
+                        <label className={labelClass}>Status</label>
+                        {initialChart?.status === "approved" ? (
+                          <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-emerald-50 border-emerald-200">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className="text-sm font-medium text-emerald-800">
+                              Approved (Sends SMS)
+                            </span>
+                          </div>
+                        ) : (
+                          <Select
+                            value={formData.status}
+                            onValueChange={(val: any) =>
+                              handleInputChange("status", val)
+                            }
+                          >
+                            <SelectTrigger className={inputClass}>
+                              <SelectValue placeholder="Select Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="draft">
                                 <div className="flex items-center gap-2">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                  Approved (Sends SMS)
+                                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                  Draft (No SMS)
                                 </div>
                               </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
+                              {hasPermission("duties.approve_dutychart") && (
+                                <SelectItem value="approved">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    Approved (Sends SMS)
+                                  </div>
+                                </SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -686,7 +694,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                       <div>
                         <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2">
                           <FileUp className="h-4 w-4" />
-                          स्वीकृत अनुसूची कागजातहरू *
+                          स्वीकृत अनुसूची कागजातहरू
                         </h3>
                         <p className="text-xs text-emerald-600/80">
                           Upload multiple signed/approved documents for this chart.
@@ -750,7 +758,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                     
                     {existingAnusuchi.length === 0 && anusuchiFiles.length === 0 && (
                       <div className="text-center py-4 border border-emerald-100 border-dashed rounded-md bg-white/50">
-                        <p className="text-xs text-emerald-600/60 italic">No documents added yet. At least one is required for approved status.</p>
+                        <p className="text-xs text-emerald-600/60 italic">No documents added yet. (Optional)</p>
                       </div>
                     )}
                   </div>
