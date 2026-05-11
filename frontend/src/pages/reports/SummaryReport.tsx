@@ -124,6 +124,7 @@ const SummaryReport = () => {
 
     const [schedules, setSchedules] = useState<any[]>([]);
     const [selectedScheduleId, setSelectedScheduleId] = useState<string>("all");
+    const [userLoading, setUserLoading] = useState(false);
 
     useEffect(() => {
         document.title = "Summary Duty Report - NT Duty Chart";
@@ -145,19 +146,23 @@ const SummaryReport = () => {
     };
 
     const fetchUsers = async () => {
+        setUserLoading(true);
         try {
             const params: any = { 
                 page_size: 1000,
                 is_activated: true
             };
-            if (selectedOfficeId !== "all") {
-                params.office_id = selectedOfficeId;
+            if (selectedOfficeId && selectedOfficeId !== "all") {
+                params.office = selectedOfficeId;
             }
             const res = await api.get("/users/", { params });
             setUsers(res.data.results || res.data);
             setSelectedUsers([]);
         } catch (err) {
             console.error("Failed to fetch users", err);
+            setUsers([]);
+        } finally {
+            setUserLoading(false);
         }
     };
 
@@ -444,9 +449,23 @@ const SummaryReport = () => {
                                                     )}
                                                 </div>
                                                 <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
-                                                    No employees found.
+                                                    {userLoading ? (
+                                                        <div className="flex flex-col items-center gap-2">
+                                                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                                            <span>Loading employees...</span>
+                                                        </div>
+                                                    ) : (
+                                                        "No employees found."
+                                                    )}
                                                 </CommandEmpty>
-                                                <CommandGroup>
+                                                {userLoading && users.length === 0 && (
+                                                    <div className="py-10 flex flex-col items-center justify-center gap-2 text-slate-400">
+                                                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                                        <span className="text-xs font-medium italic">Fetching employee list...</span>
+                                                    </div>
+                                                )}
+                                                {!userLoading && (
+                                                    <CommandGroup>
                                                     {users.filter(u => {
                                                         const search = searchTerm.toLowerCase();
                                                         return (
@@ -487,6 +506,7 @@ const SummaryReport = () => {
                                                         );
                                                     }).slice(0, 100)}
                                                 </CommandGroup>
+                                                )}
                                             </CommandList>
                                         </Command>
                                     </PopoverContent>

@@ -101,7 +101,7 @@ class ScheduleView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        office_id = self.request.query_params.get("office", None)
+        office_id = self.request.query_params.get("office") or self.request.query_params.get("office_id")
         duty_chart_id = self.request.query_params.get("duty_chart", None)
         status = self.request.query_params.get("status", None)
 

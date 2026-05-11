@@ -51,7 +51,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         )
 
-        office_id = self.request.query_params.get('office', None)
+        office_id = self.request.query_params.get('office') or self.request.query_params.get('office_id')
         is_activated = self.request.query_params.get('is_activated', None)
         duty_chart_id = self.request.query_params.get('duty_chart_id', None)
         schedule_id = self.request.query_params.get('schedule_id', None)
