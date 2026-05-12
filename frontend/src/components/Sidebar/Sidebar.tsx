@@ -17,7 +17,8 @@ import {
   Building2,
   Landmark,
   Network,
-  ShieldCheck
+  ShieldCheck,
+  HardDrive
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ROUTES } from '@/utils/constants';
@@ -145,6 +146,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     icon: 'Settings',
     permission: 'system.view_settings',
     color: 'text-slate-500'
+  },
+  {
+    title: 'Documents Repository',
+    href: ROUTES.DOCUMENTS_REPOSITORY,
+    icon: 'HardDrive',
+    color: 'text-blue-600',
   }
 ];
 
@@ -159,7 +166,8 @@ const iconMap = {
   FileText,
   Building2,
   Landmark,
-  ShieldCheck
+  ShieldCheck,
+  HardDrive
 };
 
 export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {

@@ -116,6 +116,7 @@ import ApiDocsPage from "@/pages/ApiDocsPage";
 import ArchitecturePage from "@/pages/ArchitecturePage";
 import PositionsResponsibilitiesPage from "@/pages/PositionsResponsibilitiesPage";
 import MyDuties from "@/pages/MyDuties";
+import DocumentsRepositoryPage from "@/pages/DocumentsRepositoryPage";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Outlet } from "react-router-dom";
 
@@ -340,6 +341,14 @@ export const router = createBrowserRouter([
                 <ScheduleLayout>
                   <Schedule />
                 </ScheduleLayout>
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.DOCUMENTS_REPOSITORY,
+            element: (
+              <ProtectedRoute>
+                <DocumentsRepositoryPage />
               </ProtectedRoute>
             ),
           },

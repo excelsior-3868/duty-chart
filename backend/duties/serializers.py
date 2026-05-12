@@ -9,13 +9,20 @@ from org.models import WorkingOffice as Office
 
 
 class AnusuchiDocumentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
     class Meta:
         model = AnusuchiDocument
-        fields = ['id', 'file', 'uploaded_at', 'uploaded_by']
+        fields = ['id', 'file', 'uploaded_at', 'uploaded_by', 'file_url']
+
+    def get_file_url(self, obj):
+        if obj.file:
+            return f"media/{obj.file.name}"
+        return None
 
 class DutyChartSerializer(serializers.ModelSerializer):
     schedules = serializers.PrimaryKeyRelatedField(queryset=Schedule.objects.all(), many=True, required=False)
     anusuchi_documents = AnusuchiDocumentSerializer(many=True, read_only=True)
+    approval_document_url = serializers.SerializerMethodField()
 
     class Meta:
         model = DutyChart
@@ -32,6 +39,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
             'edited_by',
             'edited_at',
             'approval_document',
+            'approval_document_url',
             'approval_remarks',
             'anusuchi_documents',
         ]
@@ -82,6 +90,11 @@ class DutyChartSerializer(serializers.ModelSerializer):
         data['created_by_role'] = instance.created_by.role if instance.created_by else None
         data['created_by_office'] = instance.created_by.office_id if instance.created_by else None
         return data
+
+    def get_approval_document_url(self, obj):
+        if obj.approval_document:
+            return f"media/{obj.approval_document.name}"
+        return None
 
 
 class DutySerializer(serializers.ModelSerializer):
@@ -163,9 +176,15 @@ class DutySerializer(serializers.ModelSerializer):
 
 
 class DocumentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
     class Meta:
         model = Document
-        fields = ['id', 'file', 'description', 'uploaded_at']
+        fields = ['id', 'file', 'description', 'uploaded_at', 'file_url']
+
+    def get_file_url(self, obj):
+        if obj.file:
+            return f"media/{obj.file.name}"
+        return None
 
     # ✅ CHANGE: Call full_clean() so model-level validations (file size limit, checksum generation) run
     def create(self, validated_data):

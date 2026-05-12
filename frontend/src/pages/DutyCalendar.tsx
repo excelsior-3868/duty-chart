@@ -691,26 +691,35 @@ const DutyCalendar = () => {
                                                         <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
                                                             {((selectedDutyChartInfo as any).anusuchi_documents || []).length > 0 ? (
                                                                 (selectedDutyChartInfo as any).anusuchi_documents.map((doc: any, idx: number) => (
-                                                                    <a 
+                                                                    <button 
                                                                         key={idx}
-                                                                        href={doc.file}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                const fileUrl = doc.file_url || doc.file;
+                                                                                const response = await api.get(fileUrl, { responseType: 'blob' });
+                                                                                const contentType = (response.headers as any)['content-type'] || 'application/pdf';
+                                                                                const blob = new Blob([response.data as BlobPart], { type: contentType });
+                                                                                const blobUrl = window.URL.createObjectURL(blob);
+                                                                                window.open(blobUrl, '_blank');
+                                                                            } catch (err) {
+                                                                                toast.error("Failed to preview document");
+                                                                            }
+                                                                        }}
+                                                                        className="w-full flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
                                                                     >
                                                                         <div className="flex items-center gap-2 min-w-0">
                                                                             <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0">
                                                                                 <span className="text-[10px] font-bold text-emerald-700">{idx + 1}</span>
                                                                             </div>
-                                                                            <div className="flex flex-col min-w-0">
+                                                                            <div className="flex flex-col min-w-0 text-left">
                                                                                 <span className="text-[10px] font-bold text-emerald-600 uppercase italic">अनुसूची - १</span>
                                                                                 <span className="text-xs font-medium text-slate-600 truncate">
-                                                                                    {doc.file.split('/').pop()}
+                                                                                    {doc.file.split('/').pop().split('?')[0]}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
                                                                         <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-500 shrink-0" />
-                                                                    </a>
+                                                                    </button>
                                                                 ))
                                                             ) : (
                                                                 <div className="py-4 text-center text-[10px] text-slate-400 italic">

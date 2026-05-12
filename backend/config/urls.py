@@ -36,6 +36,8 @@ from duties.views import (
     DutyChartExportFile,
     DutyChartImportTemplateView,
     DutyChartImportView,
+    media_proxy_view,
+    S3ExplorerView,
 )
 
 print("URL configuration loaded", flush=True)
@@ -149,6 +151,8 @@ urlpatterns = [
         RosterBulkUploadView.as_view(),
         name="roster_bulk_upload",
     ),
+    path("api/v1/media/<path:path>", media_proxy_view, name='media_proxy'),
+    path("api/v1/s3-explorer/", S3ExplorerView.as_view(), name='s3_explorer'),
 
 
     # Router (Generic API endpoints) - Must be last for api/v1/ prefix

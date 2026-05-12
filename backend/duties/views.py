@@ -30,11 +30,16 @@ from django.core.exceptions import ValidationError
 from django.db import transaction, IntegrityError
 
 from rest_framework import viewsets, permissions, status, renderers, serializers
-from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.http import HttpResponse, JsonResponse
+import mimetypes
+import os
+import boto3
+from django.http import HttpResponse, JsonResponse, Http404, FileResponse
+from django.core.files.storage import default_storage
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from io import BytesIO
@@ -334,16 +339,21 @@ class DutyChartViewSet(viewsets.ModelViewSet):
 
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
-    def save_anusuchi_documents(self, chart):
-        files = self.request.FILES.getlist('anusuchi_documents')
+    def save_anusuchi_documents(self, chart, files=None):
+        if files is None:
+            files = self.request.FILES.getlist('anusuchi_documents')
+        
         if files:
             from .models import AnusuchiDocument
             for f in files:
+                # Basic check to avoid creating duplicate records if the file object is identical
+                # (though in DRF/Django they are usually unique per request)
                 AnusuchiDocument.objects.create(
                     duty_chart=chart, 
                     file=f, 
                     uploaded_by=self.request.user
                 )
+                print(f"DEBUG: [SaveAnusuchi] Saved document for chart {chart.id}: {f.name}", flush=True)
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -507,8 +517,11 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 chart.save()
                 
                 if anusuchi_docs:
-                    self.save_anusuchi_documents(chart)
+                    # If we assigned anusuchi_docs[0] to approval_doc, 
+                    # we still want to save all of them as AnusuchiDocuments
+                    self.save_anusuchi_documents(chart, files=anusuchi_docs)
                 elif approval_doc:
+                    # Only save as AnusuchiDocument if it wasn't already in anusuchi_docs
                     from .models import AnusuchiDocument
                     AnusuchiDocument.objects.create(
                         duty_chart=chart,
@@ -555,6 +568,26 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 "detail": error_detail,
                 "error_type": type(e).__name__
             }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
+    def add_anusuchi_document(self, request, pk=None):
+        """
+        Allows adding documents even after a chart is approved.
+        Useful for fixing missing files or adding extra annexes.
+        """
+        chart = self.get_object()
+        # Permission check (reuse approval logic or simplified)
+        if not IsSuperAdmin().has_permission(request, self):
+            if not user_has_permission_slug(request.user, 'duties.approve_dutychart') and \
+               not user_has_permission_slug(request.user, 'duties.edit_dutychart'):
+                return Response({"detail": "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        files = request.FILES.getlist('anusuchi_documents')
+        if not files:
+            return Response({"detail": "No documents provided (use 'anusuchi_documents' field)."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.save_anusuchi_documents(chart, files=files)
+        return Response({"detail": f"Successfully added {len(files)} document(s)."})
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def debug_permissions(self, request, pk=None):
@@ -2421,3 +2454,187 @@ class DutyChartImportView(APIView):
             "created_duties": created_count
         }, status=status.HTTP_201_CREATED)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def media_proxy_view(request, path):
+    """
+    Proxy for S3 media files. Avoids exposing AWS credentials in the URL.
+    Checks authentication and returns the actual file content from S3.
+    """
+    if not path:
+        raise Http404("No path provided.")
+
+    storage = default_storage
+
+    try:
+        # Check if file exists in storage
+        if not storage.exists(path):
+            raise Http404(f"File not found in storage: {path}")
+
+        # Determine content type
+        content_type, _ = mimetypes.guess_type(path)
+        if not content_type:
+            content_type = 'application/octet-stream'
+
+        # Stream directly using FileResponse
+        response = FileResponse(storage.open(path, 'rb'), content_type=content_type)
+        response['Content-Disposition'] = f'inline; filename="{os.path.basename(path)}"'
+        
+        return response
+    except Exception as e:
+        logger.error(f"Media proxy error for path {path}: {str(e)}")
+        raise Http404(f"Error accessing file: {str(e)}")
+
+
+class S3ExplorerView(APIView):
+    """
+    View to list all objects in S3 storage and return them in a tree structure.
+    Organized as Office -> Duty Chart -> Documents.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not settings.AWS_ACCESS_KEY_ID:
+            return Response({
+                'success': False,
+                'message': 'S3 storage is not configured'
+            }, status=400)
+
+        # Get relevant offices for the user
+        from org.models import WorkingOffice
+        from duties.models import DutyChart
+        
+        is_unrestricted = getattr(request.user, 'role', None) == 'SUPERADMIN' or                           user_has_permission_slug(request.user, 'duties.view_any_office_chart')
+        
+        if is_unrestricted:
+            offices_qs = WorkingOffice.objects.all()
+            charts_qs = DutyChart.objects.all()
+        else:
+            allowed_office_ids = get_allowed_office_ids(request.user)
+            offices_qs = WorkingOffice.objects.filter(id__in=allowed_office_ids)
+            charts_qs = DutyChart.objects.filter(office_id__in=allowed_office_ids)
+        
+        offices_data = list(offices_qs.values('id', 'name'))
+        charts_data = list(charts_qs.values('id', 'name', 'office_id'))
+        
+        allowed_office_names = {o['name'].replace(" ", "_") for o in offices_data}
+
+        try:
+            s3 = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+                verify=settings.AWS_S3_VERIFY,
+                config=boto3.session.Config(s3={'addressing_style': 'path'})
+            )
+            
+            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+            
+            objects = []
+            paginator = s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=bucket_name):
+                if 'Contents' in page:
+                    for obj in page['Contents']:
+                        key = obj['Key']
+                        
+                        # Filter objects based on allowed offices if not unrestricted
+                        parts = key.split('/')
+                        if not is_unrestricted:
+                            if not parts or parts[0] not in allowed_office_names:
+                                continue
+                        
+                        # Use the proxy URL
+                        proxy_url = f"media/{key}"
+                        objects.append({
+                            'key': key,
+                            'size': obj['Size'],
+                            'last_modified': obj['LastModified'].isoformat(),
+                            'url': proxy_url
+                        })
+            
+            tree = self.build_duty_chart_tree(objects, offices_data, charts_data)
+            
+            return Response({
+                'success': True,
+                'data': tree,
+                'total_files': len(objects)
+            })
+
+        except Exception as e:
+            logger.exception("Error listing S3 objects")
+            return Response({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+
+    def build_duty_chart_tree(self, objects, offices_data, charts_data):
+        root = []
+        office_nodes = {}
+
+        # 1. Initialize offices
+        for office in sorted(offices_data, key=lambda x: x['name']):
+            node = {
+                'id': f"office_{office['id']}",
+                'name': office['name'],
+                'type': 'directory',
+                'path': office['name'].replace(" ", "_"),
+                'children': []
+            }
+            root.append(node)
+            office_nodes[office['name'].replace(" ", "_")] = node
+
+        # 2. Add S3 objects to the tree
+        for obj in objects:
+            parts = obj['key'].split('/')
+            if not parts: continue
+            
+            office_part = parts[0]
+            target_office_node = office_nodes.get(office_part)
+            
+            if not target_office_node:
+                # If office not in our database but exists in S3 (and user is unrestricted)
+                target_office_node = {
+                    'id': f"office_ext_{office_part}",
+                    'name': office_part.replace("_", " "),
+                    'type': 'directory',
+                    'path': office_part,
+                    'children': []
+                }
+                root.append(target_office_node)
+                office_nodes[office_part] = target_office_node
+
+            current_level = target_office_node['children']
+            parent_path = target_office_node['path']
+            
+            for i, part in enumerate(parts[1:]):
+                is_last = (i == len(parts[1:]) - 1)
+                full_path = f"{parent_path}/{part}"
+                existing_node = next((node for node in current_level if node['name'] == part), None)
+                
+                if existing_node:
+                    if not is_last:
+                        current_level = existing_node.setdefault('children', [])
+                else:
+                    new_node = {
+                        'id': full_path,
+                        'name': part,
+                        'type': 'file' if is_last else 'directory',
+                        'path': full_path,
+                    }
+                    if is_last:
+                        new_node.update({
+                            'size': obj['size'], 
+                            'last_modified': obj['last_modified'], 
+                            'url': obj['url']
+                        })
+                    else:
+                        new_node['children'] = []
+                    
+                    current_level.append(new_node)
+                    if not is_last: current_level = new_node['children']
+                parent_path = full_path
+
+        # 3. Filter out empty branches
+        return [node for node in root if node.get('children')]
