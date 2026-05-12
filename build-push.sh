@@ -29,7 +29,7 @@ set -euo pipefail
 DEFAULT_VERSION="v0.0.0"
 DEFAULT_REGISTRY="nexus.ntc.net.np"
 DEFAULT_PROJECT_NAME="dutychart"
-DEFAULT_PLATFORMS="linux/amd64,linux/arm64"
+DEFAULT_PLATFORMS="linux/amd64"
 DEFAULT_API_BASE_URL="https://dutychart.ntc.net.np"
 
 REGISTRY="${2:-$DEFAULT_REGISTRY}"
