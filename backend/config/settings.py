@@ -51,6 +51,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-mobile-token',
+    'mobile-api-token',
     'cache-control',
     'pragma',
 ]
@@ -238,8 +240,7 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
-        "authentication.permissions.HasMobileAPIToken",
+        "authentication.permissions.IsAuthenticatedOrHasMobileToken",
     ],
 }
 

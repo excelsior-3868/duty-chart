@@ -34,8 +34,13 @@ class StandardResultsSetPagination(PageNumberPagination):
 class DirectorateViewSet(viewsets.ModelViewSet):
     queryset = Directorate.objects.all().order_by('id')
     serializer_class = DirectorateSerializer
-    permission_classes = [HasMobileAPIToken | SuperAdminOrReadOnly]
+    permission_classes = [SuperAdminOrReadOnly]
     pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [(HasMobileAPIToken | SuperAdminOrReadOnly)()]
+        return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
         queryset = Directorate.objects.all().order_by('id')
@@ -68,8 +73,13 @@ class DirectorateViewSet(viewsets.ModelViewSet):
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
-    permission_classes = [HasMobileAPIToken | SuperAdminOrReadOnly]
+    permission_classes = [SuperAdminOrReadOnly]
     pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [(HasMobileAPIToken | SuperAdminOrReadOnly)()]
+        return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
         queryset = Department.objects.all()
@@ -81,8 +91,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class OfficeViewSet(viewsets.ModelViewSet):
     queryset = WorkingOffice.objects.all()
     serializer_class = WorkingOfficeSerializer
-    permission_classes = [HasMobileAPIToken | SuperAdminOrReadOnly]
+    permission_classes = [SuperAdminOrReadOnly]
     pagination_class = None
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [(HasMobileAPIToken | SuperAdminOrReadOnly)()]
+        return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
         print(f"[DEBUG] OfficeViewSet.get_queryset() head: {self.request.headers.get('Authorization')[:15] if self.request.headers.get('Authorization') else 'None'}")
@@ -92,8 +107,13 @@ class OfficeViewSet(viewsets.ModelViewSet):
 class AccountingOfficeViewSet(viewsets.ModelViewSet):
     queryset = AccountingOffice.objects.all().order_by('id')
     serializer_class = AccountingOfficeSerializer
-    permission_classes = [HasMobileAPIToken | SuperAdminOrReadOnly]
+    permission_classes = [SuperAdminOrReadOnly]
     pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [(HasMobileAPIToken | SuperAdminOrReadOnly)()]
+        return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
         queryset = AccountingOffice.objects.all().order_by('id')
@@ -111,8 +131,13 @@ class AccountingOfficeViewSet(viewsets.ModelViewSet):
 class CCOfficeViewSet(viewsets.ModelViewSet):
     queryset = CCOffice.objects.all().order_by('id')
     serializer_class = CCOfficeSerializer
-    permission_classes = [HasMobileAPIToken | SuperAdminOrReadOnly]
+    permission_classes = [SuperAdminOrReadOnly]
     pagination_class = StandardResultsSetPagination
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [(HasMobileAPIToken | SuperAdminOrReadOnly)()]
+        return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
         queryset = CCOffice.objects.all().order_by('id')

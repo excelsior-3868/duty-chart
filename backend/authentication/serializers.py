@@ -43,10 +43,12 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         from django.conf import settings
         request = self.context.get('request')
         
-        # Check both headers and META for the mobile token
+        # Check for the mobile token
         mobile_token = None
         if request:
-            mobile_token = request.headers.get('X-Mobile-Token') or request.META.get('HTTP_X_MOBILE_TOKEN')
+            mobile_token = request.headers.get('X-Mobile-Token') or \
+                           request.headers.get('MOBILE_API_TOKEN') or \
+                           request.headers.get('Mobile-Api-Token')
         
         is_mobile_request = False
         if mobile_token and settings.MOBILE_API_TOKEN:
