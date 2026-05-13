@@ -58,7 +58,8 @@ def send_duty_reminders():
         date__in=candidate_dates,
         user__isnull=False,
         schedule__isnull=False,
-        schedule__shift_type__in=notifiable_types
+        schedule__shift_type__in=notifiable_types,
+        duty_chart__status='approved'
     ).select_related('user', 'schedule', 'office')
 
     sent_count = 0
@@ -125,7 +126,8 @@ def send_daily_duty_reminders():
         date=today,
         user__isnull=False,
         schedule__shift_type__in=notifiable_types,
-        schedule__start_time__gte='18:00:00'  # Only for duties starting after 6 PM
+        schedule__start_time__gte='18:00:00',  # Only for duties starting after 6 PM
+        duty_chart__status='approved'
     ).select_related('user', 'schedule', 'duty_chart', 'office')
     
     sent_count = 0

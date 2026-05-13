@@ -574,7 +574,7 @@ const Dashboard = () => {
       trend: myNextDuty ? `${new NepaliDate(new Date(myNextDuty.date)).format("MMMM DD")} (${format(new Date(myNextDuty.date), "MMM d")}) | ${myNextDuty.start_time?.substring(0, 5)} - ${myNextDuty.end_time?.substring(0, 5)}` : "",
       variant: "secondary",
       isDuty: false,
-      valueColor: myNextDuty ? "text-blue-700" : "text-slate-700"
+      valueColor: myNextDuty ? "text-[hsl(209,100%,32%)]" : "text-slate-700"
     },
     {
       title: `My Duties (${currentBSMonthInfo.name})`,

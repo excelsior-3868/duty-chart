@@ -289,8 +289,8 @@ const PositionsResponsibilitiesPage: React.FC = () => {
         <PageHeader 
           title="Position and Responsibility" 
           subtitle="Manage organizational positions and user responsibilities." 
-          icon={LayoutGrid} 
-          iconColor="text-primary"
+          icon={ShieldCheck} 
+          iconColor="text-orange-500"
         />
 
         <div className="flex items-center gap-3">
