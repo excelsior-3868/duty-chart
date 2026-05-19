@@ -25,7 +25,7 @@ services:
     image: redis:7-alpine
     container_name: dcms-redis-dev
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
   # Celery Worker
   dcms-worker-dev:

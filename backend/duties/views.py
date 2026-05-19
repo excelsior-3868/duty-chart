@@ -28,6 +28,7 @@ from docx.enum.table import WD_ALIGN_VERTICAL
 from django.shortcuts import render, get_object_or_404
 from django.core.exceptions import ValidationError
 from django.db import transaction, IntegrityError
+from django.db.models import Q
 
 from rest_framework import viewsets, permissions, status, renderers, serializers
 from rest_framework.permissions import IsAuthenticated
@@ -142,19 +143,19 @@ class ScheduleView(viewsets.ModelViewSet):
             )
             
             if not can_view_any:
-                from django.db.models import Q
+                # Visibility logic:
+                # 1. Global templates (office_id is null)
+                # 2. Schedules for offices the user is allowed to see
+                # 3. Schedules linked to an approved chart (even if user doesn't belong to the office)
+                q_visibility = Q(office_id__isnull=True) | Q(office_id__in=allowed)
                 
-                if office_id:
-                    # If they asked for a specific office, ensure they have permission to see it.
-                    # Note: We already filtered by office_id above.
-                    if int(office_id) not in allowed:
-                        return Schedule.objects.none()
-                else:
-                    # No office specified -> Show global templates + their allowed offices
-                    q_res = Q(office_id__isnull=True)
-                    if allowed:
-                        q_res |= Q(office_id__in=allowed)
-                    queryset = queryset.filter(q_res)
+                if duty_chart_id:
+                    q_visibility |= Q(duty_charts__id=duty_chart_id, duty_charts__status='approved')
+                elif office_id:
+                    # If requesting for an office, and there is an approved chart there, show its schedules
+                    q_visibility |= Q(office_id=office_id, duty_charts__status='approved')
+
+                queryset = queryset.filter(q_visibility)
 
         return queryset.distinct().order_by('name')
 
@@ -327,7 +328,8 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
             if not can_view_any:
                 allowed = get_allowed_office_ids(user)
-                queryset = queryset.filter(office_id__in=allowed)
+                # Allow viewing if user belongs to the office OR if the chart is approved
+                queryset = queryset.filter(Q(office_id__in=allowed) | Q(status='approved'))
 
         if office_id:
             try:
@@ -654,8 +656,8 @@ class DutyViewSet(viewsets.ModelViewSet):
             can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
             if not can_view_any:
                 allowed = get_allowed_office_ids(user)
-                if allowed:
-                    queryset = queryset.filter(office_id__in=allowed)
+                # Allow viewing if user belongs to the office OR if the duty chart is approved
+                queryset = queryset.filter(Q(office_id__in=allowed) | Q(duty_chart__status='approved'))
 
 
         if office_id:
@@ -2513,7 +2515,7 @@ class S3ExplorerView(APIView):
         else:
             allowed_office_ids = get_allowed_office_ids(request.user)
             offices_qs = WorkingOffice.objects.filter(id__in=allowed_office_ids)
-            charts_qs = DutyChart.objects.filter(office_id__in=allowed_office_ids)
+            charts_qs = DutyChart.objects.filter(Q(office_id__in=allowed_office_ids) | Q(status='approved'))
         
         offices_data = list(offices_qs.values('id', 'name'))
         charts_data = list(charts_qs.values('id', 'name', 'office_id'))

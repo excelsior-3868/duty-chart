@@ -651,7 +651,7 @@ const DutyCalendar = () => {
                                             const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
                                                 ? Number((selectedDutyChartInfo.office as any)?.id)
                                                 : Number(selectedDutyChartInfo.office);
-                                            const canSeeDocument = isSuperAdmin || isAssignedToOffice(chartOfficeId) || isChartCreator;
+                                            const canSeeDocument = isSuperAdmin || isAssignedToOffice(chartOfficeId) || isChartCreator || selectedDutyChartInfo.status === 'approved';
                                             return canSeeDocument;
                                         })() && (
                                             <Popover>
