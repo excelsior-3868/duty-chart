@@ -30,9 +30,9 @@ set -euo pipefail
 if [ -f .env ]; then
   echo "Loading environment variables from .env"
   while IFS= read -r line || [[ -n "$line" ]]; do
-    # Skip comments and empty lines
-    [[ "$line" =~ ^#.*$ ]] && continue
-    [[ -z "$line" ]] && continue
+    # Skip comments and empty lines (including lines with leading/trailing whitespace)
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
     # Extract KEY and VALUE
     if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
       key="${BASH_REMATCH[1]}"
@@ -53,12 +53,12 @@ DEFAULT_VERSION="v0.0.0"
 DEFAULT_REGISTRY="nexus.ntc.net.np"
 DEFAULT_PROJECT_NAME="dutychart"
 DEFAULT_PLATFORMS="linux/amd64"
-DEFAULT_API_BASE_URL="${DEFAULT_API_BASE_URL:-https://dutychart.ntc.net.np}"
+DEFAULT_API_BASE_URL="${DEFAULT_API_BASE_URL-https://dutychart.ntc.net.np}"
 
 REGISTRY="${2:-$DEFAULT_REGISTRY}"
 PROJECT_NAME="${3:-$DEFAULT_PROJECT_NAME}"
 PLATFORMS="${PLATFORMS:-$DEFAULT_PLATFORMS}"
-API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
+API_BASE_URL="${API_BASE_URL-$DEFAULT_API_BASE_URL}"
 
 prompt_with_default() {
   local prompt_text="$1"
@@ -124,7 +124,10 @@ fi
 if ! git tag --list | grep -q "^$VERSION$"; then
   if [[ "${SKIP_GIT_TAG:-}" != "1" ]]; then
     git tag "$VERSION"
-    read -r -p "Push git tag $VERSION to origin now? (y/N): " PUSH_TAG
+    PUSH_TAG="${PUSH_GIT_TAG:-n}"
+    if [[ -t 0 && -z "${PUSH_GIT_TAG:-}" ]]; then
+      read -r -p "Push git tag $VERSION to origin now? (y/N): " PUSH_TAG
+    fi
     if [[ "$PUSH_TAG" =~ ^[Yy]$ ]]; then
       git push origin "$VERSION"
     fi
