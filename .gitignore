@@ -1,0 +1,13 @@
+backend/celerybeat-schedule
+.env.dev
+.env
+.env.docker
+frontend/.env
+backend/.env
+node_modules/
+dist/
+.DS_Store
+
+# SSH keys
+github
+github.pub

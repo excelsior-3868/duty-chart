@@ -1,0 +1,86 @@
+services:
+  # Backend (Django)
+  dcms-backend:
+    image: nexus.ntc.net.np/dutychart/dcms-backend:${IMAGE_VERSION:-latest}
+    container_name: dcms-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - dcms-redis
+    networks:
+      - dcms-net
+    restart: always
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/admin/login/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Redis Broker
+  dcms-redis:
+    image: redis:7-alpine
+    container_name: dcms-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - dcms-net
+    restart: always
+
+  # Celery Worker
+  dcms-celery-worker:
+    image: nexus.ntc.net.np/dutychart/dcms-backend:${IMAGE_VERSION:-latest}
+    container_name: dcms-celery-worker
+    command: celery -A config worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      dcms-backend:
+        condition: service_healthy
+      dcms-redis:
+        condition: service_started
+    networks:
+      - dcms-net
+    restart: always
+
+  # Celery Beat
+  dcms-celery-beat:
+    image: nexus.ntc.net.np/dutychart/dcms-backend:${IMAGE_VERSION:-latest}
+    container_name: dcms-celery-beat
+    command: celery -A config beat --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      dcms-backend:
+        condition: service_healthy
+      dcms-redis:
+        condition: service_started
+    networks:
+      - dcms-net
+    restart: always
+
+  # Frontend (React + Nginx)
+  dcms-frontend:
+    image: nexus.ntc.net.np/dutychart/dcms-frontend:${IMAGE_VERSION:-latest}
+    container_name: dcms-frontend
+    ports:
+      - "80:80"
+    env_file:
+      - .env
+    depends_on:
+      dcms-backend:
+        condition: service_healthy
+    networks:
+      - dcms-net
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  dcms-net:
+    driver: bridge

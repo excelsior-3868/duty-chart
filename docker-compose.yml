@@ -1,0 +1,84 @@
+services:
+  # Backend (Django)
+  dcms-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: dcms-backend
+    container_name: dcms-backend
+    volumes:
+      - ./backend:/app
+      - ./mobileApp:/app/mobileApp
+      - static_volume:/app/static
+      - media_volume:/app/media
+    ports:
+      - "8802:8000"
+    env_file:
+      - .env
+    depends_on:
+      - dcms-redis
+
+  # Redis Broker
+  dcms-redis:
+    image: redis:7-alpine
+    container_name: dcms-redis
+    ports:
+      - "6381:6379"
+
+  # Celery Worker
+  dcms-celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: dcms-celery-worker
+    container_name: dcms-celery-worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./mobileApp:/app/mobileApp
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - .env
+    depends_on:
+      - dcms-backend
+      - dcms-redis
+
+  # Celery Beat
+  dcms-celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: dcms-celery-beat
+    container_name: dcms-celery-beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./mobileApp:/app/mobileApp
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - .env
+    depends_on:
+      - dcms-backend
+      - dcms-redis
+
+  # Frontend (React + Nginx)
+  dcms-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_BACKEND_HOST=${VITE_BACKEND_HOST}
+    image: dcms-frontend
+    container_name: dcms-frontend
+    ports:
+      - "82:80"
+    env_file:
+      - .env
+    depends_on:
+      - dcms-backend
+
+volumes:
+  static_volume:
+  media_volume:

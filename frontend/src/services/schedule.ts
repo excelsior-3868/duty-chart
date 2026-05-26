@@ -1,0 +1,77 @@
+import api from "./api";
+
+export interface Schedule {
+  id: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  office?: number;
+  office_name?: string;
+  status?: 'template' | 'default' | 'expired' | string;
+  shift_type?: string;
+  alias?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// GET schedules (optionally filtered by office and/or duty_chart)
+// GET schedules (optionally filtered by office and/or duty_chart)
+export const getSchedules = async (
+  officeId?: number,
+  dutyChartId?: number,
+  status?: string
+): Promise<Schedule[]> => {
+  const params = new URLSearchParams();
+  if (typeof officeId === "number" && !isNaN(officeId)) {
+    params.append("office", officeId.toString());
+  }
+  if (typeof dutyChartId === "number" && !isNaN(dutyChartId)) {
+    params.append("duty_chart", dutyChartId.toString());
+  }
+  if (status) {
+    params.append("status", status);
+  }
+
+  const queryString = params.toString();
+  const url = queryString ? `/schedule/?${queryString}` : "/schedule/";
+
+  const response = await api.get(url);
+  return response.data;
+};
+
+// GET a single schedule by id
+export const getScheduleById = async (id: number): Promise<Schedule> => {
+  const response = await api.get(`/schedule/${id}/`);
+  return response.data;
+};
+
+// CREATE a schedule
+export const createSchedule = async (
+  data: Partial<Schedule>
+): Promise<Schedule> => {
+  const response = await api.post("/schedule/", data);
+  return response.data;
+};
+
+// UPDATE a schedule
+export const updateSchedule = async (
+  id: number,
+  data: Partial<Schedule>
+): Promise<Schedule> => {
+  const response = await api.put(`/schedule/${id}/`, data);
+  return response.data;
+};
+
+// PATCH a schedule
+export const patchSchedule = async (
+  id: number,
+  data: Partial<Schedule>
+): Promise<Schedule> => {
+  const response = await api.patch(`/schedule/${id}/`, data);
+  return response.data;
+};
+
+// DELETE a schedule
+export const deleteSchedule = async (id: number): Promise<void> => {
+  await api.delete(`/schedule/${id}/`);
+};

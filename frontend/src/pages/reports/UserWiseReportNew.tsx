@@ -1,0 +1,978 @@
+import React, { useEffect, useRef, useState } from "react";
+import api from "@/services/api";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "@/components/ui/select";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import { Loader2, Download, FileText, Calendar, Users, Info, Search, Check, ChevronDown, Clock, Trash2 } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
+import { cn } from "@/lib/utils";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { toast } from "sonner";
+import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
+import { GregorianDatePicker } from "@/components/common/GregorianDatePicker";
+import NepaliDate from "nepali-date-converter";
+import { useAuth } from "@/context/AuthContext";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+/* ===================== TYPES ===================== */
+
+interface DutyRow {
+    id: number;
+    date: string;
+    weekday: string;
+    schedule: string;
+    start_time: string;
+    end_time: string;
+    is_completed: boolean;
+    currently_available: boolean;
+    employee_name: string;
+    employee_id: string;
+}
+
+interface User {
+    id: number;
+    full_name: string;
+    employee_id?: string;
+    office_name?: string;
+    responsibility?: number | null;
+    responsibility_name?: string | null;
+}
+
+interface DutyOption {
+    id: number;
+    name: string;
+    effective_date: string;
+    end_date: string;
+    office_id: number;
+    office_name: string;
+}
+
+interface Schedule {
+    id: number;
+    name: string;
+    start_time: string;
+    end_time: string;
+}
+
+/* ===================== COMPONENT ===================== */
+
+function UserWiseReportNew() {
+    const [users, setUsers] = useState<User[]>([]);
+    const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
+    const [selectAllUsers, setSelectAllUsers] = useState(true);
+
+
+    const [duties, setDuties] = useState<DutyRow[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [downloading, setDownloading] = useState(false);
+    const [firstLoad, setFirstLoad] = useState(true);
+
+    const [me, setMe] = useState<any>(null);
+
+    const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+    const [dateTo, setDateTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const { user: authUser, hasPermission } = useAuth();
+
+    const [dutyOptions, setDutyOptions] = useState<DutyOption[]>([]);
+    const [selectedDuty, setSelectedDuty] = useState<string>("");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [dutyChartOpen, setDutyChartOpen] = useState(false);
+
+    const [schedules, setSchedules] = useState<Schedule[]>([]);
+    const [selectedSchedule, setSelectedSchedule] = useState<string>("all");
+    const [dateMode, setDateMode] = useState<"BS" | "AD">("BS");
+    const [groupByEmployee, setGroupByEmployee] = useState(false);
+
+    // Set document title
+    useEffect(() => {
+        document.title = "Duty Report (Annex 2) - NT Duty Chart Management System";
+    }, []);
+
+    /* ================= Outside click ================= */
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    /* ================= Fetch me ================= */
+
+    useEffect(() => {
+        async function fetchMe() {
+            try {
+                const res = await api.get("/auth/me/");
+                setMe(res.data);
+                // No longer defaulting regular users to only themselves, 
+                // as the backend now allows them to see their office report by default.
+            } catch (err) {
+                console.error("Failed to fetch /me/", err);
+            }
+        }
+        fetchMe();
+    }, []);
+
+    /* ================= Fetch users ================= */
+
+    async function fetchUsers(dutyId?: string, scheduleId?: string) {
+        if (!me) return;
+        try {
+            const params: any = {};
+            if (dutyId && dutyId !== "none") {
+                params.duty_chart_id = dutyId;
+            }
+            if (scheduleId && scheduleId !== "all") {
+                params.schedule_id = scheduleId;
+            }
+            const res = await api.get("/users/", { params });
+            setUsers(res.data.results || res.data); // Handle both paginated and non-paginated
+        } catch (err) {
+            console.error("User fetch failed", err);
+        }
+    }
+
+    useEffect(() => {
+        if (me) {
+            if (selectedDuty && selectedDuty !== "none") {
+                fetchUsers(selectedDuty, selectedSchedule);
+            } else {
+                setUsers([]);
+                setSelectedUsers([]);
+                setSelectAllUsers(true);
+            }
+        }
+    }, [me, selectedDuty, selectedSchedule]);
+    /* ================= Fetch duty options ================= */
+
+    useEffect(() => {
+        async function fetchDuties() {
+            try {
+                const res = await api.get("/reports/duties/options/");
+                setDutyOptions(res.data || []);
+            } catch (err) {
+                console.error("Failed to fetch duty options", err);
+            }
+        }
+        fetchDuties();
+    }, []);
+
+
+    /* ================= Fetch schedules when duty changes ================= */
+
+    useEffect(() => {
+        if (selectedDuty && selectedDuty !== "none") {
+            // Update dates based on selected duty chart
+            const selected = dutyOptions.find(d => d.id.toString() === selectedDuty);
+            if (selected) {
+                setDateFrom(selected.effective_date);
+                if (selected.end_date) {
+                    setDateTo(selected.end_date);
+                }
+            }
+
+            async function fetchSchedules() {
+                try {
+                    const res = await api.get("/schedule/", {
+                        params: { duty_chart: selectedDuty }
+                    });
+                    setSchedules(res.data || []);
+                    setSelectedSchedule("all");
+                } catch (err) {
+                    console.error("Failed to fetch schedules", err);
+                }
+            }
+            fetchSchedules();
+        } else {
+            setSchedules([]);
+            setSelectedSchedule("all");
+            // Reset to current month if "none" is selected
+            if (selectedDuty === "none" || selectedDuty === "") {
+                setDateFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+                setDateTo(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+            }
+        }
+    }, [selectedDuty, dutyOptions]);
+
+    /* ================= Handle Duty Change ================= */
+
+    const handleDutyChange = (val: string) => {
+        setSelectedDuty(val);
+        if (val && val !== "none") {
+            const selected = dutyOptions.find(d => d.id.toString() === val);
+            if (selected) {
+                setDateFrom(selected.effective_date);
+                if (selected.end_date) {
+                    setDateTo(selected.end_date);
+                }
+            }
+        } else {
+            // Reset to current month if "none" is selected
+            setDateFrom(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+            setDateTo(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+        }
+    };
+
+    /* ================= Load preview ================= */
+
+    async function loadReport() {
+        if (!selectedDuty || selectedDuty === "none") {
+            toast.error("Please select a Duty Chart first.");
+            return;
+        }
+        if (!selectedSchedule) {
+            toast.error("Please select a Shift.");
+            return;
+        }
+        if (!selectAllUsers && selectedUsers.length === 0) {
+            toast.warning("Please select an employee or enable 'All'.");
+            return;
+        }
+        setLoading(true);
+        setFirstLoad(false);
+        try {
+            const res = await api.get("/reports/duties/preview/", {
+                params: {
+                    date_from: dateFrom,
+                    date_to: dateTo,
+                    user_id: selectAllUsers ? undefined : selectedUsers.join(","),
+                    all_users: selectAllUsers ? "1" : "0",
+                    duty_id: selectedDuty || undefined,
+                    schedule_id: selectedSchedule !== "all" ? selectedSchedule : undefined,
+                },
+            });
+
+            if (res.data && res.data.groups) {
+                const allRows = res.data.groups.flatMap((g: any) => {
+                    // Robustly find group header info using the same logic as getVal
+                    const gKeys = Object.keys(g || {});
+                    const findGKey = (search: string[]) =>
+                        gKeys.find(k => search.some(s => k.toLowerCase().replace(/_/g, " ").includes(s.toLowerCase().replace(/_/g, " "))));
+
+                    const nameK = findGKey(["employee", "staff", "full name", "user name", "name"]);
+                    const eidK = findGKey(["employee id", "user id", "eid", "id"]);
+
+                    const name = nameK ? g[nameK] : "-";
+                    const eid = eidK ? g[eidK] : "-";
+
+                    return (g.rows || []).map((r: any) => ({
+                        ...r,
+                        employee_name: name,
+                        employee_id: eid,
+                    }));
+                });
+                // Sort by date DESC
+                allRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setDuties(allRows);
+            } else if (Array.isArray(res.data)) {
+                // Fallback for flat array response
+                const flattened = res.data.map((r: any) => {
+                    const rKeys = Object.keys(r || {});
+                    const findRKey = (search: string[]) =>
+                        rKeys.find(k => search.some(s => k.toLowerCase().replace(/_/g, " ").includes(s.toLowerCase().replace(/_/g, " "))));
+
+                    const nameK = findRKey(["employee", "staff", "full name", "user name", "name"]);
+                    const eidK = findRKey(["employee id", "user id", "eid", "id"]);
+
+                    return {
+                        ...r,
+                        employee_name: nameK ? r[nameK] : "-",
+                        employee_id: eidK ? r[eidK] : "-",
+                    };
+                });
+                // Sort by date DESC
+                flattened.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                setDuties(flattened);
+            } else {
+                setDuties([]);
+            }
+        } catch (err) {
+            console.error(err);
+            setDuties([]);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function clearPreview() {
+        setDuties([]);
+        setFirstLoad(true);
+        setSelectedDuty("");
+        setSelectedSchedule("all");
+    }
+
+    /* ================= Download DOCX ================= */
+
+    /* ================= Helpers ================= */
+
+    const getNepaliWeekday = (val: string | number) => {
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        let englishWeekday = String(val || "");
+
+        // Handle numeric indices (0-6)
+        if (val !== "" && val !== null && !isNaN(Number(val))) {
+            const idx = Number(val);
+            if (idx >= 0 && idx <= 6) englishWeekday = days[idx];
+        }
+
+        const map: { [key: string]: string } = {
+            "Sunday": "आईतबार",
+            "Monday": "सोमबार",
+            "Tuesday": "मंगलबार",
+            "Wednesday": "बुधबार",
+            "Thursday": "बिहिवार",
+            "Friday": "शुक्रबार",
+            "Saturday": "शनिबार"
+        };
+        return map[englishWeekday] || englishWeekday;
+    };
+
+    const getFormattedDate = (isoDate: string) => {
+        try {
+            if (!isoDate) return { ad: "-", bs: "-" };
+            const ad = new Date(isoDate);
+            if (isNaN(ad.getTime())) return { ad: isoDate, bs: isoDate };
+            const bs = new NepaliDate(ad);
+            return {
+                ad: format(ad, "MMM dd, yyyy"),
+                bs: bs.format("YYYY-MM-DD")
+            };
+        } catch {
+            return { ad: isoDate, bs: isoDate };
+        }
+    };
+
+    // Helper to find the actual value from dynamic API keys
+    const getVal = (row: any, type: string) => {
+        if (!row) return "";
+        const keys = Object.keys(row);
+        const findMatch = (searchTerms: string[], excludeTerms: string[] = []) => {
+            const kl = keys.map(k => k.toLowerCase().replace(/[/_]/g, " "));
+            const sTerms = searchTerms.map(s => s.toLowerCase().replace(/[/_]/g, " "));
+            const eTerms = excludeTerms.map(e => e.toLowerCase().replace(/[/_]/g, " "));
+            for (let i = 0; i < kl.length; i++) { if (sTerms.includes(kl[i])) return keys[i]; }
+            for (let i = 0; i < kl.length; i++) {
+                const k = kl[i];
+                if (sTerms.some(s => k.includes(s)) && !eTerms.some(e => k.includes(e))) return keys[i];
+            }
+            return null;
+        };
+
+        if (type === "id") {
+            const k = findMatch(["id", "eid", "employee id", "user id", "staff id"]);
+            return k ? row[k] : "";
+        }
+        if (type === "employee") {
+            const k = findMatch(["employee", "staff", "full name", "user name", "name", "employee name", "staff name"], ["id", "code", "phone", "email"]);
+            return k ? row[k] : "";
+        }
+        if (type === "date") {
+            const k = findMatch(["date"]);
+            return k ? row[k] : "";
+        }
+        if (type === "weekday") {
+            const k = findMatch(["weekday", "day"]);
+            return k ? row[k] : "";
+        }
+        if (type === "schedule") {
+            const k = findMatch(["schedule", "shift"]);
+            return k ? row[k] : "";
+        }
+        if (type === "time") {
+            const startK = findMatch(["start time", "start"]);
+            const endK = findMatch(["end time", "end"]);
+            const timeK = findMatch(["time"]);
+
+            if (startK && endK && row[startK] && row[endK]) {
+                const s = String(row[startK]).slice(0, 5);
+                const e = String(row[endK]).slice(0, 5);
+                return `${s} - ${e}`;
+            }
+            if (timeK && row[timeK]) return String(row[timeK]);
+            return "";
+        }
+        return "";
+    };
+
+    async function downloadReport() {
+        if (!selectedDuty || selectedDuty === "none") {
+            toast.error("Please select a Duty Chart first.");
+            return;
+        }
+        if (!selectedSchedule) {
+            toast.error("Please select a Shift.");
+            return;
+        }
+        if (!selectAllUsers && selectedUsers.length === 0) {
+            toast.warning("No employees selected!");
+            return;
+        }
+
+        try {
+            setDownloading(true);
+            const params: any = {
+                date_from: dateFrom,
+                date_to: dateTo,
+            };
+
+            if (selectAllUsers) {
+                params["user_id[]"] = users.map((u) => u.id);
+            } else if (selectedUsers.length > 0) {
+                params["user_id[]"] = selectedUsers;
+            }
+
+            if (selectedDuty) {
+                params["duty_id"] = selectedDuty;
+            }
+
+            if (selectedSchedule !== "all") {
+                params["schedule_id"] = selectedSchedule;
+            }
+            params["group_by_employee"] = groupByEmployee;
+
+            const response = await api.get("/reports/duties/file-new/", {
+                params,
+                responseType: "blob",
+            });
+
+            const url = window.URL.createObjectURL(
+                new Blob([response.data], {
+                    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                })
+            );
+
+            const selectedDutyName = dutyOptions.find(d => d.id.toString() === selectedDuty)?.name || "Report";
+            const safeDutyName = selectedDutyName.replace(/[/\\?%*:|"<>]/g, '-');
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `DutyCompletion_Report_अनुसूची-2_${safeDutyName}_${dateFrom}_${dateTo}.docx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Download failed", err);
+            toast.error("Failed to download report");
+        } finally {
+            setDownloading(false);
+        }
+    }
+
+    /* ================= Render ================= */
+
+    return (
+        <div className="p-6 space-y-4">
+            <PageHeader 
+                title="Duty Report (अनुसूची - २)" 
+                subtitle="Generate and export report in अनुसूची - २ format." 
+                icon={FileText} 
+                iconColor="text-pink-500"
+            />
+
+            <Card className="border-primary/20 shadow-lg overflow-hidden">
+                <CardHeader className="bg-primary py-3 text-white">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        <Info className="h-5 w-5" />
+                        Report Criteria
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[2.2fr_1.2fr_320px_1.8fr] items-end">
+
+                        {/* 1. Duty Selection */}
+                        <div className="space-y-2">
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500 ">
+                                <Calendar className="h-3 w-3" />
+                                Duty Chart
+                            </Label>
+                            <Popover open={dutyChartOpen} onOpenChange={setDutyChartOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={dutyChartOpen}
+                                        className="w-full bg-primary text-white hover:bg-primary-hover hover:text-white border-2 border-primary h-10 text-sm font-bold justify-between transition-colors shadow-sm"
+                                    >
+                                        <span className="truncate">
+                                            {selectedDuty && selectedDuty !== "none" ? (
+                                                <>
+                                                    {dutyOptions.find(d => d.id.toString() === selectedDuty)?.name}
+                                                    <span className="ml-2 opacity-60 font-normal text-[10px]">
+                                                        ({dutyOptions.find(d => d.id.toString() === selectedDuty)?.office_name})
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                "Select Duty Chart"
+                                            )}
+                                        </span>
+                                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-100" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                    <Command>
+                                        <CommandInput placeholder="Search chart..." className="h-9" />
+                                        <CommandList className="max-h-[300px] overflow-y-auto">
+                                            <CommandEmpty>No chart found.</CommandEmpty>
+                                            <CommandGroup>
+                                                <CommandItem
+                                                    value="Select Chart"
+                                                    onSelect={() => {
+                                                        handleDutyChange("none");
+                                                        setDutyChartOpen(false);
+                                                    }}
+                                                    className={cn(
+                                                        "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm aria-selected:bg-slate-100 aria-selected:text-slate-900",
+                                                        !selectedDuty || selectedDuty === "none" ? "font-medium" : ""
+                                                    )}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4 text-primary", !selectedDuty || selectedDuty === "none" ? "opacity-100" : "opacity-0")} />
+                                                    Select Chart
+                                                </CommandItem>
+                                                {dutyOptions
+                                                    .filter(opt => {
+                                                        if (hasPermission("duties.create_any_office_chart")) return true;
+                                                        return Number(opt.office_id) === Number(authUser?.office_id);
+                                                    })
+                                                    .map((opt) => (
+                                                        <CommandItem
+                                                            key={opt.id}
+                                                            value={`${opt.name} ${opt.office_name} ${opt.id}`}
+                                                            onSelect={() => {
+                                                                handleDutyChange(opt.id.toString());
+                                                                setDutyChartOpen(false);
+                                                            }}
+                                                            className={cn(
+                                                                "group flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm aria-selected:bg-primary aria-selected:text-white",
+                                                                selectedDuty === opt.id.toString() ? "font-medium bg-slate-50" : ""
+                                                            )}
+                                                        >
+                                                            <Check className={cn("mr-2 h-4 w-4 text-primary", selectedDuty === opt.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                            <div className="flex flex-col">
+                                                                <span className="group-aria-selected:text-white">{opt.name}</span>
+                                                                <span className="text-[10px] opacity-70 text-muted-foreground group-aria-selected:text-white">{opt.office_name}</span>
+                                                            </div>
+                                                        </CommandItem>
+                                                    ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+
+                        {/* 2. Shift (Schedule) Selection */}
+                        <div className="space-y-2">
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center gap-1.5 text-slate-500 ">
+                                <Clock className="h-3 w-3" />
+                                Shift
+                            </Label>
+                            <Select value={selectedSchedule} onValueChange={setSelectedSchedule} disabled={!selectedDuty || selectedDuty === "none"}>
+                                <SelectTrigger className="w-full bg-white h-10 text-sm font-medium border-slate-200">
+                                    <SelectValue placeholder="-- All Shifts --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all" className="text-sm">-- All Shifts --</SelectItem>
+                                    {schedules.map((s) => (
+                                        <SelectItem key={s.id} value={s.id.toString()} className="text-sm">
+                                            {s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* 3. Date Range */}
+                        <div className="space-y-2">
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center justify-between text-slate-500 w-full">
+                                <span className="flex items-center gap-1.5">
+                                    <Calendar className="h-3 w-3" />
+                                    Date Range
+                                </span>
+                                <div className="flex bg-slate-100 border rounded p-0.5 items-center">
+                                    <button
+                                        onClick={() => setDateMode("BS")}
+                                        className={cn("px-1.5 py-0.5 text-[12px] font-bold rounded-sm transition-all", dateMode === "BS" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}
+                                    >BS</button>
+                                    <button
+                                        onClick={() => setDateMode("AD")}
+                                        className={cn("px-1.5 py-0.5 text-[12px] font-bold rounded-sm transition-all", dateMode === "AD" ? "bg-white shadow-sm text-primary" : "text-slate-500 hover:text-slate-700")}
+                                    >AD</button>
+                                </div>
+                            </Label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                                {dateMode === "BS" ? (
+                                    <>
+                                        <NepaliDatePicker
+                                            value={dateFrom}
+                                            onChange={setDateFrom}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                        <NepaliDatePicker
+                                            value={dateTo}
+                                            onChange={setDateTo}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                    </>
+                                ) : (
+                                    <>
+                                        <GregorianDatePicker
+                                            value={dateFrom}
+                                            onChange={setDateFrom}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                        <GregorianDatePicker
+                                            value={dateTo}
+                                            onChange={setDateTo}
+                                            className="h-10 !min-h-[40px] text-sm"
+                                        />
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 4. Employee Selection */}
+                        <div className="space-y-2">
+                            <Label className="text-[12px] font-bold tracking-wider flex items-center justify-between text-slate-500">
+                                <span className="flex items-center gap-1.5 ">
+                                    <Users className="h-3 w-3" />
+                                    Employee
+                                </span>
+                                <div className="flex items-center space-x-2 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                    <Checkbox
+                                        id="selectAll"
+                                        checked={selectAllUsers}
+                                        onCheckedChange={(checked) => setSelectAllUsers(!!checked)}
+                                        disabled={!selectedDuty || selectedDuty === "none"}
+                                        className="h-3.5 w-3.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                    />
+                                    <label htmlFor="selectAll" className="text-[9px] font-black cursor-pointer text-slate-600 uppercase">
+                                        All
+                                    </label>
+                                </div>
+                            </Label>
+                            <div className="relative">
+                                <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            disabled={selectAllUsers || !selectedDuty || selectedDuty === "none"}
+                                            className="w-full h-10 justify-between bg-white text-sm font-medium border-slate-200 hover:bg-slate-50/50"
+                                        >
+                                            <div className="flex items-center gap-2 truncate flex-1">
+                                                <Users className={cn("h-4 w-4 shrink-0 transition-colors", selectedUsers.length > 0 ? "text-primary" : "text-slate-400")} />
+                                                <span className={cn("truncate font-semibold", selectedUsers.length > 0 ? "text-primary" : "text-slate-600")}>
+                                                    {selectedUsers.length > 0 ? (
+                                                        <span className="flex items-center gap-1.5">
+                                                            {selectedUsers.length}
+                                                            <span className="text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Employees</span>
+                                                        </span>
+                                                    ) : (
+                                                        "Select Employee"
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <ChevronDown className={cn("ml-2 h-4 w-4 shrink-0 transition-transform duration-200", dropdownOpen && "rotate-180 opacity-100", selectedUsers.length > 0 ? "text-primary opacity-100" : "opacity-50")} />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 shadow-2xl border-primary/20" align="start">
+                                        <Command className="border-none">
+                                            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/50">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selection</span>
+                                                {selectedUsers.length > 0 && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setSelectedUsers([]); }}
+                                                        className="text-[10px] font-bold text-primary hover:underline"
+                                                    >
+                                                        Clear All
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <CommandInput
+                                                placeholder="Search..."
+                                                className="h-8 text-[11px]"
+                                                value={searchTerm}
+                                                onValueChange={setSearchTerm}
+                                            />
+                                            <CommandList className="max-h-52 custom-scrollbar">
+                                                <CommandEmpty className="py-4 text-center text-[11px] text-muted-foreground">
+                                                    Empty.
+                                                </CommandEmpty>
+                                                <CommandGroup>
+                                                    {users.filter(u => u.full_name.toLowerCase().includes(searchTerm.toLowerCase())).map((u) => {
+                                                        const isSelected = selectedUsers.includes(u.id);
+                                                        return (
+                                                            <CommandItem
+                                                                key={u.id}
+                                                                value={`${u.full_name} ${u.employee_id || ""}`}
+                                                                onSelect={() => {
+                                                                    setSelectedUsers(prev =>
+                                                                        isSelected
+                                                                            ? prev.filter(id => id !== u.id)
+                                                                            : [...prev, u.id]
+                                                                    );
+                                                                }}
+                                                                className={cn(
+                                                                    "text-sm cursor-pointer flex items-center px-3 py-2 rounded-sm transition-all duration-200",
+                                                                    isSelected
+                                                                        ? "bg-primary/10 text-primary font-bold shadow-sm"
+                                                                        : "text-slate-700 hover:bg-slate-50"
+                                                                )}
+                                                            >
+                                                                <div className="flex items-center justify-between w-full">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className={cn(
+                                                                            "w-4 h-4 rounded border flex items-center justify-center transition-all duration-300",
+                                                                            isSelected ? "bg-primary border-primary scale-110 shadow-md" : "border-slate-300 bg-white"
+                                                                        )}>
+                                                                            {isSelected && <Check className="h-3 w-3 text-white stroke-[3px]" />}
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <span className="truncate">{u.full_name} {u.responsibility_name && <span className="opacity-70 mx-1">({u.responsibility_name})</span>}</span>
+                                                                            <span className={cn("text-[9px] font-normal", isSelected ? "text-primary/70" : "text-slate-400")}>
+                                                                                ID: {u.employee_id || "N/A"} {u.office_name && <span className="opacity-70 mx-1">• {u.office_name}</span>}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    {isSelected && (
+                                                                        <div className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest">
+                                                                            Added
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </CommandItem>
+                                                        );
+                                                    })}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                        {/* Group by Employee Toggle */}
+                        <div 
+                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                            onClick={() => setGroupByEmployee(!groupByEmployee)}
+                        >
+                            <Checkbox
+                                id="groupByEmployee"
+                                checked={groupByEmployee}
+                                onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
+                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                            <div className="flex flex-col">
+                                <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                    Group by Employee
+                                </Label>
+                                <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                            <Button
+                                size="default"
+                                onClick={loadReport}
+                                disabled={loading}
+                                className="min-w-[130px] h-9 text-xs font-bold shadow-md"
+                            >
+                                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Clock className="h-4 w-4 mr-2 opacity-70" />}
+                                Load Preview
+                            </Button>
+
+                            <Button
+                                size="default"
+                                onClick={clearPreview}
+                                variant="ghost"
+                                className="min-w-[130px] h-9 text-xs font-bold text-slate-500 hover:text-destructive hover:bg-destructive/5"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Clear
+                            </Button>
+
+                            <Button
+                                size="default"
+                                onClick={downloadReport}
+                                disabled={downloading}
+                                variant="outline"
+                                className="min-w-[130px] h-9 text-xs font-bold border-primary text-primary hover:bg-primary/10 shadow-sm"
+                            >
+                                {downloading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                    <Download className="h-4 w-4 mr-2" />
+                                )}
+                                Download DOCX
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div className="space-y-4 pt-1">
+                <h3 className="text-2xl font-bold text-primary flex items-center gap-2">
+                    Report Preview
+                </h3>
+
+                {firstLoad ? (
+                    <div className="p-16 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/5 text-center transition-all">
+                        <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                            <FileText className="h-8 w-8 text-muted-foreground/60" />
+                        </div>
+                        <h4 className="text-xl font-medium text-muted-foreground">Ready to generate report</h4>
+                        <p className="text-muted-foreground max-w-md mx-auto mt-2">
+                            Configure your report criteria above and click "Load Preview" to see the results.
+                        </p>
+                    </div>
+                ) : loading ? (
+                    <div className="p-20 text-center flex flex-col items-center justify-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    </div>
+                ) : duties.length === 0 ? (
+                    <div className="p-16 border-2 border-dashed border-destructive/20 rounded-xl bg-destructive/5 text-center transition-all shadow-inner">
+                        <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                            <Info className="h-8 w-8 text-destructive/60" />
+                        </div>
+                        <h4 className="text-xl font-semibold text-destructive/80">No data found</h4>
+                        <p className="text-destructive/60 max-w-md mx-auto mt-2">
+                            We couldn't find any duty assignments matching your selected criteria.
+                            Please adjust the date range or personnel selection.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                        <Table>
+                            <TableHeader className="bg-primary hover:bg-primary">
+                                <TableRow className="hover:bg-transparent border-none">
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">ID</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Employee</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Date (BS / AD)</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Weekday</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider">Schedule</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider text-center">Time</TableHead>
+                                    <TableHead className="py-3 text-white font-bold text-sm tracking-wider text-center">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {duties.map((d) => {
+                                    const dateVal = getVal(d, "date");
+                                    const dateInfo = getFormattedDate(dateVal);
+                                    let weekdayRaw = getVal(d, "weekday");
+
+                                    // Fallback: If weekday is missing or numeric, derive from date
+                                    if (!weekdayRaw || !isNaN(Number(weekdayRaw)) || weekdayRaw === "0") {
+                                        if (dateVal) {
+                                            const dv = new Date(dateVal);
+                                            if (!isNaN(dv.getTime())) {
+                                                weekdayRaw = format(dv, "EEEE");
+                                            }
+                                        }
+                                    }
+
+                                    const nepaliWeekday = getNepaliWeekday(weekdayRaw);
+                                    return (
+                                        <TableRow key={d.id || Math.random()} className="hover:bg-slate-50/80 transition-colors border-slate-100">
+                                            <TableCell className="py-4">
+                                                <span className="text-xs font-mono text-primary font-bold uppercase whitespace-nowrap">{getVal(d, "id")}</span>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <span className="font-medium text-slate-800 text-sm whitespace-nowrap">{getVal(d, "employee")}</span>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono text-sm font-bold text-slate-700">{dateInfo.bs}</span>
+                                                    <span className="text-[12px] text-slate-400 font-medium">{dateInfo.ad}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-semibold text-slate-700">{nepaliWeekday}</span>
+                                                    <span className="text-[11px] text-slate-400 italic">({weekdayRaw})</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4">
+                                                <span className="text-sm font-semibold text-primary/80">{getVal(d, "schedule")}</span>
+                                            </TableCell>
+                                            <TableCell className="py-4 text-center">
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded border border-slate-100 font-mono text-xs font-bold text-slate-700">
+                                                    <Clock className="h-3 w-3 text-slate-400" />
+                                                    {getVal(d, "time")}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-4 text-center">
+                                                {(() => {
+                                                    const rowDate = new Date(dateVal);
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
+                                                    rowDate.setHours(0, 0, 0, 0);
+                                                    const isPast = rowDate < today;
+                                                    const showFinished = d.is_completed || isPast;
+
+                                                    return (
+                                                        <Badge
+                                                            variant={showFinished ? "default" : "secondary"}
+                                                            className={cn(
+                                                                "text-[12px] font-bold px-3 py-0.5 tracking-tighter",
+                                                                showFinished ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-100 text-rose-700 hover:bg-rose-200 border-none"
+                                                            )}
+                                                        >
+                                                            {showFinished ? (d.is_completed ? "Completed" : "Finished") : "Not Finished"}
+                                                        </Badge>
+                                                    );
+                                                })()}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export default UserWiseReportNew;
