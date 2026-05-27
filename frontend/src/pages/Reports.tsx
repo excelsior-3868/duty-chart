@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, TrendingUp, Building } from "lucide-react";
 import { ROUTES } from "@/utils/constants";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -111,6 +111,24 @@ function Reports() {
             </p>
             <Button onClick={() => (window.location.href = ROUTES.ANNEX_II_REPORT)} variant="outline" className="w-full border-primary text-primary hover:bg-primary/5">
               Open Anusuchi-2
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* New Implementation Card */}
+        <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow border-emerald-100 bg-emerald-50/20">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Building className="h-5 w-5 text-emerald-600" />
+              <CardTitle>Duty Chart Implementation</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Monitor which offices have started creating rosters and duty charts. View real-time active metrics, and download spreadsheets.
+            </p>
+            <Button onClick={() => (window.location.href = ROUTES.ADOPTION_REPORT)} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full font-bold">
+              Open Implementation
             </Button>
           </CardContent>
         </Card>

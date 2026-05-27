@@ -961,3 +961,156 @@ class SummaryReportView(APIView):
         # Sort by total duties desc
         result = sorted(summary.values(), key=lambda x: x['total_duties'], reverse=True)
         return Response(result)
+
+
+class OfficeAdoptionReportView(APIView):
+    permission_classes = [IsAdminOrSelf]
+
+    def get(self, request):
+        from org.models import WorkingOffice
+        from django.db.models import Q, Prefetch
+        from duties.models import DutyChart, Duty
+        import datetime
+
+        directorate_id = request.GET.get("directorate_id")
+        ac_office_id = request.GET.get("ac_office_id")
+        office_id = request.GET.get("office_id")
+
+        # Prefetch with select_related and nested prefetch_related to load all data in bulk (4 queries total)
+        offices = WorkingOffice.objects.select_related(
+            "directorate", "ac_office", "cc_office"
+        ).prefetch_related(
+            Prefetch(
+                "duty_charts",
+                queryset=DutyChart.objects.prefetch_related(
+                    Prefetch(
+                        "duties",
+                        queryset=Duty.objects.filter(user__isnull=False).select_related("user")
+                    )
+                )
+            ),
+            Prefetch(
+                "duties",
+                queryset=Duty.objects.all()
+            )
+        )
+
+        if directorate_id and directorate_id != "all":
+            offices = offices.filter(directorate_id=directorate_id)
+        if ac_office_id and ac_office_id != "all":
+            offices = offices.filter(ac_office_id=ac_office_id)
+        if office_id and office_id != "all":
+            offices = offices.filter(id=office_id)
+
+        # Build list of results
+        office_list = []
+        for office in offices:
+            # Query duty charts for this office (uses prefetch cache)
+            charts_qs = list(office.duty_charts.all())
+
+            # Query duties for this office (uses prefetch cache)
+            duties_list = list(office.duties.all())
+
+            duty_chart_count = len(charts_qs)
+            duty_count = len(duties_list)
+            has_started = duty_chart_count > 0 or duty_count > 0
+
+            # Last activity
+            last_activity = None
+            
+            # Find latest edited/created duty chart in-memory
+            latest_chart = None
+            for chart in charts_qs:
+                if chart.edited_at:
+                    if not latest_chart or not latest_chart.edited_at or chart.edited_at > latest_chart.edited_at:
+                        latest_chart = chart
+
+            if latest_chart and latest_chart.edited_at:
+                last_activity = latest_chart.edited_at
+
+            # Find latest duty date in-memory
+            latest_duty = None
+            for duty in duties_list:
+                if duty.date:
+                    if not latest_duty or not latest_duty.date or duty.date > latest_duty.date:
+                        latest_duty = duty
+
+            if latest_duty:
+                duty_dt = datetime.datetime.combine(latest_duty.date, datetime.time.min)
+                # Check timezone awareness of last_activity
+                if last_activity and timezone.is_aware(last_activity):
+                    duty_dt = timezone.make_aware(duty_dt)
+                
+                if not last_activity or duty_dt > last_activity:
+                    last_activity = duty_dt
+
+            charts_list = []
+            for chart in charts_qs:
+                # Compute distinct emp_count and assigned_users entirely in-memory using prefetched objects
+                chart_duties = [d for d in chart.duties.all() if d.user is not None]
+                emp_ids = {d.user_id for d in chart_duties}
+                emp_count = len(emp_ids)
+                assigned_users_raw = {
+                    (d.user.employee_id or "N/A", d.user.full_name or "Unknown")
+                    for d in chart_duties
+                }
+                assigned_users = sorted(
+                    [{"employee_id": uid, "name": name} for uid, name in assigned_users_raw],
+                    key=lambda x: x["name"]
+                )
+                
+                # Convert effective_date and end_date to Nepali BS dates
+                try:
+                    nep_start = nepali_datetime.date.from_datetime_date(chart.effective_date)
+                    nepali_start_date = nep_start.strftime("%Y/%m/%d")
+                except Exception:
+                    nepali_start_date = chart.effective_date.isoformat()
+                    
+                try:
+                    if chart.end_date:
+                        nep_end = nepali_datetime.date.from_datetime_date(chart.end_date)
+                        nepali_end_date = nep_end.strftime("%Y/%m/%d")
+                    else:
+                        nepali_end_date = nepali_start_date
+                except Exception:
+                    nepali_end_date = chart.end_date.isoformat() if chart.end_date else chart.effective_date.isoformat()
+
+                charts_list.append({
+                    "id": chart.id,
+                    "name": chart.name or f"Roster Chart #{chart.id}",
+                    "start_date": chart.effective_date.isoformat(),
+                    "end_date": chart.end_date.isoformat() if chart.end_date else chart.effective_date.isoformat(),
+                    "nepali_start_date": nepali_start_date,
+                    "nepali_end_date": nepali_end_date,
+                    "employee_count": emp_count,
+                    "employees": list(assigned_users)
+                })
+
+            office_list.append({
+                "id": office.id,
+                "name": office.name,
+                "directorate_name": office.directorate.directorate if office.directorate else "None",
+                "ac_office_name": office.ac_office.name if office.ac_office else "None",
+                "cc_office_name": office.cc_office.name if office.cc_office else "None",
+                "duty_chart_count": duty_chart_count,
+                "duty_count": duty_count,
+                "last_activity": last_activity.isoformat() if last_activity else None,
+                "has_started": has_started,
+                "charts": charts_list
+            })
+
+        # Calculate summaries
+        total_offices = len(office_list)
+        started_offices = sum(1 for o in office_list if o["has_started"])
+        not_started_offices = total_offices - started_offices
+        adoption_rate = (started_offices / total_offices * 100) if total_offices > 0 else 0.0
+
+        return Response({
+            "summary": {
+                "total_offices": total_offices,
+                "started_offices": started_offices,
+                "not_started_offices": not_started_offices,
+                "adoption_rate": round(adoption_rate, 2)
+            },
+            "offices": office_list
+        })

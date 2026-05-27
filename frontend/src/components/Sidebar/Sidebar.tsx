@@ -115,10 +115,8 @@ const navigationItems: (NavItem & { permission?: string })[] = [
   {
     title: 'Reports',
     icon: 'BarChart3',
-    permission: 'duties.view_chart',
     color: 'text-teal-500',
     children: [
-
       {
         title: 'Duty Report (अनुसूची-१)',
         href: ROUTES.ANNEX_I_REPORT,
@@ -136,6 +134,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
         href: ROUTES.SUMMARY_REPORT,
         icon: 'BarChart3',
         color: 'text-indigo-500'
+      },
+      {
+        title: 'Duty Chart Implementation',
+        href: ROUTES.ADOPTION_REPORT,
+        icon: 'Building2',
+        color: 'text-emerald-500'
       }
     ]
   },

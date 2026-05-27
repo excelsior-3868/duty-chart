@@ -91,7 +91,15 @@ const MyDuties = () => {
             
             if (targetChart) {
                 setSelectedChartId(String(targetChart.id));
-                if (targetChart.effective_date) {
+                
+                // Find the latest duty date for this chart to show it by default
+                const chartDuties = duties.filter(d => String(d.duty_chart) === String(targetChart.id));
+                if (chartDuties.length > 0) {
+                    const latestDuty = chartDuties.reduce((latest, current) => {
+                        return new Date(current.date) > new Date(latest.date) ? current : latest;
+                    });
+                    setCurrentDate(new Date(latestDuty.date));
+                } else if (targetChart.effective_date) {
                     setCurrentDate(new Date(targetChart.effective_date));
                 }
             }
