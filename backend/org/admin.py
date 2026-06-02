@@ -31,5 +31,5 @@ from .models import WorkingOffice
 
 @admin.register(WorkingOffice)
 class WorkingOfficeAdmin(admin.ModelAdmin):
-    list_display = ("id", "name")
+    list_display = ("id", "name", "parent")
     search_fields = ("name",)

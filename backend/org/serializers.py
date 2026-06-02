@@ -62,13 +62,14 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 class WorkingOfficeSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkingOffice
-        fields = ['id', 'name', 'directorate', 'ac_office', 'cc_office']
+        fields = ['id', 'name', 'directorate', 'ac_office', 'cc_office', 'parent']
     
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data['directorate_name'] = instance.directorate.directorate if instance.directorate else None
         data['ac_office_name'] = instance.ac_office.name if instance.ac_office else None
         data['cc_office_name'] = instance.cc_office.name if instance.cc_office else None
+        data['parent_name'] = instance.parent.name if instance.parent else None
         return data
 
 class HolidaySerializer(serializers.ModelSerializer):

@@ -143,6 +143,14 @@ class WorkingOffice(AuditableMixin, models.Model):
         blank=True,
         db_column='cc_office_id'
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sub_offices',
+        db_column='parent_id'
+    )
     
     class Meta:
         db_table = 'working_office'
