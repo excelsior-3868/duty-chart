@@ -66,7 +66,26 @@ class WorkingOfficeSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data['directorate_name'] = instance.directorate.directorate if instance.directorate else None
+        
+        # Helper to recursively resolve directorate ID and name
+        def resolve_directorate(office, visited=None):
+            if visited is None:
+                visited = set()
+            if office.id in visited:
+                return None, None
+            visited.add(office.id)
+            
+            if office.directorate:
+                return office.directorate_id, office.directorate.directorate
+            if office.ac_office and office.ac_office.directorate:
+                return office.ac_office.directorate_id, office.ac_office.directorate.directorate
+            if office.parent:
+                return resolve_directorate(office.parent, visited)
+            return None, None
+
+        dir_id, dir_name = resolve_directorate(instance)
+        data['directorate'] = dir_id
+        data['directorate_name'] = dir_name
         data['ac_office_name'] = instance.ac_office.name if instance.ac_office else None
         data['cc_office_name'] = instance.cc_office.name if instance.cc_office else None
         data['parent_name'] = instance.parent.name if instance.parent else None

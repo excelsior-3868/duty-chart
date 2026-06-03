@@ -7,6 +7,7 @@ export interface Office {
   location?: string;
   department?: number;
   department_name?: string;
+  directorate?: number;
   directorate_name?: string;
   ac_office_name?: string;
   cc_office_name?: string;

@@ -995,16 +995,40 @@ class OfficeAdoptionReportView(APIView):
             )
         )
 
+        # Fetch all offices in-memory to build recursive directorate resolution
+        all_offices = list(offices)
+        offices_by_id = {o.id: o for o in all_offices}
+
+        # Helper to recursively resolve directorate ID
+        def resolve_directorate_id(o, visited=None):
+            if visited is None:
+                visited = set()
+            if o.id in visited:
+                return None
+            visited.add(o.id)
+            if o.directorate_id:
+                return o.directorate_id
+            if o.ac_office and o.ac_office.directorate_id:
+                return o.ac_office.directorate_id
+            if o.parent_id:
+                parent = offices_by_id.get(o.parent_id)
+                if parent:
+                    return resolve_directorate_id(parent, visited)
+            return None
+
+        # Filter working offices
+        filtered_offices = all_offices
         if directorate_id and directorate_id != "all":
-            offices = offices.filter(directorate_id=directorate_id)
+            target_dir_id = int(directorate_id)
+            filtered_offices = [o for o in filtered_offices if resolve_directorate_id(o) == target_dir_id]
         if ac_office_id and ac_office_id != "all":
-            offices = offices.filter(ac_office_id=ac_office_id)
+            filtered_offices = [o for o in filtered_offices if o.ac_office_id == int(ac_office_id)]
         if office_id and office_id != "all":
-            offices = offices.filter(id=office_id)
+            filtered_offices = [o for o in filtered_offices if o.id == int(office_id)]
 
         # Build list of results
         office_list = []
-        for office in offices:
+        for office in filtered_offices:
             # Query duty charts for this office (uses prefetch cache)
             charts_qs = list(office.duty_charts.all())
 

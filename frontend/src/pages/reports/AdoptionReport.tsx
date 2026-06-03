@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import { getOffices, type Office } from "@/services/offices";
+import { getDirectorates, type Directorate } from "@/services/directorates";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -69,17 +70,22 @@ let globalAdoptionCache: Record<string, { summary: AdoptionSummary; offices: Off
 
 function AdoptionReport() {
   // Filters
+  const [selectedDirectorateId, setSelectedDirectorateId] = useState<string>("");
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>("");
   const [officeOpen, setOfficeOpen] = useState<boolean>(false);
+  const [directorateOpen, setDirectorateOpen] = useState<boolean>(false);
   const [adoptionStatus, setAdoptionStatus] = useState<string>("all");
 
   // Pagination State
   const [page, setPage] = useState<number>(1);
 
+  // Cache key based on both parameters
+  const cacheKey = `${selectedDirectorateId || "all"}_${selectedOfficeId || "all"}`;
+
   // Cached Page Data / Loading States
-  const [loading, setLoading] = useState<boolean>(!globalAdoptionCache[selectedOfficeId || "all"]);
+  const [loading, setLoading] = useState<boolean>(!globalAdoptionCache[cacheKey]);
   const [data, setData] = useState<{ summary: AdoptionSummary; offices: OfficeAdoptionData[] }>(
-    globalAdoptionCache[selectedOfficeId || "all"] || {
+    globalAdoptionCache[cacheKey] || {
       summary: { total_offices: 0, started_offices: 0, not_started_offices: 0, adoption_rate: 0 },
       offices: [],
     }
@@ -87,6 +93,7 @@ function AdoptionReport() {
 
   // Dropdown lists
   const [officesList, setOfficesList] = useState<Office[]>([]);
+  const [directoratesList, setDirectoratesList] = useState<Directorate[]>([]);
 
   // Dialog states for Roster details modal
   const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
@@ -101,26 +108,49 @@ function AdoptionReport() {
     document.title = "Duty Chart Implementation - INOC Duty Roster";
     const fetchFilterOptions = async () => {
       try {
-        const officesData = await getOffices();
+        const [officesData, directoratesData] = await Promise.all([
+          getOffices(),
+          getDirectorates({ all: true }) as Promise<Directorate[]>
+        ]);
         setOfficesList(officesData || []);
+        
+        const allowedDirectorateIds = [13, 14, 15, 16, 17, 18];
+        const filteredDirectorates = (directoratesData || []).filter(d =>
+          allowedDirectorateIds.includes(d.id)
+        );
+        setDirectoratesList(filteredDirectorates);
       } catch (err) {
-        console.error("Failed to load working offices list", err);
+        console.error("Failed to load filter options", err);
       }
     };
     fetchFilterOptions();
   }, []);
 
-  // Sort offices list for the select combobox
+  // Filter and sort offices list for the select combobox
   const sortedOfficesList = useMemo(() => {
-    return [...officesList].sort((a, b) => a.name.localeCompare(b.name));
-  }, [officesList]);
+    let list = officesList;
+    if (selectedDirectorateId) {
+      list = list.filter(o => String(o.directorate) === selectedDirectorateId);
+    }
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [officesList, selectedDirectorateId]);
+
+  // Reset selected working office if it doesn't belong to the selected directorate
+  useEffect(() => {
+    if (selectedDirectorateId && selectedOfficeId) {
+      const office = officesList.find(o => String(o.id) === selectedOfficeId);
+      if (!office || String(office.directorate) !== selectedDirectorateId) {
+        setSelectedOfficeId("");
+      }
+    }
+  }, [selectedDirectorateId, selectedOfficeId, officesList]);
 
   // Fetch Adoption dataset
   const fetchAdoptionData = async (bypassCache: boolean = false) => {
-    const cacheKey = selectedOfficeId || "all";
+    const currentCacheKey = `${selectedDirectorateId || "all"}_${selectedOfficeId || "all"}`;
 
-    if (!bypassCache && globalAdoptionCache[cacheKey]) {
-      setData(globalAdoptionCache[cacheKey]);
+    if (!bypassCache && globalAdoptionCache[currentCacheKey]) {
+      setData(globalAdoptionCache[currentCacheKey]);
       setLoading(false);
       return;
     }
@@ -129,11 +159,12 @@ function AdoptionReport() {
     try {
       const params: any = {};
       if (selectedOfficeId) params.office_id = selectedOfficeId;
+      if (selectedDirectorateId) params.directorate_id = selectedDirectorateId;
       params._t = new Date().getTime(); // Prevent browser caching
 
       const res = await api.get("/reports/duties/adoption/", { params });
       setData(res.data);
-      globalAdoptionCache[cacheKey] = res.data;
+      globalAdoptionCache[currentCacheKey] = res.data;
     } catch (err) {
       console.error("Failed to fetch adoption report", err);
       toast.error("Failed to load adoption report data");
@@ -144,12 +175,12 @@ function AdoptionReport() {
 
   useEffect(() => {
     fetchAdoptionData();
-  }, [selectedOfficeId]);
+  }, [selectedOfficeId, selectedDirectorateId]);
 
   // Reset page to 1 when filters or sorting change
   useEffect(() => {
     setPage(1);
-  }, [selectedOfficeId, adoptionStatus, sortField, sortOrder]);
+  }, [selectedOfficeId, selectedDirectorateId, adoptionStatus, sortField, sortOrder]);
 
   // Handle local sorting and status filter
   const filteredAndSortedOffices = useMemo(() => {
@@ -274,6 +305,7 @@ function AdoptionReport() {
   };
 
   const handleResetFilters = () => {
+    setSelectedDirectorateId("");
     setSelectedOfficeId("");
     setAdoptionStatus("all");
     setPage(1);
@@ -367,8 +399,75 @@ function AdoptionReport() {
       {/* Advanced Filters */}
       <Card className="shadow-sm border-slate-150">
         <CardContent className="p-5 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
             
+            {/* Provincial Directorate combobox */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500">Provincial Directorate</Label>
+              <Popover open={directorateOpen} onOpenChange={setDirectorateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={directorateOpen}
+                    className="w-full justify-between h-9 text-xs font-normal border border-input rounded-md px-3 hover:border-slate-300 transition-colors focus:ring-1 focus:ring-ring bg-background text-left truncate"
+                  >
+                    <span className="truncate">
+                      {selectedDirectorateId
+                        ? directoratesList.find((d) => String(d.id) === selectedDirectorateId)?.name
+                        : "All Directorates"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search directorate..." className="h-9 text-xs" />
+                    <CommandList className="max-h-[250px] overflow-y-auto">
+                      <CommandEmpty className="text-xs p-2 text-center text-slate-500">No directorate found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="All Directorates"
+                          onSelect={() => {
+                            setSelectedDirectorateId("");
+                            setDirectorateOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center px-2 py-1.5 cursor-pointer text-xs rounded-sm",
+                            !selectedDirectorateId
+                              ? "bg-slate-100 font-semibold text-slate-900"
+                              : "text-slate-900 hover:bg-slate-50"
+                          )}
+                        >
+                          <Check className={cn("mr-2 h-3.5 w-3.5", !selectedDirectorateId ? "opacity-100" : "opacity-0")} />
+                          All Directorates
+                        </CommandItem>
+                        {[...directoratesList].sort((a, b) => a.name.localeCompare(b.name)).map((directorate) => (
+                          <CommandItem
+                            key={directorate.id}
+                            value={directorate.name}
+                            onSelect={() => {
+                              setSelectedDirectorateId(String(directorate.id));
+                              setDirectorateOpen(false);
+                            }}
+                            className={cn(
+                              "flex items-center px-2 py-1.5 cursor-pointer text-xs rounded-sm",
+                              selectedDirectorateId === String(directorate.id)
+                                ? "bg-indigo-50 font-semibold text-indigo-700"
+                                : "text-slate-900 hover:bg-slate-50"
+                            )}
+                          >
+                            <Check className={cn("mr-2 h-3.5 w-3.5", selectedDirectorateId === String(directorate.id) ? "opacity-100" : "opacity-0")} />
+                            {directorate.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
             {/* Working Office combobox */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-500">Working Office</Label>
