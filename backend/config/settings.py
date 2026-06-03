@@ -226,6 +226,9 @@ NTC_SMS_SYSTEM_ID = os.environ.get('NTC_SMS_SYSTEM_ID', '1')
 # Mobile API Token
 MOBILE_API_TOKEN = os.environ.get('MOBILE_API_TOKEN')
 
+# Image Version from env
+IMAGE_VERSION = os.environ.get('IMAGE_VERSION', 'v1.0.0-dev')
+
 # REST Framework settings
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [

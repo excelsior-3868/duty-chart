@@ -59,6 +59,12 @@ class SystemSettingSerializer(serializers.ModelSerializer):
         model = SystemSetting
         fields = '__all__'
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        from django.conf import settings
+        data['image_version'] = getattr(settings, 'IMAGE_VERSION', 'v1.0.0-dev')
+        return data
+
 class WorkingOfficeSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkingOffice

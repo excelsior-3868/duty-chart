@@ -104,7 +104,7 @@ function About() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900 leading-none">{appVersion}</div>
+                  <div className="text-2xl font-normal text-slate-900 leading-none">{appVersion}</div>
                   <p className="text-xs text-muted-foreground mt-2 font-normal">Currently deployed application version</p>
                 </CardContent>
               </Card>
@@ -116,7 +116,7 @@ function About() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900 leading-none">
+                  <div className="text-2xl font-normal text-slate-900 leading-none">
                     {isProduction ? "Production" : "Development"}
                   </div>
                   <p className="text-xs text-muted-foreground mt-2 font-normal">Active server deployment environment</p>

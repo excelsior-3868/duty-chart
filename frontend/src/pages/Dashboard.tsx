@@ -706,9 +706,6 @@ const Dashboard = () => {
             icon={Home} 
             iconColor="text-blue-500"
           />
-          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 mt-1.5 border rounded-md bg-slate-50 text-slate-500 border-slate-200 shadow-sm whitespace-nowrap select-none">
-            {appVersion}
-          </span>
         </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm self-start md:self-auto">
           <CalendarDays className="h-5 w-5 text-primary" />
