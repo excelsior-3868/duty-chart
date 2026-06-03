@@ -117,6 +117,7 @@ import ApiDocsPage from "@/pages/ApiDocsPage";
 import ArchitecturePage from "@/pages/ArchitecturePage";
 import PositionsResponsibilitiesPage from "@/pages/PositionsResponsibilitiesPage";
 import MyDuties from "@/pages/MyDuties";
+import About from "@/pages/About";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Outlet } from "react-router-dom";
 
@@ -165,6 +166,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.ABOUT,
+            element: (
+              <ProtectedRoute>
+                <About />
               </ProtectedRoute>
             ),
           },

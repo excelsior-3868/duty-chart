@@ -8,6 +8,7 @@ import { getUsers, User as AppUser } from "@/services/users";
 import { getDutyCharts, DutyChart } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getDashboardOffices, addDashboardOffice, removeDashboardOffice, DashboardOffice } from "@/services/dashboardService";
+import api from "@/services/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/utils/constants";
@@ -257,6 +258,20 @@ const Dashboard = () => {
   const [selectedForAdd, setSelectedForAdd] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>(
+    localStorage.getItem("app_version") || import.meta.env.VITE_APP_VERSION || "v1.0.0-dev"
+  );
+
+  useEffect(() => {
+    api.get("system-settings/")
+      .then(res => {
+        if (res.data.image_version) {
+          setAppVersion(res.data.image_version);
+          localStorage.setItem("app_version", res.data.image_version);
+        }
+      })
+      .catch(err => console.error("Failed to fetch system version in dashboard", err));
+  }, []);
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -684,12 +699,17 @@ const Dashboard = () => {
   return (
     <div className="p-6 space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <PageHeader 
-          title="Dashboard" 
-          subtitle="Welcome to Nepal Telecom Duty Chart Management" 
-          icon={Home} 
-          iconColor="text-blue-500"
-        />
+        <div className="flex items-start gap-2">
+          <PageHeader 
+            title="Dashboard" 
+            subtitle="Welcome to Nepal Telecom Duty Chart Management" 
+            icon={Home} 
+            iconColor="text-blue-500"
+          />
+          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 mt-1.5 border rounded-md bg-slate-50 text-slate-500 border-slate-200 shadow-sm whitespace-nowrap select-none">
+            {appVersion}
+          </span>
+        </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border shadow-sm self-start md:self-auto">
           <CalendarDays className="h-5 w-5 text-primary" />
           <div className="flex flex-col items-end leading-tight">

@@ -91,6 +91,9 @@ export const MainLayout = () => {
 
         localStorage.setItem('session_timeout', String(timeout));
         localStorage.setItem('auto_logout_idle', String(autoIdle));
+        if (res.data.image_version) {
+          localStorage.setItem('app_version', res.data.image_version);
+        }
 
         // If session start time doesn't exist, hydrate it to prevent immediate absolute logouts
         if (!localStorage.getItem('session_start_time')) {

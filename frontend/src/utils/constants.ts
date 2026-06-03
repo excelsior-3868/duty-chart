@@ -32,6 +32,7 @@ export const ROUTES = {
   POSITIONS_RESPONSIBILITIES: '/admin/positions-responsibilities',
   API_DOCS: '/documentation/api-docs',
   ARCHITECTURE: '/architecture',
+  ABOUT: '/about',
 } as const;
 
 export const USER_ROLES = {

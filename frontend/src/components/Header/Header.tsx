@@ -100,7 +100,7 @@
 //   );
 // };
 
-// import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,7 @@ import {
 import { Menu } from "lucide-react";
 import { COMPANY_NAME, APP_NAME, ROUTES } from "@/utils/constants";
 import logo from "../../assets/telecom.png"; // Adjust path if needed
+import api from "@/services/api";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -122,6 +123,20 @@ interface HeaderProps {
 
 export const Header = ({ onMenuClick }: HeaderProps) => {
   const { logout } = useAuth();
+  const [appVersion, setAppVersion] = useState<string>(
+    localStorage.getItem("app_version") || import.meta.env.VITE_APP_VERSION || "v1.0.0-dev"
+  );
+
+  useEffect(() => {
+    api.get("system-settings/")
+      .then(res => {
+        if (res.data.image_version) {
+          setAppVersion(res.data.image_version);
+          localStorage.setItem("app_version", res.data.image_version);
+        }
+      })
+      .catch(err => console.error("Failed to fetch system version in Header", err));
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -150,9 +165,10 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
                 className="h-full w-full object-contain"
               />
             </div>
-            <div className="hidden sm:block">
-              <h1 className="text-base font-semibold">Duty Chart Management System</h1>
-              <p className="text-[10px] opacity-90">{COMPANY_NAME}</p>
+            <div className="hidden sm:flex flex-col justify-center">
+              <h1 className="text-base font-semibold leading-tight">Duty Chart Management System</h1>
+              <p className="text-[10px] opacity-90 leading-tight mt-0.5">{COMPANY_NAME}</p>
+              <p className="text-[9px] opacity-75 font-mono leading-tight mt-0.5">{appVersion}</p>
             </div>
           </div>
         </div>
