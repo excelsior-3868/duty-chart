@@ -71,27 +71,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUser = async () => {
     try {
-      const token = localStorage.getItem('access');
-      if (!token) {
-        setUser(null);
-        setActiveOfficeState(null);
-        setActiveOfficeName(null);
-        setIsLoading(false);
-        return;
-      }
-
       const res = await api.get('/auth/me/', {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       });
       setUser(res.data);
-      // Set default active office from user's primary office
       if (res.data.office_id) {
         setActiveOfficeState(res.data.office_id);
         setActiveOfficeName(res.data.office_name || null);
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      // api.ts interceptor might handle logout, but let's be safe
       setUser(null);
       setActiveOfficeState(null);
       setActiveOfficeName(null);
@@ -108,9 +97,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await fetchUser();
   };
 
-  const logout = () => {
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout/');
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
     setUser(null);
     setActiveOfficeState(null);
     setActiveOfficeName(null);

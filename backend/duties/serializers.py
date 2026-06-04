@@ -14,6 +14,13 @@ class AnusuchiDocumentSerializer(serializers.ModelSerializer):
         model = AnusuchiDocument
         fields = ['id', 'file', 'uploaded_at', 'uploaded_by', 'file_url']
 
+    def validate_file(self, value):
+        allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']
+        name = value.name.lower()
+        if not any(name.endswith(ext) for ext in allowed_extensions):
+            raise serializers.ValidationError(f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}")
+        return value
+
     def get_file_url(self, obj):
         if obj.file:
             return f"media/{obj.file.name}"
@@ -180,6 +187,13 @@ class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = ['id', 'file', 'description', 'uploaded_at', 'file_url']
+
+    def validate_file(self, value):
+        allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']
+        name = value.name.lower()
+        if not any(name.endswith(ext) for ext in allowed_extensions):
+            raise serializers.ValidationError(f"Unsupported file extension. Allowed extensions are: {', '.join(allowed_extensions)}")
+        return value
 
     def get_file_url(self, obj):
         if obj.file:

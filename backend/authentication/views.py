@@ -111,7 +111,27 @@ class TokenObtainPair2FAView(TokenObtainPairView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        return super().post(request, *args, **kwargs)
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            access_token = response.data.get('access')
+            refresh_token = response.data.get('refresh')
+            if access_token:
+                response.set_cookie(
+                    'access',
+                    access_token,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Lax'
+                )
+            if refresh_token:
+                response.set_cookie(
+                    'refresh',
+                    refresh_token,
+                    httponly=True,
+                    secure=not settings.DEBUG,
+                    samesite='Lax'
+                )
+        return response
 
 @method_decorator(csrf_exempt, name='dispatch')
 class Verify2FAView(APIView):
@@ -175,10 +195,29 @@ class Verify2FAView(APIView):
         
         # Generate tokens
         refresh = RefreshToken.for_user(user)
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+        
+        response = Response({
+            'refresh': refresh_token,
+            'access': access_token,
         })
+        
+        response.set_cookie(
+            'access',
+            access_token,
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Lax'
+        )
+        response.set_cookie(
+            'refresh',
+            refresh_token,
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite='Lax'
+        )
+        return response
 
 
 @method_decorator(csrf_exempt, name='dispatch')

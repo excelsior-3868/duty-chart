@@ -109,8 +109,6 @@ const Login = () => {
             // ... rest of the logic ...
             const { access, refresh, first_login } = res.data;
             // ... (lines 61-111) ...
-            localStorage.setItem("access", access);
-            localStorage.setItem("refresh", refresh);
             localStorage.setItem("session_start_time", String(Date.now()));
             localStorage.setItem("last_activity", String(Date.now()));
 
@@ -162,8 +160,6 @@ const Login = () => {
             });
 
             const { access, refresh } = res.data;
-            localStorage.setItem("access", access);
-            localStorage.setItem("refresh", refresh);
             localStorage.setItem("session_start_time", String(Date.now()));
             localStorage.setItem("last_activity", String(Date.now()));
 
