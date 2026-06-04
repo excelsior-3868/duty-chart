@@ -18,7 +18,8 @@ import {
   Landmark,
   Network,
   ShieldCheck,
-  Info
+  Info,
+  BookOpen
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ROUTES } from '@/utils/constants';
@@ -152,6 +153,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     color: 'text-slate-500'
   },
   {
+    title: 'Help Center',
+    href: ROUTES.HELP_CENTER,
+    icon: 'BookOpen',
+    color: 'text-violet-500',
+  },
+  {
     title: 'About System',
     href: ROUTES.ABOUT,
     icon: 'Info',
@@ -171,7 +178,8 @@ const iconMap = {
   Building2,
   Landmark,
   ShieldCheck,
-  Info
+  Info,
+  BookOpen,
 };
 
 export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {

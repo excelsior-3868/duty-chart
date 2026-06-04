@@ -155,7 +155,7 @@ function UserWiseReportNew() {
     async function fetchUsers(dutyId?: string, scheduleId?: string) {
         if (!me) return;
         try {
-            const params: any = {};
+            const params: any = { page_size: 1000 };
             if (dutyId && dutyId !== "none") {
                 params.duty_chart_id = dutyId;
             }
@@ -163,7 +163,7 @@ function UserWiseReportNew() {
                 params.schedule_id = scheduleId;
             }
             const res = await api.get("/users/", { params });
-            setUsers(res.data.results || res.data); // Handle both paginated and non-paginated
+            setUsers(res.data.results || res.data);
         } catch (err) {
             console.error("User fetch failed", err);
         }
@@ -453,7 +453,7 @@ function UserWiseReportNew() {
             };
 
             if (selectAllUsers) {
-                params["user_id[]"] = users.map((u) => u.id);
+                params["all_users"] = "1";
             } else if (selectedUsers.length > 0) {
                 params["user_id[]"] = selectedUsers;
             }

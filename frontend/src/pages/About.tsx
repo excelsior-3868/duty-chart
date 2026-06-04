@@ -2,16 +2,16 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/PageHeader";
-import { 
-  Info, 
-  Building, 
-  Terminal, 
-  UserCheck, 
-  Users, 
-  Cpu, 
-  Server, 
+import {
+  Info,
+  Building,
+  Terminal,
+  UserCheck,
+  Users,
+  Cpu,
+  Server,
   Activity,
-  Heart
+  Heart,
 } from "lucide-react";
 import api from "@/services/api";
 
@@ -19,7 +19,6 @@ function About() {
   const [appVersion, setAppVersion] = React.useState<string>(
     localStorage.getItem("app_version") || import.meta.env.VITE_APP_VERSION || "v1.0.0-dev"
   );
-
   React.useEffect(() => {
     api.get("system-settings/")
       .then(res => {
@@ -94,6 +93,7 @@ function About() {
                 </p>
               </CardContent>
             </Card>
+
 
             {/* Version & Environment Grid */}
             <div className="grid gap-6 sm:grid-cols-2">

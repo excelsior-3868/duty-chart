@@ -2640,3 +2640,59 @@ class S3ExplorerView(APIView):
 
         # 3. Filter out empty branches
         return [node for node in root if node.get('children')]
+
+
+class DCMSManualPresignedURLView(APIView):
+    """
+    Returns a short-lived pre-signed URL for the DCMS Manual PDF stored in S3.
+    The URL is valid for 10 minutes so users can download directly from S3
+    without exposing credentials.
+    """
+    permission_classes = [IsAuthenticated]
+
+    MANUAL_S3_KEY = "Documentation/DCMS-Manual and Documentation.pdf"
+    EXPIRY_SECONDS = 600  # 10 minutes
+
+    def get(self, request):
+        if not settings.AWS_ACCESS_KEY_ID:
+            return Response(
+                {'detail': 'S3 storage is not configured.'},
+                status=503
+            )
+
+        try:
+            s3 = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+                verify=settings.AWS_S3_VERIFY,
+                region_name=settings.AWS_S3_REGION_NAME,
+                config=boto3.session.Config(
+                    signature_version=settings.AWS_S3_SIGNATURE_VERSION,
+                    s3={'addressing_style': settings.AWS_S3_ADDRESSING_STYLE}
+                )
+            )
+
+            presigned_url = s3.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                    'Key': self.MANUAL_S3_KEY,
+                    'ResponseContentDisposition': 'attachment; filename="DCMS-Manual and Documentation.pdf"',
+                },
+                ExpiresIn=self.EXPIRY_SECONDS
+            )
+
+            return Response({
+                'url': presigned_url,
+                'expires_in': self.EXPIRY_SECONDS,
+                'filename': 'DCMS-Manual and Documentation.pdf',
+            })
+
+        except Exception as e:
+            logger.exception("Error generating presigned URL for DCMS Manual")
+            return Response(
+                {'detail': f'Failed to generate download link: {str(e)}'},
+                status=500
+            )

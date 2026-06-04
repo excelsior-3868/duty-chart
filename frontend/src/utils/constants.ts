@@ -33,6 +33,7 @@ export const ROUTES = {
   API_DOCS: '/documentation/api-docs',
   ARCHITECTURE: '/architecture',
   ABOUT: '/about',
+  HELP_CENTER: '/help-center',
 } as const;
 
 export const USER_ROLES = {

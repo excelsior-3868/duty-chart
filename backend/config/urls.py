@@ -38,7 +38,9 @@ from duties.views import (
     DutyChartImportView,
     media_proxy_view,
     S3ExplorerView,
+    DCMSManualPresignedURLView,
 )
+from help_center.views import HelpDocumentViewSet
 
 print("URL configuration loaded", flush=True)
 
@@ -107,6 +109,9 @@ router.register(r"duties", DutyViewSet)
 # Schedule
 router.register(r"schedule", ScheduleView, basename="schedule")
 
+# Help Center
+router.register(r"help-center", HelpDocumentViewSet, basename="help-center")
+
 # ------------------------------------------------------------------------------
 # URL patterns
 # ------------------------------------------------------------------------------
@@ -153,6 +158,7 @@ urlpatterns = [
     ),
     path("api/v1/media/<path:path>", media_proxy_view, name='media_proxy'),
     path("api/v1/s3-explorer/", S3ExplorerView.as_view(), name='s3_explorer'),
+    path("api/v1/dcms-manual/presigned-url/", DCMSManualPresignedURLView.as_view(), name='dcms_manual_presigned_url'),
 
 
     # Router (Generic API endpoints) - Must be last for api/v1/ prefix

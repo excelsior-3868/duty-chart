@@ -118,6 +118,7 @@ import ArchitecturePage from "@/pages/ArchitecturePage";
 import PositionsResponsibilitiesPage from "@/pages/PositionsResponsibilitiesPage";
 import MyDuties from "@/pages/MyDuties";
 import About from "@/pages/About";
+import HelpCenter from "@/pages/HelpCenter";
 import ScrollToTop from "@/components/ScrollToTop";
 import { Outlet } from "react-router-dom";
 
@@ -174,6 +175,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute>
                 <About />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ROUTES.HELP_CENTER,
+            element: (
+              <ProtectedRoute>
+                <HelpCenter />
               </ProtectedRoute>
             ),
           },

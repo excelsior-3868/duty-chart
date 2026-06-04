@@ -92,8 +92,7 @@ INSTALLED_APPS = [
     'auditlogs',
     'channels',
     'notification_service',
-    
-
+    'help_center',
 ]
 
 MIDDLEWARE = [
