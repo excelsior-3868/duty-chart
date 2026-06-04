@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .models import OTPRequest
@@ -9,7 +10,7 @@ from org.serializers import OfficeSerializer, WorkingOfficeSerializer
 from users.models import Position
 from users.serializers import PositionSerializer
 from .serializers import (
-    RequestOTPSerializer, ValidateOTPSerializer, ResetPasswordSerializer, 
+    RequestOTPSerializer, ValidateOTPSerializer, ResetPasswordSerializer,
     UserLookupSerializer, SignupCompleteSerializer
 )
 from .utils import send_otp_ntc, validate_otp_ntc
@@ -20,6 +21,20 @@ import random
 import uuid
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from authentication.recaptcha import verify_recaptcha
+from authentication.permissions import validate_mobile_session_token
+
+
+def _is_mobile_request(request):
+    """Return True if the request carries a valid mobile session token."""
+    secret = getattr(settings, 'MOBILE_API_TOKEN', None)
+    if not secret:
+        return False
+    session_token = (
+        request.headers.get('X-Mobile-Session-Token') or
+        request.headers.get('Mobile-Session-Token')
+    )
+    return bool(session_token and validate_mobile_session_token(session_token, secret))
 
 User = get_user_model()
 
@@ -90,9 +105,21 @@ class UserLookupView(APIView):
 
 
 class RequestOTPView(APIView):
-    permission_classes = [] 
+    permission_classes = []
 
     def post(self, request):
+        if not _is_mobile_request(request):
+            recaptcha_token = (
+                request.data.get('recaptcha_token') or
+                request.headers.get('X-Recaptcha-Token')
+            )
+            ok, _ = verify_recaptcha(recaptcha_token, action='otp_request')
+            if not ok:
+                return Response(
+                    {"message": "reCAPTCHA verification failed. Please try again."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         serializer = RequestOTPSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -164,8 +191,6 @@ class RequestOTPView(APIView):
             status='pending'
         )
 
-        # Trigger Synchronous Task (as requested to avoid Celery fork issues on macOS)
-        print(f"DEBUG: Requesting OTP for User: {user.username}, Phone: {phone_number}, Channel: {channel}")
         send_otp_task(user.id, str(otp_req.id), phone_number, channel, purpose)
         
         response_data = {"message": "OTP sent successfully."}
@@ -356,9 +381,6 @@ class SignupLookupView(APIView):
             user = User.objects.filter(employee_id__iexact=employee_id).first()
 
         if not user:
-            # Helpful debug print for server console
-            sample_ids = list(User.objects.values_list('employee_id', flat=True)[:5])
-            print(f"DEBUG: Search '{employee_id}' failed. DB has: {sample_ids}")
             return Response({"message": f"Employee ID '{employee_id}' not found."}, status=status.HTTP_404_NOT_FOUND)
             
         if user.is_activated:
@@ -399,6 +421,18 @@ class SignupCompleteView(APIView):
     permission_classes = []
 
     def post(self, request):
+        if not _is_mobile_request(request):
+            recaptcha_token = (
+                request.data.get('recaptcha_token') or
+                request.headers.get('X-Recaptcha-Token')
+            )
+            ok, _ = verify_recaptcha(recaptcha_token, action='signup')
+            if not ok:
+                return Response(
+                    {"message": "reCAPTCHA verification failed. Please try again."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         serializer = SignupCompleteSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

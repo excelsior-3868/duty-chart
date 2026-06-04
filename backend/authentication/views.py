@@ -1,3 +1,4 @@
+import time
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,11 +7,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.conf import settings
+from django.core import signing
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from users.models import Permission, Role, RolePermission, UserPermission
 from otp_service.models import OTPRequest
 from .serializers import TokenObtainPair2FASerializer
+from .permissions import validate_raw_mobile_token, MOBILE_SESSION_LIFETIME
 
 User = get_user_model()
 
@@ -80,6 +84,35 @@ from django.views.decorators.csrf import csrf_exempt
 class TokenObtainPair2FAView(TokenObtainPairView):
     serializer_class = TokenObtainPair2FASerializer
 
+    def post(self, request, *args, **kwargs):
+        from .recaptcha import verify_recaptcha
+        from .permissions import validate_mobile_session_token
+
+        # Mobile app carries a session token — skip reCAPTCHA for it
+        is_mobile = False
+        secret = getattr(settings, 'MOBILE_API_TOKEN', None)
+        if secret:
+            session_token = (
+                request.headers.get('X-Mobile-Session-Token') or
+                request.headers.get('Mobile-Session-Token')
+            )
+            if session_token:
+                is_mobile = validate_mobile_session_token(session_token, secret)
+
+        if not is_mobile:
+            recaptcha_token = (
+                request.data.get('recaptcha_token') or
+                request.headers.get('X-Recaptcha-Token')
+            )
+            ok, _ = verify_recaptcha(recaptcha_token, action='login')
+            if not ok:
+                return Response(
+                    {"detail": "reCAPTCHA verification failed. Please try again."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return super().post(request, *args, **kwargs)
+
 @method_decorator(csrf_exempt, name='dispatch')
 class Verify2FAView(APIView):
     permission_classes = []
@@ -145,4 +178,85 @@ class Verify2FAView(APIView):
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
+        })
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class MobileAuthView(APIView):
+    """
+    Issue a short-lived (1-hour) mobile session token.
+
+    Two verification modes depending on configuration:
+
+    PRODUCTION (FIREBASE_PROJECT_NUMBER is set):
+      The mobile app calls the Firebase App Check SDK to get a signed attestation
+      from Google Play Integrity, then sends it here. Google proves the request
+      comes from your genuine, unmodified APK on a real device — so even if
+      someone extracts the APK binary, they cannot forge a valid App Check token.
+
+        Header: X-Firebase-AppCheck: <firebase_app_check_token>
+
+    DEVELOPMENT (FIREBASE_PROJECT_NUMBER not set):
+      Falls back to the static MOBILE_API_TOKEN shared secret.
+
+        Header: X-Mobile-Token: <MOBILE_API_TOKEN>
+
+    Response (both modes): { session_token, expires_in, token_type }
+    The returned session_token goes in X-Mobile-Session-Token for all other requests.
+    """
+    permission_classes = []
+    authentication_classes = []
+
+    def post(self, request):
+        from .app_check import verify_app_check_token
+
+        required_secret = getattr(settings, 'MOBILE_API_TOKEN', None)
+        if not required_secret or not required_secret.strip():
+            return Response(
+                {"detail": "Mobile API not configured on this server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        project_number = getattr(settings, 'FIREBASE_PROJECT_NUMBER', None)
+
+        if project_number:
+            # --- PRODUCTION: Firebase App Check ---
+            # The static MOBILE_API_TOKEN never leaves the server; the mobile
+            # app proves its identity via Google Play Integrity instead.
+            app_check_token = (
+                request.headers.get('X-Firebase-AppCheck') or
+                request.headers.get('Firebase-AppCheck')
+            )
+            if not verify_app_check_token(app_check_token):
+                return Response(
+                    {"detail": "App integrity check failed. Use the official app on a supported device."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+        else:
+            # --- DEVELOPMENT FALLBACK: static shared secret ---
+            raw_token = (
+                request.headers.get('X-Mobile-Token') or
+                request.headers.get('Mobile-Api-Token')
+            )
+            if not raw_token:
+                return Response(
+                    {"detail": "Mobile API token header is required."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            if not validate_raw_mobile_token(raw_token, required_secret):
+                return Response(
+                    {"detail": "Invalid mobile API token."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+        session_token = signing.dumps(
+            {'iat': int(time.time()), 'v': 1},
+            key=required_secret,
+            salt='mobile_app_session',
+        )
+
+        return Response({
+            "session_token": session_token,
+            "expires_in": MOBILE_SESSION_LIFETIME,
+            "token_type": "mobile_session",
         })

@@ -25,7 +25,7 @@ from org.views import (
     SystemSettingViewSet, AccountingOfficeViewSet, CCOfficeViewSet,
     HolidayViewSet
 )
-from authentication.views import TokenObtainPair2FAView, Verify2FAView
+from authentication.views import TokenObtainPair2FAView, Verify2FAView, MobileAuthView
 from duties.views import (
     DutyChartViewSet,
     DutyViewSet,
@@ -163,6 +163,9 @@ urlpatterns = [
 
     # Router (Generic API endpoints) - Must be last for api/v1/ prefix
     path("api/v1/", include(router.urls)),
+
+    # Mobile app token exchange — static secret → short-lived session token
+    path("api/v1/mobile/auth/", MobileAuthView.as_view(), name="mobile_auth"),
 
     # JWT Authentication
     path("api/token/", TokenObtainPair2FAView.as_view(), name="token_obtain_pair"),

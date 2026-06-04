@@ -28,6 +28,7 @@ import {
 import publicApi from "@/services/publicApi";
 import { toast } from "sonner";
 import { ROUTES, APP_NAME, COMPANY_NAME } from "@/utils/constants";
+import { executeRecaptcha } from "@/utils/recaptcha";
 import telecomLogo from "@/assets/telecom.png";
 
 type Step = "LOOKUP" | "VERIFY" | "OTP" | "PASSWORD";
@@ -129,11 +130,13 @@ const Register = () => {
   const handleRequestOTP = async () => {
     setIsLoading(true);
     try {
+      const recaptchaToken = await executeRecaptcha("otp_request");
       const { data } = await publicApi.post("/v1/otp/request/", {
         employee_id: employeeId,
         phone: userData?.phone,
         channel: "sms_ntc",
-        purpose: "signup"
+        purpose: "signup",
+        ...(recaptchaToken && { recaptcha_token: recaptchaToken }),
       });
       setRequestId(data.request_id);
       setTimer(300);
@@ -194,12 +197,14 @@ const Register = () => {
     }
     setIsLoading(true);
     try {
+      const recaptchaToken = await executeRecaptcha("signup");
       await publicApi.post("/v1/otp/signup/complete/", {
         request_id: requestId,
         password: passwordData.password,
         confirm_password: passwordData.confirmPassword,
         office_id: selectedOffice,
-        position_id: selectedPosition
+        position_id: selectedPosition,
+        ...(recaptchaToken && { recaptcha_token: recaptchaToken }),
       });
       toast.success("Account activated successfully!");
       navigate(ROUTES.LOGIN);

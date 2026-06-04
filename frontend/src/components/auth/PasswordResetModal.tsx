@@ -12,6 +12,7 @@ import {
 import publicApi from "@/services/publicApi";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff, Clock } from "lucide-react";
+import { executeRecaptcha } from "@/utils/recaptcha";
 
 interface PasswordResetModalProps {
     isOpen: boolean;
@@ -66,11 +67,13 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
 
         setIsLoading(true);
         try {
+            const recaptchaToken = await executeRecaptcha("otp_request");
             const { data } = await publicApi.post("/v1/otp/request/", {
                 employee_id: employeeId,
                 phone: phone,
                 channel: "sms_ntc",
                 purpose: "forgot_password",
+                ...(recaptchaToken && { recaptcha_token: recaptchaToken }),
             });
 
             setRequestId(data.request_id);

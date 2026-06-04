@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import telecomLogo from "@/assets/telecom.png";
 import { PasswordResetModal } from "@/components/auth/PasswordResetModal";
 import { Loader2 } from "lucide-react";
+import { executeRecaptcha } from "@/utils/recaptcha";
 
 const Login = () => {
     const navigate = useNavigate();
@@ -89,9 +90,11 @@ const Login = () => {
         if (submitting) return;
         setSubmitting(true);
         try {
+            const recaptchaToken = await executeRecaptcha("login");
             const res = await publicApi.post("/token/", {
                 employee_id: formData.username.trim(),
                 password: formData.password,
+                ...(recaptchaToken && { recaptcha_token: recaptchaToken }),
             });
 
             if (res.data['2fa_required']) {

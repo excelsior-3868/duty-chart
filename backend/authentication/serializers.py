@@ -39,20 +39,23 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
         # If we are here, password is correct. Check global 2FA setting.
         system_setting = SystemSetting.objects.first()
         
-        # Bypass 2FA for mobile app if valid mobile token is provided
+        # Bypass 2FA for mobile app if a valid mobile session token is present.
+        # The session token is obtained via POST /api/v1/mobile/auth/ and is
+        # short-lived (1 hour), so the static secret is never transmitted here.
         from django.conf import settings
+        from authentication.permissions import validate_mobile_session_token
         request = self.context.get('request')
-        
-        # Check for the mobile token
-        mobile_token = None
-        if request:
-            mobile_token = request.headers.get('X-Mobile-Token') or \
-                           request.headers.get('MOBILE_API_TOKEN') or \
-                           request.headers.get('Mobile-Api-Token')
-        
+
         is_mobile_request = False
-        if mobile_token and settings.MOBILE_API_TOKEN:
-            is_mobile_request = mobile_token == settings.MOBILE_API_TOKEN
+        if request and settings.MOBILE_API_TOKEN:
+            session_token = (
+                request.headers.get('X-Mobile-Session-Token') or
+                request.headers.get('Mobile-Session-Token')
+            )
+            if session_token:
+                is_mobile_request = validate_mobile_session_token(
+                    session_token, settings.MOBILE_API_TOKEN
+                )
         
         if not system_setting or not system_setting.is_2fa_enabled or is_mobile_request:
             return data
@@ -70,7 +73,6 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
             self.user = user
 
         if not user or not user.phone_number:
-            print(f"WARNING: 2FA enabled but user {user.employee_id} has no phone number.")
             return data
 
         # Trigger OTP

@@ -100,9 +100,7 @@ class OfficeViewSet(viewsets.ModelViewSet):
         return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
-        print(f"[DEBUG] OfficeViewSet.get_queryset() head: {self.request.headers.get('Authorization')[:15] if self.request.headers.get('Authorization') else 'None'}")
-        queryset = WorkingOffice.objects.select_related('directorate', 'ac_office', 'cc_office').all()
-        return queryset
+        return WorkingOffice.objects.select_related('directorate', 'ac_office', 'cc_office').all()
 
 class AccountingOfficeViewSet(viewsets.ModelViewSet):
     queryset = AccountingOffice.objects.all().order_by('id')

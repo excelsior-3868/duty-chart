@@ -28,8 +28,6 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-devel
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['*']
-
 # CORS Configuration
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
@@ -53,6 +51,10 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
     'x-mobile-token',
     'mobile-api-token',
+    'x-mobile-session-token',
+    'mobile-session-token',
+    'x-recaptcha-token',
+    'x-firebase-appcheck',
     'cache-control',
     'pragma',
 ]
@@ -227,6 +229,19 @@ MOBILE_API_TOKEN = os.environ.get('MOBILE_API_TOKEN')
 
 # Image Version from env
 IMAGE_VERSION = os.environ.get('IMAGE_VERSION', 'v1.0.0-dev')
+
+# Google reCAPTCHA v3
+# Leave unset (or empty) to disable reCAPTCHA checks (development).
+# In production set RECAPTCHA_SECRET_KEY to the server-side secret from
+# https://www.google.com/recaptcha/admin and pass RECAPTCHA_SITE_KEY to the frontend.
+RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY', '')
+
+# Firebase App Check (Play Integrity / DeviceCheck)
+# Set to the numeric Project Number from Firebase Console → Project Settings → General.
+# When set, POST /api/v1/mobile/auth/ requires an X-Firebase-AppCheck token instead of
+# the static MOBILE_API_TOKEN, defeating APK reverse-engineering attacks.
+# Leave unset to fall back to static token (development / pre-AppCheck migration).
+FIREBASE_PROJECT_NUMBER = os.environ.get('FIREBASE_PROJECT_NUMBER', '')
 
 # REST Framework settings
 REST_FRAMEWORK = {
