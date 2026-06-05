@@ -33,6 +33,11 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
+    # Exempt /admin/ from the SSL redirect so the Docker health check
+    # (urllib → http://localhost:8000/admin/login/) isn't redirected to
+    # HTTPS, which would cause urllib to send TLS bytes to gunicorn's plain
+    # HTTP socket and fail. External traffic is already forced to HTTPS by nginx.
+    SECURE_REDIRECT_EXEMPT = [r'^admin/']
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
