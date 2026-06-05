@@ -17,7 +17,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0").split(",")
+_allowed_hosts = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0").split(",")
+# Always include loopback addresses so the Docker health check (which hits
+# http://127.0.0.1:8000/...) never gets a DisallowedHost rejection.
+ALLOWED_HOSTS = list(set(_allowed_hosts + ["localhost", "127.0.0.1"]))
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
