@@ -320,7 +320,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = DutyChart.objects.select_related(
             'office', 'office__directorate', 'office__ac_office', 'office__cc_office', 'created_by'
-        ).prefetch_related('schedules').all()
+        ).prefetch_related('schedules', 'pool_members', 'pool_members__office').all()
         office_id = self.request.query_params.get("office", None)
         user = self.request.user
         

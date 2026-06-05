@@ -77,6 +77,25 @@ class MeView(APIView):
             "permissions": permissions,
         })
 
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Blacklist the refresh token if provided.
+        refresh_token = request.data.get('refresh') or request.COOKIES.get('refresh')
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass  # Already invalid / blacklisting not enabled — still clear cookies.
+
+        response = Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        response.delete_cookie('access')
+        response.delete_cookie('refresh')
+        return response
+
+
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 

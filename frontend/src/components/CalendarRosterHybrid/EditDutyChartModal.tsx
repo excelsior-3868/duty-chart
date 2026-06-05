@@ -4,8 +4,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { getDutyCharts, getDutyChartById, patchDutyChart, deleteDutyChart, downloadImportTemplate, importDutyChartExcel, DutyChart as DutyChartDTO } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
+import { getUsers, User } from "@/services/users";
+import { getDutiesFiltered } from "@/services/dutiesService";
 import { useAuth } from "@/context/AuthContext";
-import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save, ChevronsUpDown, Plus, FileUp } from "lucide-react";
+import { Building2, Calendar as CalendarIcon, Check, Download, Upload, FileSpreadsheet, Loader2, AlertCircle, Save, ChevronsUpDown, Plus, FileUp, Users as UsersIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import NepaliDate from "nepali-date-converter";
 import { NepaliDatePicker } from "@/components/common/NepaliDatePicker";
@@ -65,6 +67,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
 
   const [anusuchiFiles, setAnusuchiFiles] = useState<File[]>([]);
   const [existingAnusuchi, setExistingAnusuchi] = useState<any[]>([]);
+
+  // Standby Pool state
+  const [poolMemberIds, setPoolMemberIds] = useState<string[]>([]);
+  const [initialPoolMemberIds, setInitialPoolMemberIds] = useState<string[]>([]);
+  const [poolUsers, setPoolUsers] = useState<User[]>([]);
+  const [assignedUserIds, setAssignedUserIds] = useState<number[]>([]);
+  const [poolSearchOpen, setPoolSearchOpen] = useState(false);
+  const [isSavingPool, setIsSavingPool] = useState(false);
 
   const [initialChart, setInitialChart] = useState<DutyChartDTO | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -147,6 +157,12 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
       setInitialChart(null);
       setAnusuchiFiles([]);
       setExistingAnusuchi([]);
+      setPoolMemberIds([]);
+      setInitialPoolMemberIds([]);
+      setPoolUsers([]);
+      setAssignedUserIds([]);
+      setPoolSearchOpen(false);
+      setIsSavingPool(false);
       setIsSubmitting(false);
       setErrors({});
       setImportFile(null);
@@ -166,11 +182,27 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         if (!selectedChartId) {
           setExistingAnusuchi([]);
           setAnusuchiFiles([]);
+          setPoolMemberIds([]);
+          setInitialPoolMemberIds([]);
+          setAssignedUserIds([]);
           return;
         }
         setAnusuchiFiles([]);
         const chart = await getDutyChartById(parseInt(selectedChartId));
         setInitialChart(chart);
+        const poolIds = (chart.pool_members || []).map(String);
+        setPoolMemberIds(poolIds);
+        setInitialPoolMemberIds(poolIds);
+        // Employees already assigned anywhere in this chart are not "standby".
+        try {
+          const chartDuties = await getDutiesFiltered({ duty_chart: parseInt(selectedChartId) });
+          const ids = Array.from(new Set(
+            chartDuties.map((d: any) => d.user).filter((id: any): id is number => typeof id === "number")
+          ));
+          setAssignedUserIds(ids);
+        } catch (e) {
+          setAssignedUserIds([]);
+        }
         setFormData({
           name: chart.name || "",
           effective_date: chart.effective_date || "",
@@ -231,6 +263,81 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     };
     if (open) fetchByOffice();
   }, [formData.office, open]);
+
+  // Load office employees eligible for the standby pool (office members only).
+  useEffect(() => {
+    if (!open || !formData.office) {
+      setPoolUsers([]);
+      return;
+    }
+    const loadPoolUsers = async () => {
+      try {
+        const res = await getUsers(parseInt(formData.office), true, undefined, 1000);
+        setPoolUsers(res);
+      } catch (e) {
+        console.error("Failed to load pool candidates:", e);
+      }
+    };
+    loadPoolUsers();
+  }, [open, formData.office]);
+
+  // Labels for currently-selected pool members. Prefer freshly loaded office
+  // users; fall back to the chart's saved pool_members_detail for members not
+  // present in the loaded page (e.g. secondary-office staff).
+  const poolMemberLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    poolUsers.forEach(u => {
+      map.set(String(u.id), `${u.employee_id || u.username} - ${u.full_name || u.username}`);
+    });
+    (initialChart?.pool_members_detail || []).forEach(m => {
+      if (!map.has(String(m.id))) {
+        map.set(String(m.id), `${m.employee_id || m.id} - ${m.full_name || "Unknown"}`);
+      }
+    });
+    return map;
+  }, [poolUsers, initialChart]);
+
+  // Only employees NOT already assigned in this chart are selectable for the
+  // standby pool. Keep already-selected pool members visible so they stay
+  // toggle-able even if they later get assigned.
+  const poolCandidates = useMemo(() => {
+    const assigned = new Set(assignedUserIds);
+    return poolUsers.filter(u => !assigned.has(u.id) || poolMemberIds.includes(String(u.id)));
+  }, [poolUsers, assignedUserIds, poolMemberIds]);
+
+  const poolChanged = useMemo(() => {
+    if (poolMemberIds.length !== initialPoolMemberIds.length) return true;
+    const a = [...poolMemberIds].sort();
+    const b = [...initialPoolMemberIds].sort();
+    return a.some((id, i) => id !== b[i]);
+  }, [poolMemberIds, initialPoolMemberIds]);
+
+  const togglePoolMember = (id: string) => {
+    setPoolMemberIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleSavePool = async () => {
+    if (!selectedChartId) return;
+    setIsSavingPool(true);
+    try {
+      const updated = await patchDutyChart(parseInt(selectedChartId), {
+        pool_members: poolMemberIds.map(id => parseInt(id)),
+      });
+      setInitialPoolMemberIds([...poolMemberIds]);
+      if (updated) setInitialChart(updated);
+      toast.success("Standby pool updated");
+      onUpdateSuccess?.(updated);
+    } catch (error: any) {
+      console.error("Failed to update pool:", error);
+      const data = error.response?.data;
+      const msg = data?.pool_members?.[0] || data?.detail || "Failed to update standby pool.";
+      toast.error(msg);
+    } finally {
+      setIsSavingPool(false);
+    }
+  };
 
 
   const availableSchedules = useMemo(() => {
@@ -386,9 +493,9 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
 
     if (newScheduleIds.length === 0 && !importFile) {
       // Check if we are just updating status or other metadata
-      if (formData.status === initialChart?.status && formData.name === initialChart?.name && 
+      if (formData.status === initialChart?.status && formData.name === initialChart?.name &&
           formData.effective_date === initialChart?.effective_date && formData.end_date === initialChart?.end_date &&
-          anusuchiFiles.length === 0) {
+          anusuchiFiles.length === 0 && !poolChanged) {
         toast.error("No changes detected.");
         return;
       }
@@ -453,6 +560,7 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         end_date: formData.end_date || undefined,
         office: formData.office ? parseInt(formData.office) : undefined,
         schedules: formData.scheduleIds.map(id => parseInt(id)),
+        pool_members: poolMemberIds.map(id => parseInt(id)),
         status: formData.status,
       };
 
@@ -461,8 +569,8 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
         payload = new FormData();
         Object.keys(payloadData).forEach(key => {
           if (payloadData[key] !== undefined) {
-            if (key === 'schedules' && Array.isArray(payloadData[key])) {
-              payloadData[key].forEach((id: number) => payload.append('schedules', String(id)));
+            if ((key === 'schedules' || key === 'pool_members') && Array.isArray(payloadData[key])) {
+              payloadData[key].forEach((id: number) => payload.append(key, String(id)));
             } else {
               payload.append(key, String(payloadData[key]));
             }
@@ -835,6 +943,97 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                             );
                           })}
                         </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedChartId && (
+                  <div className="border-t border-[hsl(var(--gray-200))] pt-6 mt-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-[hsl(var(--title))] flex items-center gap-2">
+                          <UsersIcon className="h-4 w-4 text-indigo-600" />
+                          Standby Pool
+                        </h3>
+                        <p className="text-xs text-[hsl(var(--muted-text))]">
+                          Curate reserve employees of this office. They become an extra source when assigning days.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSavePool}
+                        disabled={isSavingPool || !poolChanged}
+                        className="self-start shrink-0"
+                        title="Save pool members only"
+                      >
+                        {isSavingPool ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                        Save Pool
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      <Popover open={poolSearchOpen} onOpenChange={setPoolSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={poolSearchOpen}
+                            className="w-full justify-between font-normal"
+                          >
+                            {poolMemberIds.length > 0
+                              ? `${poolMemberIds.length} employee${poolMemberIds.length > 1 ? "s" : ""} in pool`
+                              : "Add employees to pool"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search employee by name or ID..." />
+                            <CommandList>
+                              <div className="max-h-[300px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                                <CommandEmpty>No unassigned employee found for this office.</CommandEmpty>
+                                <CommandGroup>
+                                  {poolCandidates.map((u) => {
+                                    const selected = poolMemberIds.includes(String(u.id));
+                                    return (
+                                      <CommandItem
+                                        key={u.id}
+                                        value={`${u.username} ${u.employee_id} ${u.full_name}`}
+                                        onSelect={() => togglePoolMember(String(u.id))}
+                                      >
+                                        <Check className={cn("mr-2 h-4 w-4", selected ? "opacity-100" : "opacity-0")} />
+                                        <span className="font-medium">{u.employee_id || u.username} - {u.full_name || u.username}</span>
+                                      </CommandItem>
+                                    );
+                                  })}
+                                </CommandGroup>
+                              </div>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+
+                      {poolMemberIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {poolMemberIds.map((id) => (
+                            <Badge key={id} variant="secondary" className="pl-2 pr-1 py-0.5 gap-1 text-[11px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {poolMemberLabels.get(id) || `#${id}`}
+                              <button
+                                type="button"
+                                onClick={() => togglePoolMember(id)}
+                                className="hover:bg-indigo-200 rounded-full p-0.5 transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-muted-foreground italic">No standby employees added yet.</p>
                       )}
                     </div>
                   </div>

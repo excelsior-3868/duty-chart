@@ -16,6 +16,15 @@ export interface DutyChart {
   created_by_role?: string | null;
   created_by_office?: number | null;
   status?: 'draft' | 'approved';
+  pool_members?: number[];
+  pool_members_detail?: PoolMemberDetail[];
+}
+
+export interface PoolMemberDetail {
+  id: number;
+  full_name?: string | null;
+  employee_id?: string | null;
+  office_name?: string | null;
 }
 
 /**

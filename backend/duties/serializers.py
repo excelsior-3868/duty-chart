@@ -3,6 +3,9 @@ from .models import DutyChart, Duty, Document, RosterAssignment, Schedule, Anusu
 from org.models import WorkingOffice
 from rest_framework.validators import UniqueTogetherValidator
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 from org.models import WorkingOffice as Office
  # adjust import if needed
@@ -28,6 +31,9 @@ class AnusuchiDocumentSerializer(serializers.ModelSerializer):
 
 class DutyChartSerializer(serializers.ModelSerializer):
     schedules = serializers.PrimaryKeyRelatedField(queryset=Schedule.objects.all(), many=True, required=False)
+    pool_members = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), many=True, required=False
+    )
     anusuchi_documents = AnusuchiDocumentSerializer(many=True, read_only=True)
     approval_document_url = serializers.SerializerMethodField()
 
@@ -41,6 +47,7 @@ class DutyChartSerializer(serializers.ModelSerializer):
             'name',
             'status',
             'schedules',
+            'pool_members',
             'created_by',
             'created_at',
             'edited_by',
@@ -57,9 +64,45 @@ class DutyChartSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("At least one schedule (shift) must be selected.")
         return value
 
+    def _resolve_office_id(self):
+        """Resolve the target office for pool eligibility checks.
+
+        On update we fall back to the existing instance's office when the
+        request payload omits 'office' (e.g. a partial PATCH of pool_members).
+        """
+        office = self.initial_data.get('office') if hasattr(self, 'initial_data') else None
+        if office:
+            try:
+                return int(office)
+            except (TypeError, ValueError):
+                return None
+        if self.instance is not None and self.instance.office_id:
+            return self.instance.office_id
+        return None
+
+    def validate_pool_members(self, value):
+        office_id = self._resolve_office_id()
+        if not office_id:
+            return value
+        invalid = []
+        for member in value:
+            belongs = (
+                member.office_id == office_id
+                or member.secondary_offices.filter(id=office_id).exists()
+            )
+            if not belongs:
+                invalid.append(member.full_name or member.username)
+        if invalid:
+            raise serializers.ValidationError(
+                "Only employees of this duty chart's office can be added to the pool. "
+                f"Not allowed: {', '.join(invalid)}."
+            )
+        return value
+
     # ✅ CHANGE: Call full_clean() so model-level validations (Nepal phone number format, end_date > effective_date) run
     def create(self, validated_data):
         schedules = validated_data.pop('schedules', [])
+        pool_members = validated_data.pop('pool_members', None)
         instance = DutyChart(**validated_data)
         try:
             instance.full_clean()  # runs model.clean() + field validators
@@ -69,10 +112,13 @@ class DutyChartSerializer(serializers.ModelSerializer):
         instance.save()
         if schedules:
             instance.schedules.set(schedules)
+        if pool_members is not None:
+            instance.pool_members.set(pool_members)
         return instance
 
     def update(self, instance, validated_data):
         schedules = validated_data.pop('schedules', None)
+        pool_members = validated_data.pop('pool_members', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         try:
@@ -83,6 +129,8 @@ class DutyChartSerializer(serializers.ModelSerializer):
         instance.save()
         if schedules is not None:
             instance.schedules.set(schedules)
+        if pool_members is not None:
+            instance.pool_members.set(pool_members)
         return instance
 
     def to_representation(self, instance):
@@ -93,6 +141,15 @@ class DutyChartSerializer(serializers.ModelSerializer):
         data['ac_office_name'] = instance.office.ac_office.name if instance.office and instance.office.ac_office else "-"
         data['cc_office_name'] = instance.office.cc_office.name if instance.office and instance.office.cc_office else "-"
         data['schedule_names'] = [s.name for s in instance.schedules.all()]
+        data['pool_members_detail'] = [
+            {
+                'id': m.id,
+                'full_name': m.full_name,
+                'employee_id': getattr(m, 'employee_id', None),
+                'office_name': m.office.name if m.office else None,
+            }
+            for m in instance.pool_members.all()
+        ]
         data['duties_count'] = instance.duties.count()
         data['created_by_role'] = instance.created_by.role if instance.created_by else None
         data['created_by_office'] = instance.created_by.office_id if instance.created_by else None

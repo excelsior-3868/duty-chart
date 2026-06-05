@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,8 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
   const [selectionMode, setSelectionMode] = useState<"single" | "range" | "multiple">("single");
   const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [employeeSource, setEmployeeSource] = useState<"all" | "pool">("all");
+  const [assignedOnDate, setAssignedOnDate] = useState<number[]>([]);
 
   const minDate = dutyChartInfo?.effective_date || "";
   const maxDate = dutyChartInfo?.end_date || "";
@@ -131,6 +133,58 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
     
     return () => clearTimeout(timer);
   }, [open, officeId, hasPermission, searchQuery]);
+
+  // For the Pool source we exclude employees already assigned on the focused
+  // date (per-day exclusivity). Refetch whenever the date or chart changes.
+  useEffect(() => {
+    if (!open || employeeSource !== "pool" || !dateISO) {
+      return;
+    }
+    let cancelled = false;
+    const loadAssigned = async () => {
+      try {
+        const existing = await getDutiesFiltered({ duty_chart: dutyChartId, date: dateISO });
+        if (!cancelled) {
+          setAssignedOnDate(existing.map((d: any) => d.user).filter((id: any): id is number => typeof id === "number"));
+        }
+      } catch (e) {
+        if (!cancelled) setAssignedOnDate([]);
+      }
+    };
+    loadAssigned();
+    return () => { cancelled = true; };
+  }, [open, employeeSource, dateISO, dutyChartId]);
+
+  // Normalized employee options for the selector, driven by the chosen source.
+  const employeeOptions = useMemo(() => {
+    if (employeeSource === "pool") {
+      const pool = dutyChartInfo?.pool_members_detail || [];
+      const q = searchQuery.trim().toLowerCase();
+      return pool
+        .filter(m => !assignedOnDate.includes(m.id))
+        .filter(m => {
+          if (!q) return true;
+          return `${m.employee_id || ""} ${m.full_name || ""}`.toLowerCase().includes(q);
+        })
+        .map(m => ({
+          id: m.id,
+          label: `${m.employee_id || m.id} - ${m.full_name || "Unknown"}`,
+          office_name: m.office_name || "N/A",
+        }));
+    }
+    return users.map(u => ({
+      id: u.id,
+      label: `${u.employee_id || u.username} - ${u.full_name || u.username}`,
+      office_name: u.office_name || "N/A",
+    }));
+  }, [employeeSource, users, dutyChartInfo, assignedOnDate, searchQuery]);
+
+  // If the selected employee is no longer in the active source's list, clear it.
+  useEffect(() => {
+    if (selectedUserId && !employeeOptions.some(o => String(o.id) === selectedUserId)) {
+      setSelectedUserId("");
+    }
+  }, [employeeOptions, selectedUserId]);
 
   useEffect(() => {
     if (!open) return;
@@ -380,7 +434,25 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1">
-                <label className="text-sm font-medium">Employee *</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Employee *</label>
+                  <div className="flex bg-gray-100 p-0.5 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeSource("all")}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all ${employeeSource === "all" ? "bg-white shadow-sm text-primary" : "text-gray-500 hover:text-gray-700"}`}
+                    >
+                      All employees
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmployeeSource("pool")}
+                      className={`px-2.5 py-1 text-[10px] font-bold rounded-sm transition-all ${employeeSource === "pool" ? "bg-white shadow-sm text-indigo-600" : "text-gray-500 hover:text-gray-700"}`}
+                    >
+                      Pool ({(dutyChartInfo?.pool_members_detail || []).length})
+                    </button>
+                  </div>
+                </div>
               <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -391,8 +463,8 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                   >
                     {selectedUserId
                       ? (() => {
-                        const u = users.find((user) => String(user.id) === selectedUserId);
-                        return u ? `${u.employee_id || u.username} - ${u.full_name || u.username} (${u.office_name || "N/A"})` : "Select Employee";
+                        const o = employeeOptions.find((opt) => String(opt.id) === selectedUserId);
+                        return o ? `${o.label} (${o.office_name})` : "Select Employee";
                       })()
                       : "Select Employee"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -405,23 +477,25 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                       onValueChange={setSearchQuery}
                     />
                     <CommandList className="max-h-[350px]">
-                        {loading && (
+                        {loading && employeeSource === "all" && (
                           <div className="flex items-center justify-center p-4">
                             <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
                           </div>
                         )}
-                        {!loading && users.length === 0 && (
+                        {!(loading && employeeSource === "all") && employeeOptions.length === 0 && (
                           <div className="py-6 text-center text-sm text-slate-500">
-                            No employee found.
+                            {employeeSource === "pool"
+                              ? "No standby employees available for this date."
+                              : "No employee found."}
                           </div>
                         )}
                         <CommandGroup>
-                          {users.map((u) => (
+                          {employeeOptions.map((o) => (
                             <CommandItem
-                              key={u.id}
-                              value={`${u.username} ${u.employee_id} ${u.full_name} ${u.office_name}`}
+                              key={o.id}
+                              value={`${o.label} ${o.office_name}`}
                               onSelect={() => {
-                                setSelectedUserId(String(u.id));
+                                setSelectedUserId(String(o.id));
                                 setEmployeeSearchOpen(false);
                               }}
                             >
@@ -430,13 +504,13 @@ export const CreateDutyModal: React.FC<CreateDutyModalProps> = ({
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      selectedUserId === String(u.id) ? "opacity-100" : "opacity-0"
+                                      selectedUserId === String(o.id) ? "opacity-100" : "opacity-0"
                                     )}
                                   />
-                                  <span className="font-medium">{u.employee_id || u.username} - {u.full_name || u.username}</span>
+                                  <span className="font-medium">{o.label}</span>
                                 </div>
                                 <div className="ml-6 flex items-center gap-2">
-                                  <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border text-slate-600 font-semibold text-[10px]">{u.office_name || "N/A"}</span>
+                                  <span className="px-1.5 py-0.5 rounded-md bg-slate-100 border text-slate-600 font-semibold text-[10px]">{o.office_name}</span>
                                 </div>
                               </div>
                             </CommandItem>

@@ -32,7 +32,6 @@ staticfiles/
 venv/
 env/
 ENV/
-migrations/
 
 # IDE
 .idea/

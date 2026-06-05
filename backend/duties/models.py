@@ -89,6 +89,12 @@ class DutyChart(AuditableMixin, models.Model):
         blank=True,
         help_text="Schedules (shifts) covered by this duty chart."
     )
+    pool_members = models.ManyToManyField(
+        'users.User',
+        related_name='duty_chart_pools',
+        blank=True,
+        help_text="Curated standby employees who can be assigned to this chart's days."
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
