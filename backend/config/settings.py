@@ -37,7 +37,7 @@ if not DEBUG:
     # (urllib → http://localhost:8000/admin/login/) isn't redirected to
     # HTTPS, which would cause urllib to send TLS bytes to gunicorn's plain
     # HTTP socket and fail. External traffic is already forced to HTTPS by nginx.
-    SECURE_REDIRECT_EXEMPT = [r'^admin/']
+    SECURE_REDIRECT_EXEMPT = [r'^admin/', r'^health/']
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000

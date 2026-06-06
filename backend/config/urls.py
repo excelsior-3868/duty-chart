@@ -5,6 +5,7 @@ URL configuration for config project.
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import path, include, re_path
 
 from rest_framework.routers import DefaultRouter
@@ -43,6 +44,10 @@ from duties.views import (
 from help_center.views import HelpDocumentViewSet
 
 print("URL configuration loaded", flush=True)
+
+
+def health_check(request):
+    return JsonResponse({"status": "ok"})
 
 # ------------------------------------------------------------------------------
 # Swagger / API documentation setup
@@ -116,6 +121,8 @@ router.register(r"help-center", HelpDocumentViewSet, basename="help-center")
 # URL patterns
 # ------------------------------------------------------------------------------
 urlpatterns = [
+    path("health/", health_check, name="health_check"),
+
     # Duty Chart Export
     path(
         "api/v1/export/duty-chart/preview/",
