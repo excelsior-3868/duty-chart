@@ -32,11 +32,12 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-devel
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 if not DEBUG:
+    # Trust X-Forwarded-Proto from the nginx reverse proxy so Django knows the
+    # original request was HTTPS and doesn't issue its own 301 redirect loop.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
-    # Exempt /admin/ from the SSL redirect so the Docker health check
-    # (urllib → http://localhost:8000/admin/login/) isn't redirected to
-    # HTTPS, which would cause urllib to send TLS bytes to gunicorn's plain
-    # HTTP socket and fail. External traffic is already forced to HTTPS by nginx.
+    # Exempt health check + admin from the SSL redirect so the Docker health
+    # check (plain HTTP to localhost) doesn't trigger a redirect loop.
     SECURE_REDIRECT_EXEMPT = [r'^admin/', r'^health/']
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
