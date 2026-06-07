@@ -12,36 +12,32 @@ User = get_user_model()
 class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         # We need to handle the case where username is passed as email or employee_id
-        # TokenObtainPairSerializer uses self.username_field, which is usually 'username' (email in our case)
-        
-        # Custom check for inactive users to provide specific message
         from django.db.models import Q
+        from rest_framework.exceptions import AuthenticationFailed
+        
         username = attrs.get('employee_id') or attrs.get('email') # field named 'employee_id' but contains username/email/id
         user = User.objects.filter(Q(email=username) | Q(username=username) | Q(employee_id=username)).first()
         
-        if user:
-            if not user.is_active:
-                raise serializers.ValidationError({"detail": "Your Account is not active. Please contact your administrator."})
+        if not user:
+            raise AuthenticationFailed({"detail": "No active account found with the given credentials"})
             
-            # Explicitly check password to provide specific error message
-            password = attrs.get('password')
-            if password and not user.check_password(password):
-                from rest_framework.exceptions import AuthenticationFailed
-                raise AuthenticationFailed({"detail": "Incorrect password"})
+        if not user.is_active:
+            raise serializers.ValidationError({"detail": "Your Account is not active. Please contact your administrator."})
+            
+        # Explicitly check password to provide specific error message (hash verified ONCE)
+        password = attrs.get('password')
+        if not password or not user.check_password(password):
+            raise AuthenticationFailed({"detail": "Incorrect password"})
 
-        # Validate credentials normally
-        data = super().validate(attrs)
-        
-        user = getattr(self, 'user', None)
-        if user and not user.is_activated:
+        if not user.is_activated:
             raise serializers.ValidationError({"detail": "Account not activated. Please use the Employee Activation page to set your password first."})
             
-        # If we are here, password is correct. Check global 2FA setting.
+        self.user = user
+            
+        # Check global 2FA setting.
         system_setting = SystemSetting.objects.first()
         
         # Bypass 2FA for mobile app if a valid mobile session token is present.
-        # The session token is obtained via POST /api/v1/mobile/auth/ and is
-        # short-lived (1 hour), so the static secret is never transmitted here.
         from django.conf import settings
         from authentication.permissions import validate_mobile_session_token
         request = self.context.get('request')
@@ -58,22 +54,18 @@ class TokenObtainPair2FASerializer(TokenObtainPairSerializer):
                 )
         
         if not system_setting or not system_setting.is_2fa_enabled or is_mobile_request:
-            return data
-            
-        # Ensure self.user is set (SimpleJWT should do this, but being safe)
-        user = getattr(self, 'user', None)
-        if not user:
-            from django.contrib.auth import authenticate
-            # Use employee_id/password from attrs to authenticate
-            user = authenticate(
-                request=self.context.get('request'),
-                employee_id=attrs.get('employee_id'),
-                password=attrs.get('password')
-            )
-            self.user = user
+            refresh = self.get_token(user)
+            return {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
 
-        if not user or not user.phone_number:
-            return data
+        if not user.phone_number:
+            refresh = self.get_token(user)
+            return {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
 
         # Trigger OTP
         success, otp_data, error = send_otp_ntc(user.phone_number)

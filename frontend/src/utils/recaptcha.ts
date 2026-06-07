@@ -37,7 +37,13 @@ function loadScript(): Promise<void> {
     script.src = `https://www.google.com/recaptcha/api.js?render=${SITE_KEY}`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
+    script.onload = () => {
+      // Hide the reCAPTCHA badge visually as requested
+      const style = document.createElement("style");
+      style.innerHTML = ".grecaptcha-badge { visibility: hidden !important; }";
+      document.head.appendChild(style);
+      resolve();
+    };
     script.onerror = () => reject(new Error("Failed to load reCAPTCHA script"));
     document.head.appendChild(script);
   });

@@ -66,6 +66,7 @@ const MyDuties = () => {
         queryKey: ['dutyCharts', user?.office_id],
         queryFn: () => user?.office_id ? getDutyCharts(user.office_id) : Promise.resolve([]),
         enabled: !!user?.office_id,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     });
 
 
@@ -74,6 +75,7 @@ const MyDuties = () => {
         queryKey: ['duties', 'my', user?.id],
         queryFn: () => user?.id ? getDutiesFiltered({ user: user.id }) : Promise.resolve([]),
         enabled: !!user?.id,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     });
 
     // Auto-select latest chart for which user has assignments

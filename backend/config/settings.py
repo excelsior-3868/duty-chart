@@ -35,7 +35,7 @@ if not DEBUG:
     # Trust X-Forwarded-Proto from the nginx reverse proxy so Django knows the
     # original request was HTTPS and doesn't issue its own 301 redirect loop.
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False  # nginx at the edge enforces HTTPS; gunicorn is HTTP-only internally
     # Exempt health check + admin from the SSL redirect so the Docker health
     # check (plain HTTP to localhost) doesn't trigger a redirect loop.
     SECURE_REDIRECT_EXEMPT = [r'^admin/', r'^health/']

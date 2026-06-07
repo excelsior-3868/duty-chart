@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { getDutyCharts, getDutyChartById, patchDutyChart, deleteDutyChart, downloadImportTemplate, importDutyChartExcel, DutyChart as DutyChartDTO } from "@/services/dutichart";
+import { getDutyCharts, getDutyChartById, patchDutyChart, deleteDutyChart, downloadImportTemplate, importDutyChartExcel, getMyEditableCharts, DutyChart as DutyChartDTO } from "@/services/dutichart";
 import { getOffices, Office } from "@/services/offices";
 import { getSchedules, Schedule } from "@/services/schedule";
 import { getUsers, User } from "@/services/users";
@@ -54,7 +54,31 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
   const [offices, setOffices] = useState<Office[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [openOffice, setOpenOffice] = useState(false);
+  const [officeSearch, setOfficeSearch] = useState("");
+  const [myExtraOfficeIds, setMyExtraOfficeIds] = useState<Set<number>>(new Set());
 
+  const visibleOffices = useMemo(() => {
+    let list = offices.filter(office => {
+      if (user?.role === 'SUPERADMIN') return true;
+      const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
+      return allowedIds.includes(Number(office.id)) || myExtraOfficeIds.has(Number(office.id));
+    });
+
+    if (officeSearch) {
+      const lower = officeSearch.toLowerCase();
+      list = list.filter((o) => o.name.toLowerCase().includes(lower));
+    }
+
+    list.sort((a, b) => {
+      const isA = String(a.id) === String(user?.office_id);
+      const isB = String(b.id) === String(user?.office_id);
+      if (isA && !isB) return -1;
+      if (!isA && isB) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    return list;
+  }, [offices, officeSearch, user, myExtraOfficeIds]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -107,23 +131,11 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     if (open) {
       const load = async () => {
         try {
-          const isSuperAdmin = user?.role === 'SUPERADMIN';
-          const [officesRes, allCharts] = await Promise.all([getOffices(), getDutyCharts()]);
-
-          if (isSuperAdmin) {
-            // SuperAdmin sees all offices
-            setOffices(officesRes);
-          } else {
-            // Include offices where user has created charts + their own office + secondary offices
-            const myCharts = allCharts.filter(c => c.created_by === user?.id);
-            const myOfficeIds = new Set(myCharts.map(c => c.office));
-            const baseOffices = [user?.office_id, ...(user?.secondary_offices || [])]
-              .filter(Boolean)
-              .map(id => Number(id));
-
-            baseOffices.forEach(id => myOfficeIds.add(id));
-
-            setOffices(officesRes.filter(o => myOfficeIds.has(o.id)));
+          const officesRes = await getOffices();
+          setOffices(officesRes);
+          if (user?.role !== 'SUPERADMIN') {
+            const myCharts = await getMyEditableCharts();
+            setMyExtraOfficeIds(new Set(myCharts.map(c => Number(c.office))));
           }
         } catch (e) {
           console.error("Failed to load offices:", e);
@@ -668,8 +680,12 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                          <CommandInput placeholder="Search office..." />
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                            placeholder="Search office..." 
+                            value={officeSearch}
+                            onValueChange={setOfficeSearch}
+                          />
                           <CommandList>
                             <div
                               className="max-h-[300px] overflow-y-auto"
@@ -677,13 +693,14 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
                             >
                               <CommandEmpty>No office found.</CommandEmpty>
                               <CommandGroup>
-                                {offices.map((office) => (
+                                {visibleOffices.slice(0, 50).map((office) => (
                                   <CommandItem
                                     key={office.id}
                                     value={office.name}
                                     onSelect={() => {
                                       handleInputChange("office", String(office.id));
                                       setOpenOffice(false);
+                                      setOfficeSearch("");
                                     }}
                                   >
                                     <Check

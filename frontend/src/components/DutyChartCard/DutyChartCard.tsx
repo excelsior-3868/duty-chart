@@ -1,7 +1,7 @@
 import { createDutyChart, type DutyChart as DutyChartDTO, downloadImportTemplate, importDutyChartExcel } from "@/services/dutichart";
 import { toast } from "sonner";
 import { Download, Upload, FileSpreadsheet, Building2, Check, Loader2, AlertCircle, ChevronsUpDown, Plus, FileUp } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -82,6 +82,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   const dateMode = externalDateMode || internalDateMode;
   const setDateMode = setExternalDateMode || setInternalDateMode;
   const [openOffice, setOpenOffice] = useState(false);
+  const [officeSearch, setOfficeSearch] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     effective_date: "",
@@ -96,6 +97,29 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   const [offices, setOffices] = useState<Office[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const visibleOffices = useMemo(() => {
+    let list = offices.filter(office => {
+      if (hasPermission('duties.create_any_office_chart')) return true;
+      const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
+      return allowedIds.includes(Number(office.id));
+    });
+
+    if (officeSearch) {
+      const lower = officeSearch.toLowerCase();
+      list = list.filter((o) => o.name.toLowerCase().includes(lower));
+    }
+
+    list.sort((a, b) => {
+      const isA = String(a.id) === String(user?.office_id);
+      const isB = String(b.id) === String(user?.office_id);
+      if (isA && !isB) return -1;
+      if (!isA && isB) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    return list;
+  }, [offices, officeSearch, user, hasPermission]);
 
   useEffect(() => {
     onSubmittingChange?.(isSubmitting);
@@ -445,17 +469,17 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                  <CommandInput placeholder="Search office..." />
+                <Command shouldFilter={false}>
+                  <CommandInput 
+                    placeholder="Search office..." 
+                    value={officeSearch}
+                    onValueChange={setOfficeSearch}
+                  />
                   <CommandList className="max-h-[300px] overflow-y-auto">
                     <CommandEmpty>No office found.</CommandEmpty>
                     <CommandGroup>
-                      {offices
-                        .filter(office => {
-                          if (hasPermission('duties.create_any_office_chart')) return true;
-                          const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
-                          return allowedIds.includes(Number(office.id));
-                        })
+                      {visibleOffices
+                        .slice(0, 50)
                         .map((office) => (
                           <CommandItem
                             key={office.id}
@@ -463,6 +487,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
                             onSelect={() => {
                               handleInputChange("office", String(office.id));
                               setOpenOffice(false);
+                              setOfficeSearch("");
                             }}
                           >
                             <Check

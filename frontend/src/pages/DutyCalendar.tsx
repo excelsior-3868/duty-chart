@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@/utils/constants";
 import NepaliDate from "nepali-date-converter";
+import * as XLSX from "xlsx";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Download, ChevronsUpDown, Check, Pencil, Search, Phone, Mail, FileSpreadsheet, User as UserIcon, Trash2, Info, FileText, ExternalLink, Upload, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -113,6 +114,7 @@ const DutyCalendar = () => {
     const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
     const [selectedDutyChartId, setSelectedDutyChartId] = useState<string>("");
     const [officeOpen, setOfficeOpen] = useState(false);
+    const [officeSearch, setOfficeSearch] = useState("");
     const [dutyChartOpen, setDutyChartOpen] = useState(false);
 
     // --- State: Data Loading ---
@@ -126,6 +128,7 @@ const DutyCalendar = () => {
     const [showCreateDutyChart, setShowCreateDutyChart] = useState(false);
     const [showEditDutyChart, setShowEditDutyChart] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
     const [showCreateDuty, setShowCreateDuty] = useState(false);
     const [createDutyContext, setCreateDutyContext] = useState<{ dateISO: string } | null>(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
@@ -308,7 +311,7 @@ const DutyCalendar = () => {
                 directorate: d.user_office_directorate_name || "",
                 department: d.user_office_ac_office_name || "",
                 position: d.position_name || "",
-                office: d.office_name || "",
+                office: d.user_office_name || d.office_name || "",
                 avatar: resolveAvatar(d.image),
                 schedule_id: d.schedule,
                 alias: d.alias,
@@ -377,7 +380,7 @@ const DutyCalendar = () => {
     const canDeleteAssignment = useCallback((a: DutyAssignment) => {
         if (isSuperAdmin) return true;
         if (!hasPermission('duties.delete')) return false;
-        
+
         if (isChartCreator) return true;
 
         if (selectedDutyChartInfo) {
@@ -386,7 +389,7 @@ const DutyCalendar = () => {
                 : Number(selectedDutyChartInfo.office);
             return isAssignedToOffice(chartOfficeId);
         }
-        
+
         return false;
     }, [isSuperAdmin, hasPermission, isChartCreator, selectedDutyChartInfo, canManageOffice]);
 
@@ -555,7 +558,7 @@ const DutyCalendar = () => {
         if (!selectedDutyChartInfo) return false;
         if (!hasPermission('duties.delete')) return false;
         if (isSuperAdmin) return true;
-        
+
         if (isChartCreator) return true;
 
         const chartOfficeId = typeof selectedDutyChartInfo.office === "object"
@@ -577,7 +580,7 @@ const DutyCalendar = () => {
 
             await patchDutyChart(parseInt(selectedDutyChartId), formData);
             toast.success("Document(s) uploaded successfully");
-            
+
             // Refresh chart info to show new documents
             await fetchDutyChartInfo();
         } catch (error) {
@@ -625,16 +628,25 @@ const DutyCalendar = () => {
         return sorted;
     }, [offices, user]);
 
+    const visibleOffices = useMemo(() => {
+        let list = sortedOffices.filter((office: any) => (user?.office_id && (!hasPermission('duties.view_any_office_chart') && !hasPermission('duties.create_any_office_chart'))) ? office.id === user.office_id : true);
+        if (officeSearch) {
+            const lowerQ = officeSearch.toLowerCase();
+            list = list.filter((o: any) => o.name.toLowerCase().includes(lowerQ));
+        }
+        return list;
+    }, [sortedOffices, user, hasPermission, officeSearch]);
+
     return (
         <div className="p-4 md:p-6 space-y-6 bg-background min-h-screen w-full">
             {/* Header: Title + Controls */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                        <PageHeader 
-                            title="Duty Chart Calendar" 
-                            subtitle="Manage events and duty schedules." 
-                            icon={CalendarIcon} 
+                        <PageHeader
+                            title="Duty Chart Calendar"
+                            subtitle="Manage events and duty schedules."
+                            icon={CalendarIcon}
                             iconColor="text-emerald-500"
                         />
                         {selectedDutyChartInfo && (
@@ -644,7 +656,7 @@ const DutyCalendar = () => {
                                         <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 px-3 py-1 gap-1.5 font-bold">
                                             <Check className="w-3 h-3" /> Approved
                                         </Badge>
-                                        
+
                                         {selectedDutyChartInfo && (selectedDutyChartInfo.status === 'approved' || (selectedDutyChartInfo as any).anusuchi_documents?.length > 0) && (() => {
                                             // Document is visible to: SuperAdmin, employees of the chart's office,
                                             // or the user/network-admin who created this duty chart.
@@ -654,83 +666,83 @@ const DutyCalendar = () => {
                                             const canSeeDocument = isSuperAdmin || isAssignedToOffice(chartOfficeId) || isChartCreator || selectedDutyChartInfo.status === 'approved';
                                             return canSeeDocument;
                                         })() && (
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm transition-all hover:scale-110">
-                                                        <FileText className="w-4 h-4" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-72 p-2" align="start">
-                                                    <div className="space-y-2">
-                                                        <div className="px-2 py-1 border-b flex items-center justify-between">
-                                                            <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                                                                <FileText className="w-3 h-3 text-emerald-600" />
-                                                                अनुसूची कागजातहरू
-                                                            </h4>
-                                                            {canManageSelectedChart && (
-                                                                <Button 
-                                                                    variant="default" 
-                                                                    size="sm" 
-                                                                    className="h-7 px-2.5 text-[10px] gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-all shadow-sm"
-                                                                    disabled={isUploadingDocument}
-                                                                    onClick={() => fileInputRef.current?.click()}
-                                                                >
-                                                                    {isUploadingDocument ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                                                                    थप कागजात
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                        <input 
-                                                            type="file" 
-                                                            ref={fileInputRef} 
-                                                            className="hidden" 
-                                                            multiple 
-                                                            onChange={handleUploadAdditionalDocument}
-                                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                                        />
-                                                        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
-                                                            {((selectedDutyChartInfo as any).anusuchi_documents || []).length > 0 ? (
-                                                                (selectedDutyChartInfo as any).anusuchi_documents.map((doc: any, idx: number) => (
-                                                                    <button 
-                                                                        key={idx}
-                                                                        onClick={async () => {
-                                                                            try {
-                                                                                const fileUrl = doc.file_url || doc.file;
-                                                                                const response = await api.get(fileUrl, { responseType: 'blob' });
-                                                                                const contentType = (response.headers as any)['content-type'] || 'application/pdf';
-                                                                                const blob = new Blob([response.data as BlobPart], { type: contentType });
-                                                                                const blobUrl = window.URL.createObjectURL(blob);
-                                                                                window.open(blobUrl, '_blank');
-                                                                            } catch (err) {
-                                                                                toast.error("Failed to preview document");
-                                                                            }
-                                                                        }}
-                                                                        className="w-full flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm transition-all hover:scale-110">
+                                                            <FileText className="w-4 h-4" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-72 p-2" align="start">
+                                                        <div className="space-y-2">
+                                                            <div className="px-2 py-1 border-b flex items-center justify-between">
+                                                                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                                                    <FileText className="w-3 h-3 text-emerald-600" />
+                                                                    अनुसूची कागजातहरू
+                                                                </h4>
+                                                                {canManageSelectedChart && (
+                                                                    <Button
+                                                                        variant="default"
+                                                                        size="sm"
+                                                                        className="h-7 px-2.5 text-[10px] gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-all shadow-sm"
+                                                                        disabled={isUploadingDocument}
+                                                                        onClick={() => fileInputRef.current?.click()}
                                                                     >
-                                                                        <div className="flex items-center gap-2 min-w-0">
-                                                                            <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0">
-                                                                                <span className="text-[10px] font-bold text-emerald-700">{idx + 1}</span>
+                                                                        {isUploadingDocument ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                                                        थप कागजात
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                            <input
+                                                                type="file"
+                                                                ref={fileInputRef}
+                                                                className="hidden"
+                                                                multiple
+                                                                onChange={handleUploadAdditionalDocument}
+                                                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                                            />
+                                                            <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+                                                                {((selectedDutyChartInfo as any).anusuchi_documents || []).length > 0 ? (
+                                                                    (selectedDutyChartInfo as any).anusuchi_documents.map((doc: any, idx: number) => (
+                                                                        <button
+                                                                            key={idx}
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    const fileUrl = doc.file_url || doc.file;
+                                                                                    const response = await api.get(fileUrl, { responseType: 'blob' });
+                                                                                    const contentType = (response.headers as any)['content-type'] || 'application/pdf';
+                                                                                    const blob = new Blob([response.data as BlobPart], { type: contentType });
+                                                                                    const blobUrl = window.URL.createObjectURL(blob);
+                                                                                    window.open(blobUrl, '_blank');
+                                                                                } catch (err) {
+                                                                                    toast.error("Failed to preview document");
+                                                                                }
+                                                                            }}
+                                                                            className="w-full flex items-center justify-between p-2 hover:bg-emerald-50 rounded-md transition-colors group border border-transparent hover:border-emerald-100"
+                                                                        >
+                                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                                <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0">
+                                                                                    <span className="text-[10px] font-bold text-emerald-700">{idx + 1}</span>
+                                                                                </div>
+                                                                                <div className="flex flex-col min-w-0 text-left">
+                                                                                    <span className="text-[10px] font-bold text-emerald-600 uppercase italic">अनुसूची - १</span>
+                                                                                    <span className="text-xs font-medium text-slate-600 truncate">
+                                                                                        {doc.file.split('/').pop().split('?')[0]}
+                                                                                    </span>
+                                                                                </div>
                                                                             </div>
-                                                                            <div className="flex flex-col min-w-0 text-left">
-                                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase italic">अनुसूची - १</span>
-                                                                                <span className="text-xs font-medium text-slate-600 truncate">
-                                                                                    {doc.file.split('/').pop().split('?')[0]}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-500 shrink-0" />
-                                                                    </button>
-                                                                ))
-                                                            ) : (
-                                                                <div className="py-4 text-center text-[10px] text-slate-400 italic">
-                                                                    कुनै कागजात अपलोड गरिएको छैन।
-                                                                </div>
-                                                            )}
+                                                                            <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-emerald-500 shrink-0" />
+                                                                        </button>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="py-4 text-center text-[10px] text-slate-400 italic">
+                                                                        कुनै कागजात अपलोड गरिएको छैन।
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </PopoverContent>
-                                            </Popover>
-                                        )}
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
                                     </div>
                                 ) : (
                                     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 flex flex-col gap-0.5 shadow-sm animate-in fade-in zoom-in duration-300 max-w-[220px]">
@@ -756,6 +768,167 @@ const DutyCalendar = () => {
                             <Button variant="outline" className="gap-2 text-xs h-9" onClick={() => navigate(ROUTES.ANNEX_I_REPORT)}>
                                 <Download className="w-3.5 h-3.5" /> Download अनुसूची -१
                             </Button>
+                            {selectedDutyChartId && (
+                                <Button className="gap-2 text-xs h-9 bg-[#E6B646] hover:bg-[#E6B646]/90 text-white border-0" disabled={isExportingExcel} onClick={async () => {
+                                    setIsExportingExcel(true);
+                                    try {
+                                        const exportAssignments = selectedScheduleId === "all"
+                                            ? assignments
+                                            : assignments.filter(a => String(a.schedule_id) === selectedScheduleId);
+
+                                        if (exportAssignments.length === 0) {
+                                            toast.error("No duties to export");
+                                            return;
+                                        }
+
+                                        // 1. Gather all unique employee names (both from assignments and pool members)
+                                        const assignedNames = exportAssignments.map(a => a.employee_name).filter(Boolean);
+                                        const poolNames = (selectedDutyChartInfo?.pool_members_detail || []).map(pm => pm.full_name).filter(Boolean);
+                                        const uniqueNames = Array.from(new Set([...assignedNames, ...poolNames]));
+                                        const translatedNames: Record<string, string> = {};
+
+                                        // 2. Translate names using Google Translate API with persistent localStorage caching
+                                        let nameCache: Record<string, string> = {};
+                                        try {
+                                            const cached = localStorage.getItem("name_translation_cache");
+                                            if (cached) nameCache = JSON.parse(cached);
+                                        } catch (e) {}
+
+                                        const missingNames = uniqueNames.filter(name => !nameCache[name]);
+
+                                        if (missingNames.length > 0) {
+                                            try {
+                                                const textToTranslate = missingNames.join('\n');
+                                                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ne&dt=t&q=${encodeURIComponent(textToTranslate)}`;
+                                                const response = await fetch(url);
+                                                if (response.ok) {
+                                                    const data = await response.json();
+                                                    if (data && data[0]) {
+                                                        let fullTranslatedText = '';
+                                                        for (const chunk of data[0]) {
+                                                            if (chunk[0]) fullTranslatedText += chunk[0];
+                                                        }
+                                                        const translatedArr = fullTranslatedText.split('\n').map(s => s.trim());
+                                                        missingNames.forEach((name, i) => {
+                                                            nameCache[name] = translatedArr[i] || name;
+                                                        });
+                                                        localStorage.setItem("name_translation_cache", JSON.stringify(nameCache));
+                                                    }
+                                                }
+                                            } catch (e) {
+                                                console.error("Batch translation error:", e);
+                                            }
+                                        }
+
+                                        uniqueNames.forEach(name => {
+                                            translatedNames[name] = nameCache[name] || name;
+                                        });
+
+                                        // Helper function for Nepali digits
+                                        const convertToNepaliDigits = (str: string | number) => {
+                                            const nepaliDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
+                                            return String(str).replace(/[0-9]/g, match => nepaliDigits[parseInt(match)]);
+                                        };
+
+                                        const exportData = exportAssignments.map((a, i) => {
+                                            let nepaliDateStr = format(a.date, "yyyy-MM-dd");
+                                            try {
+                                                nepaliDateStr = new NepaliDate(new Date(a.date)).format("YYYY-MM-DD");
+                                            } catch (e) { }
+                                            return {
+                                                "S.N.": i + 1,
+                                                "Date (BS)": nepaliDateStr,
+                                                "Date (AD)": format(a.date, "yyyy-MM-dd"),
+                                                "Employee ID": a.employee_id,
+                                                "Employee Name": a.employee_name,
+                                                "Office": a.office,
+                                                "Position": a.position,
+                                                "Shift": a.shift,
+                                                "Start Time": a.start_time?.slice(0, 5) || "",
+                                                "End Time": a.end_time?.slice(0, 5) || "",
+                                                "Phone Number": a.phone_number,
+                                                "Email": a.email
+                                            };
+                                        });
+                                        const ws = XLSX.utils.json_to_sheet(exportData);
+                                        const wb = XLSX.utils.book_new();
+                                        const sheetName = (selectedDutyChartInfo?.name || "Duties").substring(0, 31).replace(/[\\/*?:\[\]]/g, "");
+                                        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+                                        // --- Generate Matrix Report (Second Sheet) ---
+                                        const uniqueDates = Array.from(new Set(exportAssignments.map(a => new Date(a.date.getTime() - a.date.getTimezoneOffset() * 60000).toISOString().split('T')[0]))).sort();
+                                        const dateHeaders = uniqueDates.map(dateStr => {
+                                            try {
+                                                return new NepaliDate(new Date(dateStr)).format("YYYY/MM/DD");
+                                            } catch (e) {
+                                                return dateStr.replace(/-/g, "/");
+                                            }
+                                        });
+
+                                        const employeesMap = new Map();
+                                        
+                                        // 1. Add all assigned employees
+                                        exportAssignments.forEach(a => {
+                                            const translatedName = translatedNames[a.employee_name] || a.employee_name;
+                                            const nepaliId = a.employee_id ? convertToNepaliDigits(a.employee_id) : '';
+                                            const nepaliNameString = `${translatedName}${nepaliId ? ` (${nepaliId})` : ''}`;
+                                            const englishNameString = `${a.employee_name}${a.employee_id ? ` (${a.employee_id})` : ''}`;
+
+                                            const key = `${a.employee_name}|${a.employee_id}`;
+                                            if (!employeesMap.has(key)) {
+                                                employeesMap.set(key, { originalName: englishNameString, nepaliNameString, dateSet: new Set(), isPool: false });
+                                            }
+                                            const dateStr = new Date(a.date.getTime() - a.date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                                            employeesMap.get(key).dateSet.add(dateStr);
+                                        });
+
+                                        // 2. Add Pool Members (so they show up even if they have 0 shifts) and mark the isPool flag
+                                        const poolMembers = selectedDutyChartInfo?.pool_members_detail || [];
+                                        poolMembers.forEach(pm => {
+                                            const translatedName = translatedNames[pm.full_name] || pm.full_name;
+                                            const nepaliId = pm.employee_id ? convertToNepaliDigits(pm.employee_id) : '';
+                                            const nepaliNameString = `${translatedName}${nepaliId ? ` (${nepaliId})` : ''}`;
+                                            const englishNameString = `${pm.full_name}${pm.employee_id ? ` (${pm.employee_id})` : ''}`;
+                                            
+                                            const key = `${pm.full_name}|${pm.employee_id}`;
+                                            if (!employeesMap.has(key)) {
+                                                employeesMap.set(key, { originalName: englishNameString, nepaliNameString, dateSet: new Set(), isPool: true });
+                                            } else {
+                                                employeesMap.get(key).isPool = true;
+                                            }
+                                        });
+
+                                        const matrixAOA = [];
+                                        matrixAOA.push([selectedDutyChartInfo?.name || "Duty Chart Matrix"]);
+                                        matrixAOA.push(["S.N.", "Employee Name", "Name in Nepali", ...dateHeaders, "Pool"]);
+
+                                        let sn = 1;
+                                        for (const val of employeesMap.values()) {
+                                            const row = [sn++, val.originalName, val.nepaliNameString];
+                                            uniqueDates.forEach(dateStr => {
+                                                row.push(val.dateSet.has(dateStr) ? "✓" : "");
+                                            });
+                                            row.push(val.isPool ? "✓" : ""); // Pool
+
+                                            matrixAOA.push(row);
+                                        }
+
+                                        const ws2 = XLSX.utils.aoa_to_sheet(matrixAOA);
+                                        ws2["!merges"] = [
+                                            { s: { r: 0, c: 0 }, e: { r: 0, c: dateHeaders.length + 2 } }
+                                        ];
+                                        XLSX.utils.book_append_sheet(wb, ws2, "Matrix Report");
+
+                                        XLSX.writeFile(wb, `Duty_Chart_${selectedDutyChartInfo?.name || 'Export'}.xlsx`);
+                                        toast.success("Excel exported successfully");
+                                    } finally {
+                                        setIsExportingExcel(false);
+                                    }
+                                }}>
+                                    {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                                    {isExportingExcel ? "Generating..." : "Export Duties to Excel"}
+                                </Button>
+                            )}
                             {(hasPermission('duties.create_chart') || hasPermission('duties.create_any_office_chart')) && (
                                 <Button className="gap-2 text-xs h-9 bg-primary" onClick={() => setShowCreateDutyChart(true)}>
                                     <Plus className="w-3.5 h-3.5" /> Create Duty Chart
@@ -776,17 +949,17 @@ const DutyCalendar = () => {
                                     ? Number((selectedDutyChartInfo.office as any)?.id)
                                     : Number(selectedDutyChartInfo.office);
                                 return (
-                                    isSuperAdmin || 
-                                    isAssignedToOffice(chartOfficeId) || 
-                                    (hasPermission('duties.create_any_office_chart') && 
-                                     selectedDutyChartInfo.created_by_office === user?.office_id && 
-                                     selectedDutyChartInfo.created_by_role === user?.role)
+                                    isSuperAdmin ||
+                                    isAssignedToOffice(chartOfficeId) ||
+                                    (hasPermission('duties.create_any_office_chart') &&
+                                        selectedDutyChartInfo.created_by_office === user?.office_id &&
+                                        selectedDutyChartInfo.created_by_role === user?.role)
                                 );
                             })() && (
-                                <Button className="gap-2 text-xs h-9 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowApproveModal(true)}>
-                                    <Check className="w-3.5 h-3.5" /> Approve & Notify
-                                </Button>
-                            )}
+                                    <Button className="gap-2 text-xs h-9 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowApproveModal(true)}>
+                                        <Check className="w-3.5 h-3.5" /> Approve & Notify
+                                    </Button>
+                                )}
                         </div>
                     </div>
                 </div>
@@ -795,7 +968,10 @@ const DutyCalendar = () => {
                 <div className="flex items-center justify-between gap-1 bg-white p-1.5 rounded-xl border shadow-sm">
                     <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
                         {/* Office Selector */}
-                        <Popover open={officeOpen} onOpenChange={setOfficeOpen}>
+                        <Popover open={officeOpen} onOpenChange={(open) => {
+                            if (!open) setOfficeSearch("");
+                            setOfficeOpen(open);
+                        }}>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" role="combobox" aria-expanded={officeOpen} className="flex-1 min-w-0 justify-between h-9 text-xs bg-primary text-white hover:bg-primary-hover hover:text-white border-2 border-primary transition-colors">
                                     <span className="truncate">{selectedOfficeId ? offices.find((o) => o.id === Number(selectedOfficeId))?.name : "Select Office"}</span>
@@ -803,8 +979,8 @@ const DutyCalendar = () => {
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Search office..." className="h-9" />
+                                <Command shouldFilter={false}>
+                                    <CommandInput placeholder="Search office..." className="h-9" value={officeSearch} onValueChange={setOfficeSearch} />
                                     <CommandList className="max-h-[300px] overflow-y-auto">
                                         <CommandEmpty>No office found.</CommandEmpty>
                                         <CommandGroup>
@@ -812,6 +988,7 @@ const DutyCalendar = () => {
                                                 value="Select Office"
                                                 onSelect={() => {
                                                     setSelectedOfficeId("");
+                                                    setOfficeSearch("");
                                                     setOfficeOpen(false);
                                                 }}
                                                 className={cn(
@@ -824,27 +1001,26 @@ const DutyCalendar = () => {
                                                 <Check className={cn("mr-2 h-4 w-4", !selectedOfficeId ? "opacity-100" : "opacity-0")} />
                                                 Select Office
                                             </CommandItem>
-                                            {sortedOffices
-                                                .filter(office => (user?.office_id && (!hasPermission('duties.view_any_office_chart') && !hasPermission('duties.create_any_office_chart'))) ? office.id === user.office_id : true)
-                                                .map((office) => (
-                                                    <CommandItem
-                                                        key={office.id}
-                                                        value={office.name}
-                                                        onSelect={() => {
-                                                            setSelectedOfficeId(String(office.id));
-                                                            setOfficeOpen(false);
-                                                        }}
-                                                        className={cn(
-                                                            "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
-                                                            selectedOfficeId === String(office.id)
-                                                                ? "bg-primary text-white"
-                                                                : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
-                                                        )}
-                                                    >
-                                                        <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
-                                                        {office.name}
-                                                    </CommandItem>
-                                                ))}
+                                            {visibleOffices.map((office) => (
+                                                <CommandItem
+                                                    key={office.id}
+                                                    value={office.name}
+                                                    onSelect={() => {
+                                                        setSelectedOfficeId(String(office.id));
+                                                        setOfficeSearch("");
+                                                        setOfficeOpen(false);
+                                                    }}
+                                                    className={cn(
+                                                        "flex items-center px-2 py-1.5 cursor-pointer text-sm rounded-sm",
+                                                        selectedOfficeId === String(office.id)
+                                                            ? "bg-primary text-white"
+                                                            : "text-slate-900 hover:bg-slate-100 data-[selected=true]:bg-slate-100 data-[selected=true]:text-slate-900"
+                                                    )}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedOfficeId === String(office.id) ? "opacity-100" : "opacity-0")} />
+                                                    {office.name}
+                                                </CommandItem>
+                                            ))}
                                         </CommandGroup>
                                     </CommandList>
                                 </Command>
@@ -1027,201 +1203,201 @@ const DutyCalendar = () => {
                         )}
 
                         <div className={cn("w-full transition-all duration-500", loading && "blur-[2px] opacity-60")}>
-                                <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
-                                    {/* Header Row */}
-                                    <div className="grid grid-cols-7 border-b bg-slate-50">
-                                        {(dateMode === "BS" ? nepaliDays : englishDays).map((day, idx) => (
-                                            <div key={day} className={cn("py-3 text-center text-sm font-semibold text-slate-600", idx === 6 ? "text-red-500" : "")}>
-                                                {day}
-                                            </div>
-                                        ))}
-                                    </div>
+                            <div className="border rounded-lg bg-white shadow-sm overflow-hidden">
+                                {/* Header Row */}
+                                <div className="grid grid-cols-7 border-b bg-slate-50">
+                                    {(dateMode === "BS" ? nepaliDays : englishDays).map((day, idx) => (
+                                        <div key={day} className={cn("py-3 text-center text-sm font-semibold text-slate-600", idx === 6 ? "text-red-500" : "")}>
+                                            {day}
+                                        </div>
+                                    ))}
+                                </div>
 
-                                    {/* Days Grid */}
-                                    <div className="grid grid-cols-7 auto-rows-[130px]">
-                                        {calendarDays.map((date, idx) => {
-                                            const nd = new NepaliDate(date);
-                                            const isCurrentMonth = nd.getMonth() === monthBS;
-                                            const isTodayDate = isSameDay(date, new Date());
-                                            // Updated Logic: Only assigned shifts, sorted by time status
-                                            const dayAssignments = assignments
-                                                .filter(a =>
-                                                    isSameDay(a.date, date) &&
-                                                    (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)
-                                                )
-                                                .map(a => {
-                                                    const now = new Date();
-                                                    // Calculate time status relative to NOW
-                                                    const isToday = isSameDay(a.date, now);
+                                {/* Days Grid */}
+                                <div className="grid grid-cols-7 auto-rows-[130px]">
+                                    {calendarDays.map((date, idx) => {
+                                        const nd = new NepaliDate(date);
+                                        const isCurrentMonth = nd.getMonth() === monthBS;
+                                        const isTodayDate = isSameDay(date, new Date());
+                                        // Updated Logic: Only assigned shifts, sorted by time status
+                                        const dayAssignments = assignments
+                                            .filter(a =>
+                                                isSameDay(a.date, date) &&
+                                                (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)
+                                            )
+                                            .map(a => {
+                                                const now = new Date();
+                                                // Calculate time status relative to NOW
+                                                const isToday = isSameDay(a.date, now);
 
-                                                    let status: 'current' | 'upcoming' | 'past' = 'past';
+                                                let status: 'current' | 'upcoming' | 'past' = 'past';
 
-                                                    if (a.start_time && a.end_time) {
-                                                        const [sh, sm] = a.start_time.split(':').map(Number);
-                                                        const [eh, em] = a.end_time.split(':').map(Number);
+                                                if (a.start_time && a.end_time) {
+                                                    const [sh, sm] = a.start_time.split(':').map(Number);
+                                                    const [eh, em] = a.end_time.split(':').map(Number);
 
-                                                        const nowH = now.getHours();
-                                                        const nowM = now.getMinutes();
-                                                        const currentMin = nowH * 60 + nowM;
-                                                        const startMin = sh * 60 + sm;
-                                                        const endMin = eh * 60 + em;
+                                                    const nowH = now.getHours();
+                                                    const nowM = now.getMinutes();
+                                                    const currentMin = nowH * 60 + nowM;
+                                                    const startMin = sh * 60 + sm;
+                                                    const endMin = eh * 60 + em;
 
-                                                        // Handle overnight logic roughly if end < start
-                                                        const isOvernight = endMin < startMin;
+                                                    // Handle overnight logic roughly if end < start
+                                                    const isOvernight = endMin < startMin;
 
-                                                        if (isToday) {
-                                                            if (isOvernight) {
-                                                                if (currentMin >= startMin || currentMin < endMin) status = 'current';
-                                                                else if (currentMin < startMin) status = 'upcoming'; // e.g. 10 AM, start 10 PM
-                                                                else status = 'past';
-                                                            } else {
-                                                                if (currentMin >= startMin && currentMin < endMin) status = 'current';
-                                                                else if (currentMin < startMin) status = 'upcoming';
-                                                                else status = 'past';
-                                                            }
-                                                        } else if (new Date(a.date) > now) {
-                                                            status = 'upcoming';
+                                                    if (isToday) {
+                                                        if (isOvernight) {
+                                                            if (currentMin >= startMin || currentMin < endMin) status = 'current';
+                                                            else if (currentMin < startMin) status = 'upcoming'; // e.g. 10 AM, start 10 PM
+                                                            else status = 'past';
                                                         } else {
-                                                            status = 'past';
+                                                            if (currentMin >= startMin && currentMin < endMin) status = 'current';
+                                                            else if (currentMin < startMin) status = 'upcoming';
+                                                            else status = 'past';
                                                         }
+                                                    } else if (new Date(a.date) > now) {
+                                                        status = 'upcoming';
+                                                    } else {
+                                                        status = 'past';
                                                     }
+                                                }
 
-                                                    return { ...a, status };
-                                                })
-                                                .sort((a, b) => {
-                                                    // Sort Order: Current -> Upcoming -> Past
-                                                    const statusOrder = { current: 0, upcoming: 1, past: 2 };
-                                                    if (a.status !== b.status) {
-                                                        return statusOrder[a.status as keyof typeof statusOrder] - statusOrder[b.status as keyof typeof statusOrder];
-                                                    }
-                                                    // Secondary Sort: Start Time
-                                                    return (a.start_time || "").localeCompare(b.start_time || "");
-                                                });
+                                                return { ...a, status };
+                                            })
+                                            .sort((a, b) => {
+                                                // Sort Order: Current -> Upcoming -> Past
+                                                const statusOrder = { current: 0, upcoming: 1, past: 2 };
+                                                if (a.status !== b.status) {
+                                                    return statusOrder[a.status as keyof typeof statusOrder] - statusOrder[b.status as keyof typeof statusOrder];
+                                                }
+                                                // Secondary Sort: Start Time
+                                                return (a.start_time || "").localeCompare(b.start_time || "");
+                                            });
 
-                                            const isSaturday = date.getDay() === 6;
+                                        const isSaturday = date.getDay() === 6;
 
-                                            return (
-                                                <div
-                                                    key={date.toString()}
-                                                    className={cn(
-                                                        "border-b border-r p-2 relative transition-colors hover:bg-slate-50 group min-h-[120px] flex flex-col",
-                                                        !isCurrentMonth ? "bg-slate-50/50" : "bg-white",
-                                                        (idx + 1) % 7 === 0 ? "border-r-0" : ""
-                                                    )}
-                                                    onClick={(e) => {
-                                                        setSelectedDateForDetail(date);
-                                                        setTimeout(() => {
-                                                            setShowDayDetailModal(true);
-                                                        }, 10);
-                                                    }}
-                                                >
+                                        return (
+                                            <div
+                                                key={date.toString()}
+                                                className={cn(
+                                                    "border-b border-r p-2 relative transition-colors hover:bg-slate-50 group min-h-[120px] flex flex-col",
+                                                    !isCurrentMonth ? "bg-slate-50/50" : "bg-white",
+                                                    (idx + 1) % 7 === 0 ? "border-r-0" : ""
+                                                )}
+                                                onClick={(e) => {
+                                                    setSelectedDateForDetail(date);
+                                                    setTimeout(() => {
+                                                        setShowDayDetailModal(true);
+                                                    }, 10);
+                                                }}
+                                            >
 
-                                                    <div className="flex justify-between items-start mb-1 relative z-10">
-                                                        <span className={cn(
-                                                            "text-base font-bold select-none",
-                                                            !isCurrentMonth ? "text-slate-400" : "text-slate-900",
-                                                            (
-                                                                isSaturday || 
-                                                                (systemSettings?.show_sunday_as_holiday && date.getDay() === 0) ||
-                                                                holidays.some(h => h.date === format(date, "yyyy-MM-dd"))
-                                                            ) && isCurrentMonth ? "text-red-500" : "",
-                                                            isTodayDate ? "text-white bg-primary rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
-                                                        )}>
-                                                            {dateMode === "BS" ? nd.getDate() : format(date, "d")}
-                                                        </span>
+                                                <div className="flex justify-between items-start mb-1 relative z-10">
+                                                    <span className={cn(
+                                                        "text-base font-bold select-none",
+                                                        !isCurrentMonth ? "text-slate-400" : "text-slate-900",
+                                                        (
+                                                            isSaturday ||
+                                                            (systemSettings?.show_sunday_as_holiday && date.getDay() === 0) ||
+                                                            holidays.some(h => h.date === format(date, "yyyy-MM-dd"))
+                                                        ) && isCurrentMonth ? "text-red-500" : "",
+                                                        isTodayDate ? "text-white bg-primary rounded-full w-8 h-8 flex items-center justify-center -ml-1 -mt-1" : ""
+                                                    )}>
+                                                        {dateMode === "BS" ? nd.getDate() : format(date, "d")}
+                                                    </span>
 
-                                                        {(() => {
-                                                            const dateStr = format(date, "yyyy-MM-dd");
-                                                            const holiday = holidays.find(h => h.date === dateStr);
-                                                            if (!holiday) return null;
-                                                            return (
-                                                                <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
-                                                                    <Badge variant="destructive" className="h-3.5 px-1 text-[7px] font-black uppercase leading-none shrink-0">Holiday</Badge>
-                                                                    <span className="text-[9px] font-bold text-red-600 truncate">
-                                                                        {holiday.name}
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        })()}
-
-                                                        <span className="text-[10px] text-slate-400 font-medium select-none">
-                                                            {dateMode === "BS" ? format(date, "d") : nd.getDate()}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="space-y-1 overflow-y-auto max-h-[100px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative z-20">
-                                                        {dayAssignments.map((assignment: any) => {
-                                                            const shiftColor = getShiftColor(assignment.schedule_id);
-                                                            const isUnassigned = assignment.type === 'unassigned';
-                                                            const isOnShift = assignment.status === 'current';
-
-                                                            return (
-                                                                <div
-                                                                    key={assignment.id}
-                                                                    className={cn(
-                                                                        "flex items-center gap-1.5 p-1 rounded-md border shadow-sm transition-all hover:shadow-md",
-                                                                        isUnassigned
-                                                                            ? "bg-slate-50 border-dashed border-slate-300 opacity-70"
-                                                                            : cn(shiftColor.border, shiftColor.bg)
-                                                                    )}
-                                                                >
-                                                                    {isOnShift && (
-                                                                        <span className="relative flex h-2 w-2 shrink-0">
-                                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                                                        </span>
-                                                                    )}
-                                                                    <div className="flex items-center justify-between flex-1 min-w-0">
-                                                                        <span className={cn(
-                                                                            "text-[10px] truncate leading-tight",
-                                                                            isUnassigned ? "font-normal italic text-slate-500" : cn("font-bold", shiftColor.text)
-                                                                        )}>
-                                                                            {assignment.employee_name}
-                                                                        </span>
-                                                                        {assignment.alias && (
-                                                                            <span className={cn(
-                                                                                "text-[8px] font-black opacity-60 uppercase shrink-0 ml-1",
-                                                                                isUnassigned ? "text-slate-400" : shiftColor.text
-                                                                            )}>
-                                                                                {assignment.alias}
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-
-                                                    {/* Add Button on Hover */}
                                                     {(() => {
                                                         const dateStr = format(date, "yyyy-MM-dd");
-                                                        const isDateInChartRange = selectedDutyChartInfo &&
-                                                            dateStr >= selectedDutyChartInfo.effective_date &&
-                                                            (!selectedDutyChartInfo.end_date || dateStr <= selectedDutyChartInfo.end_date);
-
-                                                        if (canAssignDuties && isDateInChartRange) {
-                                                            return (
-                                                                <Button
-                                                                    variant="secondary"
-                                                                    size="icon"
-                                                                    className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 z-50"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setCreateDutyContext({ dateISO: dateStr });
-                                                                        setShowCreateDuty(true);
-                                                                    }}
-                                                                >
-                                                                    <Plus className="h-3.5 w-3.5" />
-                                                                </Button>
-                                                            );
-                                                        }
-                                                        return null;
+                                                        const holiday = holidays.find(h => h.date === dateStr);
+                                                        if (!holiday) return null;
+                                                        return (
+                                                            <div className="flex-1 flex items-center justify-center gap-1 min-w-0 px-1">
+                                                                <Badge variant="destructive" className="h-3.5 px-1 text-[7px] font-black uppercase leading-none shrink-0">Holiday</Badge>
+                                                                <span className="text-[9px] font-bold text-red-600 truncate">
+                                                                    {holiday.name}
+                                                                </span>
+                                                            </div>
+                                                        );
                                                     })()}
+
+                                                    <span className="text-[10px] text-slate-400 font-medium select-none">
+                                                        {dateMode === "BS" ? format(date, "d") : nd.getDate()}
+                                                    </span>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
+
+                                                <div className="space-y-1 overflow-y-auto max-h-[100px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative z-20">
+                                                    {dayAssignments.map((assignment: any) => {
+                                                        const shiftColor = getShiftColor(assignment.schedule_id);
+                                                        const isUnassigned = assignment.type === 'unassigned';
+                                                        const isOnShift = assignment.status === 'current';
+
+                                                        return (
+                                                            <div
+                                                                key={assignment.id}
+                                                                className={cn(
+                                                                    "flex items-center gap-1.5 p-1 rounded-md border shadow-sm transition-all hover:shadow-md",
+                                                                    isUnassigned
+                                                                        ? "bg-slate-50 border-dashed border-slate-300 opacity-70"
+                                                                        : cn(shiftColor.border, shiftColor.bg)
+                                                                )}
+                                                            >
+                                                                {isOnShift && (
+                                                                    <span className="relative flex h-2 w-2 shrink-0">
+                                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                                    </span>
+                                                                )}
+                                                                <div className="flex items-center justify-between flex-1 min-w-0">
+                                                                    <span className={cn(
+                                                                        "text-[10px] truncate leading-tight",
+                                                                        isUnassigned ? "font-normal italic text-slate-500" : cn("font-bold", shiftColor.text)
+                                                                    )}>
+                                                                        {assignment.employee_name}
+                                                                    </span>
+                                                                    {assignment.alias && (
+                                                                        <span className={cn(
+                                                                            "text-[8px] font-black opacity-60 uppercase shrink-0 ml-1",
+                                                                            isUnassigned ? "text-slate-400" : shiftColor.text
+                                                                        )}>
+                                                                            {assignment.alias}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Add Button on Hover */}
+                                                {(() => {
+                                                    const dateStr = format(date, "yyyy-MM-dd");
+                                                    const isDateInChartRange = selectedDutyChartInfo &&
+                                                        dateStr >= selectedDutyChartInfo.effective_date &&
+                                                        (!selectedDutyChartInfo.end_date || dateStr <= selectedDutyChartInfo.end_date);
+
+                                                    if (canAssignDuties && isDateInChartRange) {
+                                                        return (
+                                                            <Button
+                                                                variant="secondary"
+                                                                size="icon"
+                                                                className="absolute bottom-1 right-1 h-6 w-6 rounded-full shadow-sm bg-primary text-white hover:bg-primary-hover opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 z-50"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setCreateDutyContext({ dateISO: dateStr });
+                                                                    setShowCreateDuty(true);
+                                                                }}
+                                                            >
+                                                                <Plus className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
+                            </div>
                         </div>
 
                     </div>

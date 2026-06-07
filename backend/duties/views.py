@@ -322,14 +322,34 @@ class DutyChartViewSet(viewsets.ModelViewSet):
             'office', 'office__directorate', 'office__ac_office', 'office__cc_office', 'created_by'
         ).prefetch_related('schedules', 'pool_members', 'pool_members__office').all()
         office_id = self.request.query_params.get("office", None)
+        created_by_id = self.request.query_params.get("created_by", None)
+        editable_by_me = self.request.query_params.get("editable_by_me", None)
         user = self.request.user
+        
+        if created_by_id:
+            try:
+                queryset = queryset.filter(created_by_id=int(created_by_id))
+            except (ValueError, TypeError):
+                pass
+
+        if editable_by_me and str(editable_by_me).lower() == 'true':
+            if not IsSuperAdmin().has_permission(self.request, self):
+                from users.permissions import get_managed_office_ids
+                managed = get_managed_office_ids(user)
+                q_edit = Q(office_id__in=managed)
+                if user_has_permission_slug(user, 'duties.create_any_office_chart'):
+                    q_edit |= Q(created_by__office_id=user.office_id, created_by__role=getattr(user, 'role', None))
+                queryset = queryset.filter(q_edit)
         
         if not IsSuperAdmin().has_permission(self.request, self):
             can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
             if not can_view_any:
                 allowed = get_allowed_office_ids(user)
-                # Allow viewing if user belongs to the office OR if the chart is approved
-                queryset = queryset.filter(Q(office_id__in=allowed) | Q(status='approved'))
+                peer_condition = Q()
+                if user_has_permission_slug(user, 'duties.create_any_office_chart'):
+                    peer_condition = Q(created_by__office_id=user.office_id, created_by__role=getattr(user, 'role', None))
+                # Allow viewing if user belongs to the office OR if the chart is approved OR if user/peer created it
+                queryset = queryset.filter(Q(office_id__in=allowed) | Q(status='approved') | Q(created_by=user) | peer_condition)
 
         if office_id:
             try:

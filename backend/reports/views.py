@@ -979,20 +979,6 @@ class OfficeAdoptionReportView(APIView):
         # Prefetch with select_related and nested prefetch_related to load all data in bulk (4 queries total)
         offices = WorkingOffice.objects.select_related(
             "directorate", "ac_office", "cc_office"
-        ).prefetch_related(
-            Prefetch(
-                "duty_charts",
-                queryset=DutyChart.objects.prefetch_related(
-                    Prefetch(
-                        "duties",
-                        queryset=Duty.objects.filter(user__isnull=False).select_related("user")
-                    )
-                )
-            ),
-            Prefetch(
-                "duties",
-                queryset=Duty.objects.all()
-            )
         )
 
         # Fetch all offices in-memory to build recursive directorate resolution
@@ -1026,50 +1012,60 @@ class OfficeAdoptionReportView(APIView):
         if office_id and office_id != "all":
             filtered_offices = [o for o in filtered_offices if o.id == int(office_id)]
 
+        filtered_office_ids = [o.id for o in filtered_offices]
+
+        # Aggregate counts efficiently for the filtered offices
+        from django.db.models import Count, Max
+        stats_qs = WorkingOffice.objects.filter(id__in=filtered_office_ids).annotate(
+            annotated_duty_count=Count('duties', distinct=True),
+            annotated_chart_count=Count('duty_charts', distinct=True),
+            max_duty_date=Max('duties__date'),
+            max_chart_edited=Max('duty_charts__edited_at')
+        )
+        stats_map = {s.id: s for s in stats_qs}
+
+        # Fetch duty charts and their associated user information efficiently
+        charts_qs = DutyChart.objects.filter(office_id__in=filtered_office_ids).prefetch_related(
+            Prefetch(
+                "duties",
+                queryset=Duty.objects.filter(user__isnull=False).select_related("user").only(
+                    "id", "duty_chart_id", "user_id", "user__employee_id", "user__full_name"
+                )
+            )
+        )
+        
+        charts_by_office = {}
+        for c in charts_qs:
+            charts_by_office.setdefault(c.office_id, []).append(c)
+
         # Build list of results
         office_list = []
         for office in filtered_offices:
-            # Query duty charts for this office (uses prefetch cache)
-            charts_qs = list(office.duty_charts.all())
-
-            # Query duties for this office (uses prefetch cache)
-            duties_list = list(office.duties.all())
-
-            duty_chart_count = len(charts_qs)
-            duty_count = len(duties_list)
+            stats = stats_map.get(office.id)
+            office_charts = charts_by_office.get(office.id, [])
+            
+            duty_chart_count = stats.annotated_chart_count if stats else 0
+            duty_count = stats.annotated_duty_count if stats else 0
             has_started = duty_chart_count > 0 or duty_count > 0
 
             # Last activity
             last_activity = None
-            
-            # Find latest edited/created duty chart in-memory
-            latest_chart = None
-            for chart in charts_qs:
-                if chart.edited_at:
-                    if not latest_chart or not latest_chart.edited_at or chart.edited_at > latest_chart.edited_at:
-                        latest_chart = chart
-
-            if latest_chart and latest_chart.edited_at:
-                last_activity = latest_chart.edited_at
-
-            # Find latest duty date in-memory
-            latest_duty = None
-            for duty in duties_list:
-                if duty.date:
-                    if not latest_duty or not latest_duty.date or duty.date > latest_duty.date:
-                        latest_duty = duty
-
-            if latest_duty:
-                duty_dt = datetime.datetime.combine(latest_duty.date, datetime.time.min)
-                # Check timezone awareness of last_activity
-                if last_activity and timezone.is_aware(last_activity):
-                    duty_dt = timezone.make_aware(duty_dt)
+            if stats:
+                max_edit = stats.max_chart_edited
+                max_duty = stats.max_duty_date
                 
-                if not last_activity or duty_dt > last_activity:
-                    last_activity = duty_dt
+                if max_edit:
+                    last_activity = max_edit
+                    
+                if max_duty:
+                    duty_dt = datetime.datetime.combine(max_duty, datetime.time.min)
+                    if last_activity and timezone.is_aware(last_activity):
+                        duty_dt = timezone.make_aware(duty_dt)
+                    if not last_activity or duty_dt > last_activity:
+                        last_activity = duty_dt
 
             charts_list = []
-            for chart in charts_qs:
+            for chart in office_charts:
                 # Compute distinct emp_count and assigned_users entirely in-memory using prefetched objects
                 chart_duties = [d for d in chart.duties.all() if d.user is not None]
                 emp_ids = {d.user_id for d in chart_duties}

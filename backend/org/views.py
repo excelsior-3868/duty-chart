@@ -100,7 +100,24 @@ class OfficeViewSet(viewsets.ModelViewSet):
         return [SuperAdminOrReadOnly()]
 
     def get_queryset(self):
-        return WorkingOffice.objects.select_related('directorate', 'ac_office', 'cc_office').all()
+        queryset = WorkingOffice.objects.select_related(
+            'directorate', 'ac_office', 'ac_office__directorate', 'cc_office',
+            'parent', 'parent__directorate', 'parent__ac_office', 'parent__ac_office__directorate',
+            'parent__parent', 'parent__parent__directorate'
+        ).all()
+        
+        user = self.request.user
+        if user and user.is_authenticated:
+            # Check permissions to see if they can view all offices
+            from users.permissions import user_has_permission_slug
+            can_see_all = getattr(user, 'role', None) == 'SUPERADMIN' or \
+                          user_has_permission_slug(user, 'duties.view_any_office_chart') or \
+                          user_has_permission_slug(user, 'duties.create_any_office_chart')
+            
+            if not can_see_all and getattr(user, 'office_id', None):
+                queryset = queryset.filter(id=user.office_id)
+                
+        return queryset
 
 class AccountingOfficeViewSet(viewsets.ModelViewSet):
     queryset = AccountingOffice.objects.all().order_by('id')

@@ -106,7 +106,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setActiveOfficeState(null);
     setActiveOfficeName(null);
-    window.location.href = '/login';
   };
 
   // ----------------------------------------------------------------------

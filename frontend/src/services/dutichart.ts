@@ -43,6 +43,12 @@ export const getDutyCharts = async (officeId?: number | string): Promise<DutyCha
   return response.data;
 };
 
+// GET charts created by a specific user
+export const getMyEditableCharts = async (): Promise<DutyChart[]> => {
+  const response = await api.get("/duty-charts/", { params: { editable_by_me: 'true' } });
+  return response.data;
+};
+
 // GET a single duty chart by id
 export const getDutyChartById = async (id: number): Promise<DutyChart> => {
   const response = await api.get(`/duty-charts/${id}/`);
