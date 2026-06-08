@@ -89,7 +89,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return queryset
 
 class OfficeViewSet(viewsets.ModelViewSet):
-    queryset = WorkingOffice.objects.all()
+    queryset = WorkingOffice.objects.all().order_by('id')
     serializer_class = WorkingOfficeSerializer
     permission_classes = [SuperAdminOrReadOnly]
     pagination_class = None
@@ -104,7 +104,7 @@ class OfficeViewSet(viewsets.ModelViewSet):
             'directorate', 'ac_office', 'ac_office__directorate', 'cc_office',
             'parent', 'parent__directorate', 'parent__ac_office', 'parent__ac_office__directorate',
             'parent__parent', 'parent__parent__directorate'
-        ).all()
+        ).all().order_by('id')
         
         user = self.request.user
         if user and user.is_authenticated:

@@ -618,7 +618,7 @@ const DutyCalendar = () => {
     const sortedOffices = useMemo(() => {
         if (!offices.length) return [];
         // Create a copy to sort
-        const sorted = [...offices].sort((a, b) => a.name.localeCompare(b.name));
+        const sorted = [...offices].sort((a, b) => a.id - b.id);
 
         if (user?.office_id) {
             sorted.sort((a, b) => {

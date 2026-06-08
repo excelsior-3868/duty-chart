@@ -979,7 +979,7 @@ class OfficeAdoptionReportView(APIView):
         # Prefetch with select_related and nested prefetch_related to load all data in bulk (4 queries total)
         offices = WorkingOffice.objects.select_related(
             "directorate", "ac_office", "cc_office"
-        )
+        ).order_by('id')
 
         # Fetch all offices in-memory to build recursive directorate resolution
         all_offices = list(offices)

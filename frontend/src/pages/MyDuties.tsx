@@ -321,10 +321,11 @@ const MyDuties = () => {
                                     <TableRow key={duty.id} className="hover:bg-muted/50 transition-colors">
                                         <TableCell className="p-4 text-center text-xs font-bold text-slate-400">{(currentPage - 1) * PAGE_SIZE + index + 1}</TableCell>
                                         <TableCell className="p-4">
-                                            <div className="flex flex-col">
+                                            {dateMode === "BS" ? (
                                                 <span className="font-bold text-slate-700 text-sm">{formatBSDate(duty.date)}</span>
-                                                <span className="text-[10px] text-muted-foreground font-medium">{formatADDate(duty.date)}</span>
-                                            </div>
+                                            ) : (
+                                                <span className="font-bold text-slate-700 text-sm">{formatADDate(duty.date)}</span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="p-4 font-semibold text-slate-700 text-xs">
                                             {dayName}

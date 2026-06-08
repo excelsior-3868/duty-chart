@@ -115,7 +115,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
       const isB = String(b.id) === String(user?.office_id);
       if (isA && !isB) return -1;
       if (!isA && isB) return 1;
-      return a.name.localeCompare(b.name);
+      return a.id - b.id;
     });
 
     return list;

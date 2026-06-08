@@ -132,7 +132,7 @@ function AdoptionReport() {
     if (selectedDirectorateId) {
       list = list.filter(o => String(o.directorate) === selectedDirectorateId);
     }
-    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+    return [...list].sort((a, b) => a.id - b.id);
   }, [officesList, selectedDirectorateId]);
 
   // Reset selected working office if it doesn't belong to the selected directorate

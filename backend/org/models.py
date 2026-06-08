@@ -154,6 +154,7 @@ class WorkingOffice(AuditableMixin, models.Model):
     
     class Meta:
         db_table = 'working_office'
+        ordering = ['id']
         
     def __str__(self):
         return self.name

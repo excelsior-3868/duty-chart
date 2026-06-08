@@ -399,7 +399,7 @@ class SignupOfficeListView(APIView):
 
     def get(self, request):
         search = request.query_params.get('search', '').strip()
-        offices = WorkingOffice.objects.all().order_by('name')
+        offices = WorkingOffice.objects.all().order_by('id')
         
         if search:
             offices = offices.filter(name__icontains=search)
