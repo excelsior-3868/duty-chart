@@ -7,6 +7,7 @@ export interface Duty {
   office: number;
   schedule: number;
   duty_chart?: number;
+  duty_chart_name?: string;
   is_completed: boolean;
   currently_available: boolean;
   user_name?: string;

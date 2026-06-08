@@ -144,14 +144,38 @@ export const NepaliDatePicker: React.FC<NepaliDatePickerProps> = ({
         return `${m}/${d}/${selectedND.getYear()}`;
     }, [selectedND]);
 
+    const wrapperClass = useMemo(() => {
+        if (!className) return "";
+        return className
+            .split(" ")
+            .filter(c => 
+                c.startsWith("w-") || 
+                c.startsWith("m-") || 
+                c.startsWith("mx-") || 
+                c.startsWith("my-") || 
+                c.startsWith("mt-") || 
+                c.startsWith("mb-") || 
+                c.startsWith("mr-") || 
+                c.startsWith("ml-") ||
+                c.startsWith("flex") ||
+                c.startsWith("grid") ||
+                c.startsWith("col-") ||
+                c === "hidden"
+            )
+            .join(" ");
+    }, [className]);
+
     return (
-        <div className={cn("w-full", className)}>
+        <div className={cn("w-full", wrapperClass)}>
             {label && <label className="text-sm font-medium mb-1 block">{label}</label>}
             <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverTrigger asChild>
                     <div
                         id={id}
-                        className="flex items-center justify-between w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        className={cn(
+                            "flex items-center justify-between w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer",
+                            className
+                        )}
                     >
                         <span className={cn(!value ? "text-muted-foreground" : "text-foreground")}>
                             {formattedValue || "mm/dd/yyyy"}

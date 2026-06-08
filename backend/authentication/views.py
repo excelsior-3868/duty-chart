@@ -276,12 +276,25 @@ class MobileAuthView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        project_number = getattr(settings, 'FIREBASE_PROJECT_NUMBER', None)
+        # 1. Compulsory static token check for all mobile requests
+        raw_token = (
+            request.headers.get('X-Mobile-Token') or
+            request.headers.get('Mobile-Api-Token')
+        )
+        if not raw_token:
+            return Response(
+                {"detail": "Mobile API token header is required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        if not validate_raw_mobile_token(raw_token, required_secret):
+            return Response(
+                {"detail": "Invalid mobile API token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
+        # 2. Additional App Check verification in production
+        project_number = getattr(settings, 'FIREBASE_PROJECT_NUMBER', None)
         if project_number:
-            # --- PRODUCTION: Firebase App Check ---
-            # The static MOBILE_API_TOKEN never leaves the server; the mobile
-            # app proves its identity via Google Play Integrity instead.
             app_check_token = (
                 request.headers.get('X-Firebase-AppCheck') or
                 request.headers.get('Firebase-AppCheck')
@@ -289,22 +302,6 @@ class MobileAuthView(APIView):
             if not verify_app_check_token(app_check_token):
                 return Response(
                     {"detail": "App integrity check failed. Use the official app on a supported device."},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-        else:
-            # --- DEVELOPMENT FALLBACK: static shared secret ---
-            raw_token = (
-                request.headers.get('X-Mobile-Token') or
-                request.headers.get('Mobile-Api-Token')
-            )
-            if not raw_token:
-                return Response(
-                    {"detail": "Mobile API token header is required."},
-                    status=status.HTTP_401_UNAUTHORIZED,
-                )
-            if not validate_raw_mobile_token(raw_token, required_secret):
-                return Response(
-                    {"detail": "Invalid mobile API token."},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
 

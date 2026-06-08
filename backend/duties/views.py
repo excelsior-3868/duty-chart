@@ -1419,6 +1419,7 @@ class DutyChartExportFile(APIView):
         user_ids_raw = request.query_params.get("user_id") or request.query_params.get("user_ids")
         user_ids = [int(x) for x in user_ids_raw.split(',')] if user_ids_raw else []
         group_by_employee = request.query_params.get("group_by_employee") == "true"
+        include_pool = request.query_params.get("include_pool") == "true"
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1885,6 +1886,28 @@ class DutyChartExportFile(APIView):
                     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                     for p in cell.paragraphs:
                         p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+            # Pool members line — appended directly below the table when requested.
+            if include_pool:
+                pool_members = list(chart.pool_members.all())
+                pool_parts = []
+                for m in pool_members:
+                    name = translate_to_nepali(getattr(m, "full_name", "") or getattr(m, "username", "") or "")
+                    eid = to_nepali_digits(getattr(m, "employee_id", "") or "")
+                    pool_parts.append(f"{name}({eid})" if eid else name)
+
+                if pool_parts:
+                    if len(pool_parts) > 1:
+                        names_str = ", ".join(pool_parts[:-1]) + " तथा " + pool_parts[-1]
+                    else:
+                        names_str = pool_parts[0]
+
+                    doc.add_paragraph("")
+                    pool_para = doc.add_paragraph(
+                        f"माथि उल्लेखित बाहेक थप सार्वजनिक बिदा भएमा ड्युटीमा खटिने कर्मचारीहरूः "
+                        f"{names_str} ड्युटीमा रहनेछन् ।"
+                    )
+                    pool_para.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
             doc.add_paragraph("")
             footer_msg = doc.add_paragraph(

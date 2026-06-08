@@ -179,3 +179,70 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
                 logger.error(f"Fatal error in bulk SMS thread for {u.username}: {e}")
 
         threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()
+
+
+def send_pool_addition_notification(users, chart):
+    """
+    Sends an SMS to each user newly added to a duty chart's standby pool.
+
+    Pool members are curated standby employees (not assigned to a specific
+    duty), so the message and reminder_type differ from
+    send_bulk_assignment_notification.
+    """
+    import threading
+    from .models import SMSLog
+
+    if not users or not chart:
+        return
+
+    chart_name = chart.name or "Duty Chart"
+    office_name = chart.office.name if chart.office else "Unknown Office"
+
+    for user in users:
+        if not getattr(user, 'phone_number', None):
+            logger.warning(f"User {user.username} has no phone number for pool SMS notification.")
+            continue
+
+        full_name = getattr(user, 'full_name', user.username)
+
+        sms_message = (
+            f'Dear {full_name}, You have been added to the standby pool for the duty chart '
+            f'"{chart_name}" at "{office_name}". '
+            f'Please visit https://dutychart.ntc.net.np for details.'
+        )
+
+        # reminder_type carries the chart ID so the (user, duty, reminder_type)
+        # uniqueness constraint holds with duty=None for pool notifications.
+        reminder_type = f'POOL_CHART_{chart.id}'
+        log = SMSLog.objects.filter(
+            user=user,
+            duty=None,
+            reminder_type=reminder_type
+        ).first()
+
+        if log:
+            log.phone = user.phone_number
+            log.message = sms_message
+            log.status = 'pending'
+            log.save()
+        else:
+            log = SMSLog.objects.create(
+                user=user,
+                duty=None,
+                reminder_type=reminder_type,
+                phone=user.phone_number,
+                message=sms_message,
+                status='pending'
+            )
+
+        def trigger_sms_task(u, msg, lid):
+            try:
+                success, response = send_sms(u.phone_number, msg, user=u, log_id=lid)
+                if success:
+                    logger.info(f"Pool addition SMS sent successfully to {u.username}")
+                else:
+                    logger.error(f"Pool addition SMS failed for {u.username}: {response}")
+            except Exception as e:
+                logger.error(f"Fatal error in pool SMS thread for {u.username}: {e}")
+
+        threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()

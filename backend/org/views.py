@@ -170,7 +170,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'create', 'destroy']:
             return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
+        return [(HasMobileAPIToken | permissions.IsAuthenticated)()]
 
     def list(self, request, *args, **kwargs):
         setting = SystemSetting.objects.first()

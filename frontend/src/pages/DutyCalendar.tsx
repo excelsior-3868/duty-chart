@@ -262,10 +262,14 @@ const DutyCalendar = () => {
             const info = await getDutyChartById(parseInt(selectedDutyChartId));
             setSelectedDutyChartInfo(info);
 
-            // --- Automatically focus calendar on the chart's effective date ---
+            // --- Automatically focus calendar: today if within the chart's period, else effective_date ---
             if (info.effective_date) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
                 const effDate = new Date(info.effective_date);
-                setCurrentDate(effDate);
+                const endDate = info.end_date ? new Date(info.end_date) : null;
+                const todayInRange = today >= effDate && (endDate === null || today <= endDate);
+                setCurrentDate(todayInRange ? today : effDate);
             }
 
             // Load schedules for this chart

@@ -114,11 +114,15 @@ class DutyChartSerializer(serializers.ModelSerializer):
             instance.schedules.set(schedules)
         if pool_members is not None:
             instance.pool_members.set(pool_members)
+            # Notify everyone added to the pool on creation.
+            self._notify_pool_members(instance, pool_members)
         return instance
 
     def update(self, instance, validated_data):
         schedules = validated_data.pop('schedules', None)
         pool_members = validated_data.pop('pool_members', None)
+        # Capture the existing pool before we change it so we only SMS the new additions.
+        existing_pool_ids = set(instance.pool_members.values_list('id', flat=True)) if pool_members is not None else set()
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         try:
@@ -131,7 +135,21 @@ class DutyChartSerializer(serializers.ModelSerializer):
             instance.schedules.set(schedules)
         if pool_members is not None:
             instance.pool_members.set(pool_members)
+            newly_added = [m for m in pool_members if m.id not in existing_pool_ids]
+            self._notify_pool_members(instance, newly_added)
         return instance
+
+    def _notify_pool_members(self, instance, members):
+        """Push an SMS to users newly added to this duty chart's standby pool."""
+        if not members:
+            return
+        try:
+            from notification_service.utils import send_pool_addition_notification
+            send_pool_addition_notification(members, instance)
+        except Exception as e:
+            # Notification failures must never block the chart save.
+            import logging
+            logging.getLogger(__name__).error(f"Pool addition SMS dispatch failed: {e}")
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

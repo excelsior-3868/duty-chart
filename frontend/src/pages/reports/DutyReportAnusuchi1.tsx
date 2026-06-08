@@ -98,6 +98,7 @@ function DutyReportAnusuchi1() {
     const [searchTerm, setSearchTerm] = useState("");
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [groupByEmployee, setGroupByEmployee] = useState(false);
+    const [includePool, setIncludePool] = useState(false);
 
     // Set document title
     useEffect(() => {
@@ -242,6 +243,7 @@ function DutyReportAnusuchi1() {
                 // user_id is handled in the file generation if the backend supports it
                 ...(selectAllUsers ? {} : { user_ids: selectedUsers.join(",") }),
                 group_by_employee: groupByEmployee,
+                include_pool: includePool,
             } as any);
 
             const url = window.URL.createObjectURL(blob);
@@ -657,8 +659,9 @@ function DutyReportAnusuchi1() {
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                      <div className="flex flex-col sm:flex-row gap-4 items-center">
                         {/* Group by Employee Toggle (Moved here) */}
-                        <div 
+                        <div
                             className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
                             onClick={() => setGroupByEmployee(!groupByEmployee)}
                         >
@@ -675,6 +678,26 @@ function DutyReportAnusuchi1() {
                                 <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
                             </div>
                         </div>
+
+                        {/* Add Pool Members Toggle */}
+                        <div
+                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                            onClick={() => setIncludePool(!includePool)}
+                        >
+                            <Checkbox
+                                id="includePool"
+                                checked={includePool}
+                                onCheckedChange={(checked) => setIncludePool(!!checked)}
+                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                            <div className="flex flex-col">
+                                <Label htmlFor="includePool" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                    Add Pool Members
+                                </Label>
+                                <span className="text-[9px] text-slate-400 font-medium">Append Standby pool members</span>
+                            </div>
+                        </div>
+                      </div>
 
                         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                             <Button
