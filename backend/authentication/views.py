@@ -104,7 +104,6 @@ class TokenObtainPair2FAView(TokenObtainPairView):
     serializer_class = TokenObtainPair2FASerializer
 
     def post(self, request, *args, **kwargs):
-        from .recaptcha import verify_recaptcha
         from .permissions import validate_mobile_session_token
 
         # Mobile app carries a session token — skip reCAPTCHA for it
@@ -118,17 +117,19 @@ class TokenObtainPair2FAView(TokenObtainPairView):
             if session_token:
                 is_mobile = validate_mobile_session_token(session_token, secret)
 
-        if not is_mobile:
-            recaptcha_token = (
-                request.data.get('recaptcha_token') or
-                request.headers.get('X-Recaptcha-Token')
-            )
-            ok, _ = verify_recaptcha(recaptcha_token, action='login')
-            if not ok:
-                return Response(
-                    {"detail": "reCAPTCHA verification failed. Please try again."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+        # --- reCAPTCHA temporarily disabled ---
+        # if not is_mobile:
+        #     from .recaptcha import verify_recaptcha
+        #     recaptcha_token = (
+        #         request.data.get('recaptcha_token') or
+        #         request.headers.get('X-Recaptcha-Token')
+        #     )
+        #     ok, _ = verify_recaptcha(recaptcha_token, action='login')
+        #     if not ok:
+        #         return Response(
+        #             {"detail": "reCAPTCHA verification failed. Please try again."},
+        #             status=status.HTTP_400_BAD_REQUEST,
+        #         )
 
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
