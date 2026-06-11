@@ -7,9 +7,10 @@ import { useAuth } from '@/context/AuthContext';
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredPermission?: string;
+  requiredAnyPermission?: string[];
   requiredRole?: string;
 }
-export const ProtectedRoute = ({ children, requiredPermission, requiredRole }: ProtectedRouteProps) => {
+export const ProtectedRoute = ({ children, requiredPermission, requiredAnyPermission, requiredRole }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading, hasPermission, hasRole } = useAuth();
   const location = useLocation();
 
@@ -36,7 +37,12 @@ export const ProtectedRoute = ({ children, requiredPermission, requiredRole }: P
     return <Navigate to={ROUTES.DASHBOARD} replace />;
   }
 
-  // 3. Role Check
+  // 3. Any-of Permission Check
+  if (requiredAnyPermission && !requiredAnyPermission.some(p => hasPermission(p))) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
+  // 4. Role Check
   if (requiredRole && !hasRole(requiredRole)) {
     return <Navigate to={ROUTES.DASHBOARD} replace />;
   }

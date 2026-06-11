@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings as SettingsIcon, User, Bell, Shield, Database, Lock, Loader2, Smartphone, Upload, CheckCircle2, Calendar } from 'lucide-react';
 import { RBACAdmin } from "@/components/settings/RBACAdmin";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import api from "@/services/api";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -16,7 +16,7 @@ import { HolidayManager } from "@/components/settings/HolidayManager";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 
 const Settings = () => {
-  const { hasPermission, hasRole } = useAuth();
+  const { hasPermission } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -31,6 +31,14 @@ const Settings = () => {
     app_update_url: "",
     show_sunday_as_holiday: false
   });
+
+  const defaultTab = useMemo(() => {
+    if (hasPermission('system.configure_general')) return 'general';
+    if (hasPermission('system.configure_holidays')) return 'holidays';
+    if (hasPermission('system.configure_notifications')) return 'notifications';
+    if (hasPermission('system.manage_rbac')) return 'rbac';
+    return 'general';
+  }, [hasPermission]);
 
   useEffect(() => {
     document.title = "Settings - NT Duty Chart Management System";
@@ -113,17 +121,21 @@ const Settings = () => {
         iconColor="text-slate-500"
       />
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="general" className="flex items-center gap-2">
-            <SettingsIcon className="h-4 w-4" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="holidays" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            Holidays
-          </TabsTrigger>
-          {(hasRole('SUPERADMIN') || hasRole('NETWORK_ADMIN')) && (
+          {hasPermission('system.configure_general') && (
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <SettingsIcon className="h-4 w-4" />
+              General
+            </TabsTrigger>
+          )}
+          {hasPermission('system.configure_holidays') && (
+            <TabsTrigger value="holidays" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Holidays
+            </TabsTrigger>
+          )}
+          {hasPermission('system.configure_notifications') && (
             <TabsTrigger value="notifications" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
               Notifications
@@ -137,7 +149,7 @@ const Settings = () => {
           )}
         </TabsList>
 
-        <TabsContent value="general" className="space-y-6">
+        {hasPermission('system.configure_general') && <TabsContent value="general" className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             {/* General Settings */}
             <Card>
@@ -225,7 +237,7 @@ const Settings = () => {
             </Card>
 
             {/* Mobile App Updates - Super Admin Only */}
-            {hasRole('SUPERADMIN') && (
+            {hasPermission('system.configure_general') && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -345,7 +357,7 @@ const Settings = () => {
               ) : "Save Changes"}
             </Button>
           </div>
-        </TabsContent>
+        </TabsContent>}
 
         {hasPermission('system.manage_rbac') && (
           <TabsContent value="rbac">
@@ -353,20 +365,22 @@ const Settings = () => {
           </TabsContent>
         )}
 
-        {(hasRole('SUPERADMIN') || hasRole('NETWORK_ADMIN')) && (
+        {hasPermission('system.configure_notifications') && (
           <TabsContent value="notifications">
             <NotificationSettings />
           </TabsContent>
         )}
 
-        <TabsContent value="holidays">
-          <HolidayManager 
-            settings={settings} 
-            setSettings={setSettings} 
-            onSave={handleSave}
-            saving={saving}
-          />
-        </TabsContent>
+        {hasPermission('system.configure_holidays') && (
+          <TabsContent value="holidays">
+            <HolidayManager
+              settings={settings}
+              setSettings={setSettings}
+              onSave={handleSave}
+              saving={saving}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

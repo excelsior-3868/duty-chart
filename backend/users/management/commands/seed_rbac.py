@@ -37,6 +37,9 @@ class Command(BaseCommand):
             {"slug": "duties.delete", "name": "Remove Emp", "description": "Remove Employee From Duty"}, # 21
             {"slug": "users.create_any_office_employee", "name": "Create Employee (Any Office)", "description": "Can create employees in any office"}, # 21
             {"slug": "system.view_settings", "name": "Access Settings Menu", "description": "Can access the settings menu"}, # 22
+            {"slug": "system.configure_notifications", "name": "Configure Notifications", "description": "Can access and configure the Notifications settings tab"},
+            {"slug": "system.configure_general", "name": "Configure General Settings", "description": "Can access and configure the General settings tab"},
+            {"slug": "system.configure_holidays", "name": "Configure Holidays", "description": "Can access and configure the Holidays settings tab"},
             {"slug": "duties.view_available_shifts", "name": "View Available Shifts", "description": "Can view the Available Shift tab"}, # 23
             {"slug": "duties.view_any_office_chart", "name": "View Any Office Chart", "description": "Can view duty charts from any office"}, # 24
             {"slug": "schedule_templates.view", "name": "View Schedule Templates", "description": "Can view schedule templates"}, # 25
@@ -130,7 +133,7 @@ class Command(BaseCommand):
                 "duties.delete_chart", "duties.delete", "duties.assign_employee",
                 "users.view_employee", "duties.view_schedule",
                 "schedules.view", "schedules.view_office_schedule", "duties.view_available_shifts",
-                "duties.approve_dutychart"
+                "duties.approve_dutychart", "system.configure_notifications"
             ]
 
         }

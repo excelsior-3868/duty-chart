@@ -26,6 +26,7 @@ export interface NavItem {
   href?: string;
   icon?: string;
   permission?: string;
+  anyPermission?: string[];
   color?: string;
   children?: NavItem[];
 }

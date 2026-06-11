@@ -149,7 +149,12 @@ const navigationItems: (NavItem & { permission?: string })[] = [
     title: 'Settings',
     href: ROUTES.SETTINGS,
     icon: 'Settings',
-    permission: 'system.view_settings',
+    anyPermission: [
+      'system.configure_general',
+      'system.configure_holidays',
+      'system.configure_notifications',
+      'system.manage_rbac',
+    ],
     color: 'text-slate-500'
   },
   {
@@ -232,6 +237,7 @@ export const Sidebar = ({ isOpen = true, onClose }: SidebarProps) => {
 
     // Check parent permission
     if (item.permission && !hasPermission(item.permission)) return false;
+    if (item.anyPermission && !item.anyPermission.some(p => hasPermission(p))) return false;
 
     // Check children visibility
     if (item.children && item.children.length > 0) {

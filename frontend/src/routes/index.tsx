@@ -281,7 +281,7 @@ export const router = createBrowserRouter([
           {
             path: ROUTES.SETTINGS,
             element: (
-              <ProtectedRoute requiredPermission="system.view_settings">
+              <ProtectedRoute requiredAnyPermission={['system.configure_general', 'system.configure_holidays', 'system.configure_notifications', 'system.manage_rbac']}>
                 <Settings />
               </ProtectedRoute>
             ),
