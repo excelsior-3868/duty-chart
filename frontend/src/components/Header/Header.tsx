@@ -116,12 +116,14 @@ import { Menu } from "lucide-react";
 import { COMPANY_NAME, APP_NAME, ROUTES } from "@/utils/constants";
 import logo from "../../assets/telecom.png"; // Adjust path if needed
 import api from "@/services/api";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  isCollapsed?: boolean;
 }
 
-export const Header = ({ onMenuClick }: HeaderProps) => {
+export const Header = ({ onMenuClick, isCollapsed = true }: HeaderProps) => {
   const { logout } = useAuth();
   const [appVersion, setAppVersion] = useState<string>(
     localStorage.getItem("app_version") || import.meta.env.VITE_APP_VERSION || "v1.0.0-dev"
@@ -150,10 +152,10 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
           <Button
             variant="ghost"
             size="icon"
-            className="text-[hsl(var(--header-foreground))] hover:bg-[hsl(var(--primary-hover))] lg:hidden"
+            className="text-[hsl(var(--header-foreground))] hover:bg-white/10 group active:scale-95 transition-all lg:hidden"
             onClick={onMenuClick}
           >
-            <Menu className="h-[18px] w-[18px]" />
+            <Menu className={cn("h-5 w-5 transition-transform duration-300 ease-in-out", isCollapsed ? "rotate-0" : "rotate-180")} />
           </Button>
 
           <div className="flex items-center gap-3">

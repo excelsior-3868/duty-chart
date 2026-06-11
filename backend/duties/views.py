@@ -1420,13 +1420,14 @@ class DutyChartExportFile(APIView):
         user_ids = [int(x) for x in user_ids_raw.split(',')] if user_ids_raw else []
         group_by_employee = request.query_params.get("group_by_employee") == "true"
         include_pool = request.query_params.get("include_pool") == "true"
+        show_responsibility = request.query_params.get("show_responsibility") == "true"
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         chart = get_object_or_404(DutyChart, pk=int(chart_id))
         qs = Duty.objects.filter(duty_chart_id=chart.id).select_related(
-            "user", "office", "schedule", "user__directorate", "user__department", "user__position"
+            "user", "office", "schedule", "user__directorate", "user__department", "user__position", "user__responsibility"
         )
 
         if schedule_id and schedule_id != "all":
@@ -1631,7 +1632,11 @@ class DutyChartExportFile(APIView):
                 
                 timeline_np = to_nepali_digits(", ".join(nepali_dates))
 
-                row_data = [sn_np, pos, name_np, phone_np, "", "", timeline_np, ""]
+                resp_str = ""
+                if show_responsibility and r[11] and r[11] != "-":
+                    resp_str = r[11]
+
+                row_data = [sn_np, pos, name_np, phone_np, resp_str, "", timeline_np, ""]
                 table_rows_html += "<tr>" + "".join([f"<td>{cell}</td>" for cell in row_data]) + "</tr>"
 
             html_str = f"""
@@ -1859,7 +1864,10 @@ class DutyChartExportFile(APIView):
                 translated_name = translate_to_nepali(r[2])
                 row_cells[2].text = f"{translated_name} ({to_nepali_digits(r[1])})"  # Name (ID in Nepali)
                 row_cells[3].text = to_nepali_digits(r[3])   # Phone in Nepali
-                row_cells[4].text = ""     # Work desc
+                resp_str = ""
+                if show_responsibility and r[11] and r[11] != "-":
+                    resp_str = r[11]
+                row_cells[4].text = resp_str
                 row_cells[5].text = ""     # Target
 
                 # Column 6: Date
@@ -2498,8 +2506,6 @@ class DutyChartImportView(APIView):
             "effective_date": chart.effective_date,
             "created_duties": created_count
         }, status=status.HTTP_201_CREATED)
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def media_proxy_view(request, path):
@@ -2510,8 +2516,27 @@ def media_proxy_view(request, path):
     if not path:
         raise Http404("No path provided.")
 
-    storage = default_storage
+    # Check if first part of path is an office directory name
+    parts = path.split('/')
+    if parts:
+        office_part = parts[0]
+        from org.models import WorkingOffice
+        from rest_framework.exceptions import PermissionDenied
+        from duties.views import get_allowed_office_ids, user_has_permission_slug
+        
+        all_offices = WorkingOffice.objects.all()
+        office_s3_names = {o.name.replace(" ", "_") for o in all_offices}
+        
+        if office_part in office_s3_names:
+            is_unrestricted = getattr(request.user, 'role', None) == 'SUPERADMIN' or \
+                              user_has_permission_slug(request.user, 'duties.view_any_office_chart')
+            if not is_unrestricted:
+                allowed_office_ids = get_allowed_office_ids(request.user)
+                allowed_office_names = {o.name.replace(" ", "_") for o in WorkingOffice.objects.filter(id__in=allowed_office_ids)}
+                if office_part not in allowed_office_names:
+                    raise PermissionDenied("You do not have permission to access files from this office.")
 
+    storage = default_storage
     try:
         # Check if file exists in storage
         if not storage.exists(path):

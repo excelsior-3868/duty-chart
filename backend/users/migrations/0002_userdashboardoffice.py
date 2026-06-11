@@ -8,22 +8,9 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('org', '0002_systemsetting'),
+        ('org', '0001_initial'),
         ('users', '0001_initial'),
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='UserDashboardOffice',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('office', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='dashboard_users', to='org.office')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='dashboard_offices', to=settings.AUTH_USER_MODEL)),
-            ],
-            options={
-                'verbose_name': 'User Dashboard Office',
-                'verbose_name_plural': 'User Dashboard Offices',
-                'unique_together': {('user', 'office')},
-            },
-        ),
     ]

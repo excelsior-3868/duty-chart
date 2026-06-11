@@ -10,9 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='userdashboardoffice',
-            name='order',
-            field=models.PositiveIntegerField(default=0),
-        ),
     ]

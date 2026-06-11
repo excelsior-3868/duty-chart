@@ -11,19 +11,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='schedule',
-            name='alias',
-            field=models.CharField(blank=True, help_text='Short code or alias for the shift', max_length=20, null=True),
-        ),
-        migrations.AddField(
-            model_name='schedule',
-            name='shift_type',
-            field=models.CharField(blank=True, help_text='Type of shift (e.g. Regular, On-Call)', max_length=50, null=True),
-        ),
-        migrations.AlterField(
-            model_name='duty',
-            name='duty_chart',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='duties', to='duties.dutychart'),
-        ),
     ]

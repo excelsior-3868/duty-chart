@@ -10,18 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.SeparateDatabaseAndState(
-            database_operations=[],
-            state_operations=[
-                migrations.AddField(
-                    model_name='smslog',
-                    name='reminder_type',
-                    field=models.CharField(default='GENERAL', help_text='Type of reminder (e.g., 1_HOUR, DAILY, ASSIGNMENT)', max_length=50),
-                ),
-            ],
-        ),
-        migrations.AddConstraint(
-            model_name='smslog',
-            constraint=models.UniqueConstraint(fields=('user', 'duty', 'reminder_type'), name='unique_sms_reminder_per_duty'),
-        ),
     ]

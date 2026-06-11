@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('duties', '0002_schedule_alias_schedule_shift_type_and_more'),
-        ('org', '0003_rename_name_directorate_directorate_and_more'),
+        ('org', '0001_initial'),
     ]
 
     operations = [

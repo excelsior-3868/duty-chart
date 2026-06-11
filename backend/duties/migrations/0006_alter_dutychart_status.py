@@ -10,9 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name='dutychart',
-            name='status',
-            field=models.CharField(choices=[('draft', 'Draft'), ('approved', 'Approved')], default='draft', max_length=20),
-        ),
     ]

@@ -93,7 +93,17 @@ const SHIFT_COLORS = [
     { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-100", accent: "bg-indigo-400" },
 ];
 
-const getShiftColor = (id: number) => {
+const getShiftColor = (id: number, name?: string, alias?: string) => {
+    const normName = (name || "").toLowerCase();
+    const normAlias = (alias || "").toLowerCase();
+
+    if (normAlias === "ms" || normName.includes("morning")) return SHIFT_COLORS[0]; // blue
+    if (normAlias === "es" || normName.includes("evening")) return SHIFT_COLORS[1]; // emerald
+    if (normAlias === "ds" || normName.includes("day")) return SHIFT_COLORS[2]; // amber
+    if (normAlias === "hd" || normName.includes("holiday")) return SHIFT_COLORS[3]; // purple
+    if (normAlias === "wfh-le" || normName.includes("late evening")) return SHIFT_COLORS[5]; // cyan
+    if (normAlias === "wfh-n" || normName.includes("wfh night") || normName.includes("night")) return SHIFT_COLORS[6]; // indigo
+
     return SHIFT_COLORS[id % SHIFT_COLORS.length];
 };
 
@@ -1331,7 +1341,7 @@ const DutyCalendar = () => {
 
                                                 <div className="space-y-1 overflow-y-auto max-h-[100px] pr-0.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent relative z-20">
                                                     {dayAssignments.map((assignment: any) => {
-                                                        const shiftColor = getShiftColor(assignment.schedule_id);
+                                                        const shiftColor = getShiftColor(assignment.schedule_id, assignment.shift, assignment.alias);
                                                         const isUnassigned = assignment.type === 'unassigned';
                                                         const isOnShift = assignment.status === 'current';
 
@@ -1587,7 +1597,7 @@ const DutyCalendar = () => {
 
                         <div className="max-h-[60vh] overflow-y-auto space-y-3 pt-0 pb-4 pr-2 scrollbar-thin">
                             {modalAssignments.map((a) => {
-                                const shiftColor = getShiftColor(a.schedule_id);
+                                const shiftColor = getShiftColor(a.schedule_id, a.shift, a.alias);
                                 return (
                                     <div
                                         key={a.id}

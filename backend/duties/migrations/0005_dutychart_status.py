@@ -10,9 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='dutychart',
-            name='status',
-            field=models.CharField(default='draft', max_length=20),
-        ),
     ]

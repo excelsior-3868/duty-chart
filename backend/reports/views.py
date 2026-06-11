@@ -229,6 +229,7 @@ class DutyReportFileView(APIView):
         all_users = request.GET.get("all_users") == "1"
         date_from = request.GET.get("date_from")
         date_to = request.GET.get("date_to")
+        show_responsibility = request.GET.get("show_responsibility") == "true"
 
         # -----------------------
         # FULL CHART MODE
@@ -251,7 +252,7 @@ class DutyReportFileView(APIView):
         # QUERYSET
         # -----------------------
         qs = Duty.objects.select_related(
-            "user", "schedule", "office"
+            "user", "user__responsibility", "schedule", "office"
         ).filter(
             date__range=[date_from, date_to]
         )
@@ -485,7 +486,10 @@ class DutyReportFileView(APIView):
             cells[3].text = nep(getattr(d.user, "phone_number", "-"))
             
             # Work Description & Target
-            cells[4].text = ""
+            resp_str = ""
+            if show_responsibility and d.user and d.user.responsibility:
+                resp_str = d.user.responsibility.name
+            cells[4].text = resp_str
             cells[5].text = ""
 
             # Date / Timeline in Nepali
@@ -564,6 +568,8 @@ class DutyReportNewFileView(APIView):
         schedule_id = request.GET.get("schedule_id")
         office_id = request.GET.get("office_id")
         group_by_employee = request.GET.get("group_by_employee") == "true"
+        include_pool = request.GET.get("include_pool") == "true"
+        show_responsibility = request.GET.get("show_responsibility") == "true"
 
         chart = None
         if duty_id:
@@ -579,7 +585,7 @@ class DutyReportNewFileView(APIView):
         if not (date_from and date_to):
             return Response({"error": "Missing dates"}, status=400)
 
-        qs = Duty.objects.select_related("user", "schedule", "office").filter(date__range=[date_from, date_to])
+        qs = Duty.objects.select_related("user", "user__responsibility", "schedule", "office").filter(date__range=[date_from, date_to])
         if not all_users and user_ids:
             qs = qs.filter(user_id__in=user_ids)
         if duty_id:
@@ -795,7 +801,10 @@ class DutyReportNewFileView(APIView):
             
             cells[2].text = name_str
             cells[3].text = nep(getattr(d.user, "phone_number", "-"))
-            cells[4].text = ""
+            resp_str = ""
+            if show_responsibility and d.user and d.user.responsibility:
+                resp_str = d.user.responsibility.name
+            cells[4].text = resp_str
             cells[5].text = ""
             
             # Date / Timeline in Nepali
@@ -817,7 +826,28 @@ class DutyReportNewFileView(APIView):
                 cells[i].paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.LEFT if i in [2, 4] else WD_PARAGRAPH_ALIGNMENT.CENTER
             sn += 1
 
-        
+        # Pool members line — appended directly below the table when requested.
+        if include_pool and chart:
+            pool_members = list(chart.pool_members.all())
+            pool_parts = []
+            for m in pool_members:
+                name = translate_to_nepali(getattr(m, "full_name", "") or getattr(m, "username", "") or "")
+                eid = nep(getattr(m, "employee_id", "") or "")
+                pool_parts.append(f"{name}({eid})" if eid else name)
+
+            if pool_parts:
+                if len(pool_parts) > 1:
+                    names_str = ", ".join(pool_parts[:-1]) + " तथा " + pool_parts[-1]
+                else:
+                    names_str = pool_parts[0]
+
+                doc.add_paragraph("")
+                pool_para = doc.add_paragraph(
+                    f"माथि उल्लेखित बाहेक थप सार्वजनिक बिदा भएमा ड्युटीमा खटिने कर्मचारीहरूः "
+                    f"{names_str} ड्युटीमा रहनेछन् ।"
+                )
+                pool_para.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+
         doc.add_paragraph("")
         doc.add_paragraph("काम सम्पादन भएको प्रमाणित गर्ने पदाधिकारीको विवरण :-")
         

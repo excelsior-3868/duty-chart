@@ -52,3 +52,28 @@ class SMSLog(models.Model):
     def __str__(self):
         return f"To {self.phone} - {self.status}"
 
+
+class OfficeNotificationSetting(AuditableMixin, models.Model):
+    office = models.OneToOneField('org.WorkingOffice', on_delete=models.CASCADE, related_name='notification_setting')
+    enable_advance_reminder = models.BooleanField(default=True)
+    advance_reminder_days = models.IntegerField(default=1)
+    advance_reminder_time = models.TimeField(default="18:00:00")
+    advance_reminder_template = models.TextField(blank=True, null=True)
+    allowed_shifts = models.JSONField(default=list, blank=True, null=True)
+    allowed_duty_charts = models.JSONField(default=list, blank=True, null=True)
+    schedule_configs = models.JSONField(default=dict, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'office_notification_setting'
+        ordering = ['id']
+
+    def __str__(self):
+        return f"Notification Setting for {self.office.name}"
+
+    def get_audit_details(self, action, changes):
+        office_name = self.office.name if self.office else "Unknown Office"
+        return f"NOTIFICATION_SETTING: {action.capitalize()}d notification settings for {office_name}."
+
+

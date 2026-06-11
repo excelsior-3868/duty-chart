@@ -16,11 +16,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='smslog',
-            name='duty',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='sms_logs_for_duty', to='duties.duty'),
-        ),
-        migrations.AddField(
-            model_name='smslog',
             name='reminder_type',
             field=models.CharField(default='GENERAL', help_text='Type of reminder (e.g., 1_HOUR, DAILY, ASSIGNMENT)', max_length=50),
         ),

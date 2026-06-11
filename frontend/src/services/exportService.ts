@@ -50,6 +50,7 @@ export interface ExportFileParams {
   schedule_id?: number | string;
   group_by_employee?: boolean;
   include_pool?: boolean;
+  show_responsibility?: boolean;
 }
 
 export const downloadDutyChartExportFile = async (

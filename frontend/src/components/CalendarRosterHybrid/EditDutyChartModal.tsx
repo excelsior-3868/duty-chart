@@ -309,13 +309,10 @@ export const EditDutyChartModal: React.FC<EditDutyChartModalProps> = ({
     return map;
   }, [poolUsers, initialChart]);
 
-  // Only employees NOT already assigned in this chart are selectable for the
-  // standby pool. Keep already-selected pool members visible so they stay
-  // toggle-able even if they later get assigned.
+  // All office employees are candidates for the standby pool (no assigned duty restriction)
   const poolCandidates = useMemo(() => {
-    const assigned = new Set(assignedUserIds);
-    return poolUsers.filter(u => !assigned.has(u.id) || poolMemberIds.includes(String(u.id)));
-  }, [poolUsers, assignedUserIds, poolMemberIds]);
+    return poolUsers;
+  }, [poolUsers]);
 
   const poolChanged = useMemo(() => {
     if (poolMemberIds.length !== initialPoolMemberIds.length) return true;

@@ -99,6 +99,7 @@ function DutyReportAnusuchi1() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [groupByEmployee, setGroupByEmployee] = useState(false);
     const [includePool, setIncludePool] = useState(false);
+    const [showResponsibility, setShowResponsibility] = useState(false);
 
     // Set document title
     useEffect(() => {
@@ -244,6 +245,7 @@ function DutyReportAnusuchi1() {
                 ...(selectAllUsers ? {} : { user_ids: selectedUsers.join(",") }),
                 group_by_employee: groupByEmployee,
                 include_pool: includePool,
+                show_responsibility: showResponsibility,
             } as any);
 
             const url = window.URL.createObjectURL(blob);
@@ -695,6 +697,25 @@ function DutyReportAnusuchi1() {
                                     Add Pool Members
                                 </Label>
                                 <span className="text-[9px] text-slate-400 font-medium">Append Standby pool members</span>
+                            </div>
+                        </div>
+
+                        {/* Show Responsibility Toggle */}
+                        <div
+                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                            onClick={() => setShowResponsibility(!showResponsibility)}
+                        >
+                            <Checkbox
+                                id="showResponsibility"
+                                checked={showResponsibility}
+                                onCheckedChange={(checked) => setShowResponsibility(!!checked)}
+                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                            <div className="flex flex-col">
+                                <Label htmlFor="showResponsibility" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                    Show Responsibility
+                                </Label>
+                                <span className="text-[9px] text-slate-400 font-medium">Show employee responsibility in work description</span>
                             </div>
                         </div>
                       </div>

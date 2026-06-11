@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Notification, SMSLog
+from .models import Notification, SMSLog, OfficeNotificationSetting
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,3 +17,11 @@ class SMSLogSerializer(serializers.ModelSerializer):
         if obj.user:
             return obj.user.full_name
         return "N/A"
+
+
+class OfficeNotificationSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfficeNotificationSetting
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+

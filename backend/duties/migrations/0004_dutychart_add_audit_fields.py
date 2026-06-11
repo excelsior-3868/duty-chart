@@ -13,24 +13,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='dutychart',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, null=True),
-        ),
-        migrations.AddField(
-            model_name='dutychart',
-            name='created_by',
-            field=models.ForeignKey(blank=True, help_text='User who created this duty chart.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_duty_charts', to=settings.AUTH_USER_MODEL),
-        ),
-        migrations.AddField(
-            model_name='dutychart',
-            name='edited_at',
-            field=models.DateTimeField(auto_now=True, null=True),
-        ),
-        migrations.AddField(
-            model_name='dutychart',
-            name='edited_by',
-            field=models.ForeignKey(blank=True, help_text='User who last edited this duty chart.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='edited_duty_charts', to=settings.AUTH_USER_MODEL),
-        ),
     ]

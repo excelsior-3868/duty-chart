@@ -53,7 +53,7 @@ const OrgField = ({ label, value, icon, className = "" }: { label: string, value
 );
 
 const Profile = () => {
-    const { refreshUser } = useAuth();
+    const { user: authUser, refreshUser, isLoading: authLoading } = useAuth();
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [user, setUser] = useState<any>(null);
@@ -91,17 +91,10 @@ const Profile = () => {
     };
 
     const fetchProfileData = async () => {
+        if (!authUser?.id) return;
         setLoading(true);
         try {
-            const token = localStorage.getItem("access");
-            if (!token) return;
-
-            const decoded = JSON.parse(atob(token.split('.')[1]));
-            const userId = decoded.user_id || decoded.sub || decoded.id;
-
-            if (!userId) return;
-
-            const res = await api.get(`/users/${userId}/`);
+            const res = await api.get(`/users/${authUser.id}/`);
             setUser(res.data);
             setEditData(res.data);
         } catch (err) {
@@ -112,7 +105,11 @@ const Profile = () => {
         }
     };
 
-    useEffect(() => { fetchProfileData(); }, []);
+    useEffect(() => {
+        if (authUser?.id) {
+            fetchProfileData();
+        }
+    }, [authUser]);
 
     useEffect(() => {
         if (isEditing) {
@@ -124,8 +121,8 @@ const Profile = () => {
 
     const fetchResponsibilities = async () => {
         try {
-            const { data } = await api.get("/user-responsibilities/");
-            setResponsibilities(data);
+            const { data } = await api.get("/user-responsibilities/?page_size=1000");
+            setResponsibilities(Array.isArray(data) ? data : (data.results || []));
         } catch (err) {
             console.error("Failed to fetch responsibilities", err);
             toast.error("Failed to load responsibilities.");
@@ -134,8 +131,8 @@ const Profile = () => {
 
     const fetchPositions = async () => {
         try {
-            const { data } = await api.get("/positions/");
-            setPositions(data);
+            const { data } = await api.get("/positions/?page_size=1000");
+            setPositions(Array.isArray(data) ? data : (data.results || []));
         } catch (err) {
             console.error("Failed to fetch positions", err);
             toast.error("Failed to load positions.");
@@ -145,7 +142,7 @@ const Profile = () => {
     const fetchWorkingOffices = async () => {
         try {
             const { data } = await api.get("/otp/signup/offices/");
-            setWorkingOffices(data);
+            setWorkingOffices(Array.isArray(data) ? data : (data.results || []));
         } catch (err) {
             console.error("Failed to fetch working offices", err);
             toast.error("Failed to load offices.");
@@ -255,13 +252,13 @@ const Profile = () => {
         }
     };
 
-    if (loading) return (
+    if (authLoading || (loading && authUser)) return (
         <div className="flex items-center justify-center min-h-[400px]">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
     );
 
-    if (!user) return (
+    if (!authUser || !user) return (
         <div className="max-w-md mx-auto mt-20 p-6 bg-card shadow-sm rounded-lg text-center border">
             <AlertCircle className="mx-auto text-destructive mb-4" size={48} />
             <h2 className="text-xl font-semibold text-foreground">Session Missing</h2>

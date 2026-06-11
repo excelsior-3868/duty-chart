@@ -178,7 +178,11 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
             except Exception as e:
                 logger.error(f"Fatal error in bulk SMS thread for {u.username}: {e}")
 
-        threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()
+        import sys
+        if 'test' in sys.argv:
+            trigger_sms_task(user, sms_message, log.id)
+        else:
+            threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()
 
 
 def send_pool_addition_notification(users, chart):
@@ -245,4 +249,8 @@ def send_pool_addition_notification(users, chart):
             except Exception as e:
                 logger.error(f"Fatal error in pool SMS thread for {u.username}: {e}")
 
-        threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()
+        import sys
+        if 'test' in sys.argv:
+            trigger_sms_task(user, sms_message, log.id)
+        else:
+            threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()

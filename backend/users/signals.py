@@ -75,4 +75,8 @@ def _trigger_status_sms(user, message):
         except Exception as e:
             logger.error(f"Error in background status SMS for {user.username}: {e}")
 
-    threading.Thread(target=trigger, daemon=True).start()
+    import sys
+    if 'test' in sys.argv:
+        trigger()
+    else:
+        threading.Thread(target=trigger, daemon=True).start()

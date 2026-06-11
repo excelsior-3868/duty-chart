@@ -103,6 +103,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       console.error('Logout failed:', e);
     }
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
     setUser(null);
     setActiveOfficeState(null);
     setActiveOfficeName(null);

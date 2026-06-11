@@ -12,14 +12,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='dutychart',
-            name='approval_document',
-            field=models.FileField(blank=True, null=True, upload_to=duties.models.duty_chart_approval_path),
-        ),
-        migrations.AddField(
-            model_name='dutychart',
-            name='approval_remarks',
-            field=models.TextField(blank=True, null=True),
-        ),
     ]

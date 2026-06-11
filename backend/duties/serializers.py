@@ -289,7 +289,6 @@ class DocumentSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-
 class BulkDocumentUploadSerializer(serializers.Serializer):
     files = serializers.ListField(
         child=serializers.FileField(),
@@ -299,6 +298,14 @@ class BulkDocumentUploadSerializer(serializers.Serializer):
         required=False,
         help_text="Optional JSON string with metadata for each file"
     )
+
+    def validate_files(self, value):
+        allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']
+        for f in value:
+            name = f.name.lower()
+            if not any(name.endswith(ext) for ext in allowed_extensions):
+                raise serializers.ValidationError(f"Unsupported file extension in '{f.name}'. Allowed extensions are: {', '.join(allowed_extensions)}")
+        return value
 
     # ✅ CHANGE: Validate each Document instance with full_clean() before saving
     def create(self, validated_data):

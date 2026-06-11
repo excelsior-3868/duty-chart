@@ -229,6 +229,11 @@ class ValidateOTPView(APIView):
         except OTPRequest.DoesNotExist:
             return Response({"message": "Invalid request ID"}, status=status.HTTP_400_BAD_REQUEST)
             
+        if otp_req.attempts >= 5:
+            otp_req.status = 'expired'
+            otp_req.save()
+            return Response({"message": "Too many failed attempts. Please request a new OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
         if otp_req.is_expired():
             otp_req.status = 'expired'
             otp_req.save()

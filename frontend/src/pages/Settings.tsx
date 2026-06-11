@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { HolidayManager } from "@/components/settings/HolidayManager";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
 
 const Settings = () => {
   const { hasPermission, hasRole } = useAuth();
@@ -122,6 +123,12 @@ const Settings = () => {
             <Calendar className="h-4 w-4" />
             Holidays
           </TabsTrigger>
+          {(hasRole('SUPERADMIN') || hasRole('NETWORK_ADMIN')) && (
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
+            </TabsTrigger>
+          )}
           {hasPermission('system.manage_rbac') && (
             <TabsTrigger value="rbac" className="flex items-center gap-2">
               <Lock className="h-4 w-4" />
@@ -343,6 +350,12 @@ const Settings = () => {
         {hasPermission('system.manage_rbac') && (
           <TabsContent value="rbac">
             <RBACAdmin />
+          </TabsContent>
+        )}
+
+        {(hasRole('SUPERADMIN') || hasRole('NETWORK_ADMIN')) && (
+          <TabsContent value="notifications">
+            <NotificationSettings />
           </TabsContent>
         )}
 

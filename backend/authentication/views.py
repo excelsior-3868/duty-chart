@@ -184,6 +184,11 @@ class Verify2FAView(APIView):
         if not otp_request:
             return Response({"detail": "No 2FA request found for this user. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
             
+        if otp_request.attempts >= 5:
+            otp_request.status = 'expired'
+            otp_request.save()
+            return Response({"detail": "Too many failed attempts. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
+
         if otp_request.status != 'pending':
             return Response({"detail": f"OTP has already been {otp_request.status}. Please login again."}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -200,6 +205,10 @@ class Verify2FAView(APIView):
                 phone=user.phone_number
             )
             if not success:
+                otp_request.attempts += 1
+                if otp_request.attempts >= 5:
+                    otp_request.status = 'expired'
+                otp_request.save()
                 # User-friendly message for incorrect OTP
                 if "OTP Value Verification Failed" in msg:
                     return Response({"detail": "OTP Verification Failed. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
@@ -207,6 +216,10 @@ class Verify2FAView(APIView):
         else:
             # Fallback to local validation if no seq_no (e.g. for non-NTC channels if added later)
             if otp_request.otp_code and otp_request.otp_code != otp:
+                otp_request.attempts += 1
+                if otp_request.attempts >= 5:
+                    otp_request.status = 'expired'
+                otp_request.save()
                 return Response({"detail": "Invalid OTP code."}, status=status.HTTP_400_BAD_REQUEST)
              
         # Mark as consumed

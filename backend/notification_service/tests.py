@@ -103,6 +103,19 @@ class NotificationLogicTest(TransactionTestCase):
         )
 
         with patch('django.utils.timezone.now', return_value=test_now):
+            # Create setting for the office to enable the schedule
+            from notification_service.models import OfficeNotificationSetting
+            OfficeNotificationSetting.objects.create(
+                office=self.office,
+                schedule_configs={
+                    str(schedule.id): {
+                        "enabled": True,
+                        "advance_reminder_days": 0,
+                        "advance_reminder_time": "00:00:00"
+                    }
+                }
+            )
+
             # 1. Duty in DRAFT chart
             draft_chart = DutyChart.objects.create(
                 office=self.office,

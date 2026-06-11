@@ -116,6 +116,8 @@ function UserWiseReportNew() {
     const [selectedSchedule, setSelectedSchedule] = useState<string>("all");
     const [dateMode, setDateMode] = useState<"BS" | "AD">("BS");
     const [groupByEmployee, setGroupByEmployee] = useState(false);
+    const [includePool, setIncludePool] = useState(false);
+    const [showResponsibility, setShowResponsibility] = useState(false);
 
     // Set document title
     useEffect(() => {
@@ -466,6 +468,8 @@ function UserWiseReportNew() {
                 params["schedule_id"] = selectedSchedule;
             }
             params["group_by_employee"] = groupByEmployee;
+            params["include_pool"] = includePool;
+            params["show_responsibility"] = showResponsibility;
 
             const response = await api.get("/reports/duties/file-new/", {
                 params,
@@ -792,22 +796,62 @@ function UserWiseReportNew() {
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-                        {/* Group by Employee Toggle */}
-                        <div 
-                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
-                            onClick={() => setGroupByEmployee(!groupByEmployee)}
-                        >
-                            <Checkbox
-                                id="groupByEmployee"
-                                checked={groupByEmployee}
-                                onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
-                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-                            <div className="flex flex-col">
-                                <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
-                                    Group by Employee
-                                </Label>
-                                <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
+                        <div className="flex flex-col sm:flex-row gap-4 items-center">
+                            {/* Group by Employee Toggle */}
+                            <div 
+                                className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                                onClick={() => setGroupByEmployee(!groupByEmployee)}
+                            >
+                                <Checkbox
+                                    id="groupByEmployee"
+                                    checked={groupByEmployee}
+                                    onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
+                                    className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Group by Employee
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
+                                </div>
+                            </div>
+
+                            {/* Add Pool Members Toggle */}
+                            <div 
+                                className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                                onClick={() => setIncludePool(!includePool)}
+                            >
+                                <Checkbox
+                                    id="includePool"
+                                    checked={includePool}
+                                    onCheckedChange={(checked) => setIncludePool(!!checked)}
+                                    className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="includePool" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Add Pool Members
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium">Append Standby pool members</span>
+                                </div>
+                            </div>
+
+                            {/* Show Responsibility Toggle */}
+                            <div 
+                                className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                                onClick={() => setShowResponsibility(!showResponsibility)}
+                            >
+                                <Checkbox
+                                    id="showResponsibility"
+                                    checked={showResponsibility}
+                                    onCheckedChange={(checked) => setShowResponsibility(!!checked)}
+                                    className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="showResponsibility" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Show Responsibility
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium">Show employee responsibility in work description</span>
+                                </div>
                             </div>
                         </div>
 

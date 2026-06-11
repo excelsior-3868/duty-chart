@@ -27,6 +27,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-for-development')
+if not SECRET_KEY or SECRET_KEY == 'django-insecure-default-key-for-development':
+    if os.environ.get('DEBUG', 'True') == 'False':
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("SECRET_KEY must be configured as a secure value in production.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
@@ -51,7 +55,7 @@ if DEBUG:
     CORS_ALLOW_CREDENTIALS = True
     CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8083", "http://127.0.0.1:8083"]
 else:
-    cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://localhost:8083,https://dutychart.ntc.net.np")
+    cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "https://dutychart.ntc.net.np")
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(",")]
     CORS_ALLOW_CREDENTIALS = True
 
@@ -122,7 +126,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    # 'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'auditlogs.middleware.AuditContextMiddleware',
 ]
 
@@ -153,6 +157,8 @@ TEMPLATES = [
 
 
 WSGI_APPLICATION = 'config.wsgi.application'
+import sys
+
 # Postgres Setup
 DATABASES = {
     'default': {
@@ -164,6 +170,14 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT'),
     }
 }
+
+if 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -379,8 +393,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'notification_service.tasks.send_duty_reminders',
         'schedule': crontab(minute='*'),  # Every 1 minute
     },
-    'send-daily-duty-reminders-at-10am': {
+    'send-daily-duty-reminders-every-1-minute': {
         'task': 'notification_service.tasks.send_daily_duty_reminders',
-        'schedule': crontab(hour=10, minute=0),  # 10:00 AM Kathmandu Time
+        'schedule': crontab(minute='*'),  # Every 1 minute
     },
 }

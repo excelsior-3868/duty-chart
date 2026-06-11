@@ -15,14 +15,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='AnusuchiDocument',
-            fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('file', models.FileField(upload_to=duties.models.duty_chart_approval_path)),
-                ('uploaded_at', models.DateTimeField(auto_now_add=True)),
-                ('duty_chart', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='anusuchi_documents', to='duties.dutychart')),
-                ('uploaded_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-            ],
-        ),
     ]

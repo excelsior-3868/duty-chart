@@ -108,7 +108,7 @@ export const MainLayout = () => {
 
   return (
     <div className="min-h-screen bg-background no-scrollbar">
-      <Header onMenuClick={toggleSidebar} />
+      <Header onMenuClick={toggleSidebar} isCollapsed={!sidebarOpen} />
 
       <div className="flex">
         <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
