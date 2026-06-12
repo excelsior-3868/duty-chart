@@ -93,7 +93,13 @@ export const NotificationBell = () => {
 
   // Real-time push: subscribe to the user's notification channel and
   // reconnect with backoff if the connection drops.
+  // Disabled in production builds until the reverse proxy forwards /ws/
+  // (set VITE_ENABLE_WS=true and rebuild once nginx is configured) —
+  // attempting it just fills the console with browser-logged failures.
+  // Polling above delivers notifications either way.
   useEffect(() => {
+    if (!import.meta.env.DEV && import.meta.env.VITE_ENABLE_WS !== "true") return;
+
     let ws: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let retryDelay = 1_000;
