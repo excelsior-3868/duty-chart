@@ -13,9 +13,17 @@ class StandardResultsSetPagination(pagination.PageNumberPagination):
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     queryset = Notification.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    # Read-only plus the mark_read/mark_all_read POST actions; notifications
+    # are created by the backend, never directly by API clients.
+    http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        return Response({'detail': 'Method "POST" not allowed.'}, status=405)
 
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
@@ -28,6 +36,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'status': 'all notifications marked as read'})
+
+    @action(detail=False, methods=['get'])
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'count': count})
 
 class SMSLogViewSet(viewsets.ReadOnlyModelViewSet):
     """

@@ -1,7 +1,13 @@
+import sys
+import logging
+import threading
+
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from .models import HelpDocument
 from .serializers import HelpDocumentSerializer
+
+logger = logging.getLogger(__name__)
 
 # Roles allowed to manage (upload/edit/delete) documents
 CAN_MANAGE_ROLES = {'SUPERADMIN', 'NETWORK_ADMIN', 'OFFICE_ADMIN'}
@@ -47,6 +53,38 @@ def _check_manage_permission(user):
     )
 
 
+def _notify_document_upload(document):
+    """
+    Notifies all active users on their dashboard that a new Help Center
+    document was uploaded. Runs in a background thread so the upload
+    request is not blocked by the fan-out.
+    """
+    def fan_out():
+        try:
+            from django.contrib.auth import get_user_model
+            from notification_service.utils import create_bulk_dashboard_notifications
+
+            User = get_user_model()
+            uploader = document.uploaded_by
+            uploader_name = getattr(uploader, 'full_name', None) or getattr(uploader, 'username', 'an administrator')
+            doc_type = document.get_document_type_display()
+
+            create_bulk_dashboard_notifications(
+                User.objects.filter(is_active=True),
+                title=f"New {doc_type} in Help Center",
+                message=f'"{document.title}" has been uploaded to the Help Center by {uploader_name}.',
+                notification_type='DOCUMENT',
+                link='/help-center'
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify users about Help Center upload '{document.title}': {e}")
+
+    if 'test' in sys.argv:
+        fan_out()
+    else:
+        threading.Thread(target=fan_out, daemon=True).start()
+
+
 class HelpDocumentViewSet(viewsets.ModelViewSet):
     queryset = HelpDocument.objects.all()
     serializer_class = HelpDocumentSerializer
@@ -56,11 +94,12 @@ class HelpDocumentViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         _check_manage_permission(self.request.user)
         f = self.request.FILES.get('file')
-        serializer.save(
+        document = serializer.save(
             uploaded_by=self.request.user,
             file_name=f.name if f else '',
             file_size=f.size if f else None,
         )
+        _notify_document_upload(document)
 
     def perform_update(self, serializer):
         _check_manage_permission(self.request.user)

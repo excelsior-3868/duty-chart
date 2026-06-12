@@ -1,7 +1,7 @@
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from .models import User
-from notification_service.utils import send_sms
+from notification_service.utils import send_sms, create_dashboard_notification
 import logging
 import threading
 
@@ -59,7 +59,15 @@ def send_user_status_sms(sender, instance, created, **kwargs):
 def _trigger_status_sms(user, message):
     """
     Helper to send SMS in a background thread to avoid blocking the request.
+    Also mirrors the message as an in-app dashboard notification.
     """
+    create_dashboard_notification(
+        user,
+        title="Account Update",
+        message=message,
+        notification_type='SYSTEM'
+    )
+
     if not user.phone_number:
         logger.warning(f"Cannot send status SMS to {user.username}: No phone number.")
         return

@@ -7,6 +7,7 @@ class Notification(AuditableMixin, models.Model):
         ('ASSIGNMENT', 'Duty Assignment'),
         ('REMINDER', 'Duty Reminder'),
         ('SYSTEM', 'System Alert'),
+        ('DOCUMENT', 'Document Upload'),
     )
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

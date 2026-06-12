@@ -178,6 +178,15 @@ def send_duty_reminders():
                     reminder_type='1_HOUR',
                     status='pending'
                 )
+                # Mirror the SMS as a dashboard notification; the SMSLog unique
+                # constraint above dedupes this across the every-minute runs.
+                create_dashboard_notification(
+                    user,
+                    title="Upcoming Duty Reminder",
+                    message=sms_message,
+                    notification_type='REMINDER',
+                    link='/my-duties'
+                )
                 async_send_sms.delay(user.phone_number, sms_message, user.id, log.id)
                 sent_count += 1
             except IntegrityError:
@@ -197,6 +206,7 @@ def send_daily_duty_reminders():
     import sys
     from duties.models import Duty
     from django.contrib.auth import get_user_model
+    from .utils import create_dashboard_notification
     from .models import SMSLog, OfficeNotificationSetting
     from django.db import IntegrityError
     User = get_user_model()
@@ -256,6 +266,15 @@ def send_daily_duty_reminders():
                 message=sms_message,
                 reminder_type='DAILY_10AM',
                 status='pending'
+            )
+            # Mirror the SMS as a dashboard notification; the SMSLog unique
+            # constraint above dedupes this across the every-minute runs.
+            create_dashboard_notification(
+                user,
+                title="Today's Duty Reminder",
+                message=sms_message,
+                notification_type='REMINDER',
+                link='/my-duties'
             )
             async_send_sms.delay(user.phone_number, sms_message, user.id, log.id)
             sent_count += 1

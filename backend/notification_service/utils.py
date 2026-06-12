@@ -74,38 +74,70 @@ def send_sms(phone, message, user=None, log_id=None):
 
 def broadcast_notification(notification):
     """
-    Broadcasts a notification to the user's real-time channel.
+    Pushes a notification to the user's real-time WebSocket channel.
+    Never raises: delivery is best-effort, the DB row is the source of truth.
     """
-    # channel_layer = get_channel_layer()
-    # if channel_layer:
-    #     serializer = NotificationSerializer(notification)
-    #     async_to_sync(channel_layer.group_send)(
-    #         f"user_{notification.user.id}",
-    #         {
-    #             "type": "notification_message",
-    #             "message": serializer.data
-    #         }
-    #     )
-    pass
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            serializer = NotificationSerializer(notification)
+            async_to_sync(channel_layer.group_send)(
+                f"user_{notification.user_id}",
+                {
+                    "type": "notification_message",
+                    "message": serializer.data
+                }
+            )
+    except Exception as e:
+        logger.error(f"Failed to broadcast notification {notification.pk}: {e}")
 
 def create_dashboard_notification(user, title, message, notification_type='SYSTEM', link=None):
     """
-    Creates a dashboard notification and broadcasts it via WebSockets.
-    Uses transaction.on_commit to ensure broadcasting only happens if DB transaction succeeds.
+    Creates an in-app dashboard notification for a single user.
+    Never raises: a notification failure must not break the calling flow (SMS, signals, tasks).
     """
-    # notification = Notification.objects.create(
-    #     user=user,
-    #     title=title,
-    #     message=message,
-    #     notification_type=notification_type,
-    #     link=link
-    # )
-    
-    # Ensure broadcast happens after DB transaction is committed
-    # transaction.on_commit(lambda: broadcast_notification(notification))
-    
-    # return notification
-    return None
+    try:
+        notification = Notification.objects.create(
+            user=user,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            link=link
+        )
+        # Push over WebSocket only once the row is committed (runs
+        # immediately under autocommit, e.g. in threads/Celery tasks).
+        transaction.on_commit(lambda: broadcast_notification(notification))
+        return notification
+    except Exception as e:
+        logger.error(f"Failed to create dashboard notification for {getattr(user, 'username', user)}: {e}")
+        return None
+
+
+def create_bulk_dashboard_notifications(users, title, message, notification_type='SYSTEM', link=None):
+    """
+    Creates the same dashboard notification for many users at once.
+    Uses bulk_create to avoid per-row save/audit overhead on large fan-outs.
+    """
+    try:
+        notifications = [
+            Notification(
+                user=user,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                link=link
+            )
+            for user in users
+        ]
+        created = Notification.objects.bulk_create(notifications, batch_size=500)
+        def broadcast_all():
+            for notification in created:
+                broadcast_notification(notification)
+        transaction.on_commit(broadcast_all)
+        return created
+    except Exception as e:
+        logger.error(f"Failed to bulk-create dashboard notifications: {e}")
+        return []
 
 def send_bulk_assignment_notification(users, chart, date_range_str=None):
     """
@@ -122,22 +154,30 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
     office_name = chart.office.name if chart.office else "Unknown Office"
     
     for user in users:
-        if not getattr(user, 'phone_number', None):
-            logger.warning(f"User {user.username} has no phone number for bulk SMS notification.")
-            continue
-            
         full_name = getattr(user, 'full_name', user.username)
-        
+
         # Get unique shift names for this user in this chart
         from duties.models import Duty
         user_shifts = list(Duty.objects.filter(user=user, duty_chart=chart).values_list('schedule__name', flat=True).distinct())
         shift_str = ", ".join(user_shifts) if user_shifts else "Duty"
-        
+
         if date_range_str:
             sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" for the "{shift_str}" at "{office_name}" for the period {date_range_str}. Please visit https://dutychart.ntc.net.np for details.'
         else:
             sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" for the "{shift_str}" at "{office_name}". Please visit https://dutychart.ntc.net.np for details.'
-        
+
+        create_dashboard_notification(
+            user,
+            title="New Duty Chart Assignment",
+            message=sms_message,
+            notification_type='ASSIGNMENT',
+            link='/my-duties'
+        )
+
+        if not getattr(user, 'phone_number', None):
+            logger.warning(f"User {user.username} has no phone number for bulk SMS notification.")
+            continue
+
         # Create log
         # We include the chart ID in the reminder_type to satisfy the uniqueness constraint
         # (user, duty, reminder_type) since duty is None for bulk notifications.
@@ -203,10 +243,6 @@ def send_pool_addition_notification(users, chart):
     office_name = chart.office.name if chart.office else "Unknown Office"
 
     for user in users:
-        if not getattr(user, 'phone_number', None):
-            logger.warning(f"User {user.username} has no phone number for pool SMS notification.")
-            continue
-
         full_name = getattr(user, 'full_name', user.username)
 
         sms_message = (
@@ -214,6 +250,18 @@ def send_pool_addition_notification(users, chart):
             f'"{chart_name}" at "{office_name}". '
             f'Please visit https://dutychart.ntc.net.np for details.'
         )
+
+        create_dashboard_notification(
+            user,
+            title="Added to Standby Pool",
+            message=sms_message,
+            notification_type='ASSIGNMENT',
+            link='/my-duties'
+        )
+
+        if not getattr(user, 'phone_number', None):
+            logger.warning(f"User {user.username} has no phone number for pool SMS notification.")
+            continue
 
         # reminder_type carries the chart ID so the (user, duty, reminder_type)
         # uniqueness constraint holds with duty=None for pool notifications.

@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
       },
+      "/ws": {
+        target: process.env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
       "/swagger": {
         target: process.env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
         changeOrigin: true,

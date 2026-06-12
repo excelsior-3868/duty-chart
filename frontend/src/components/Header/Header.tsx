@@ -117,6 +117,7 @@ import { COMPANY_NAME, APP_NAME, ROUTES } from "@/utils/constants";
 import logo from "../../assets/telecom.png"; // Adjust path if needed
 import api from "@/services/api";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "./NotificationBell";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -177,6 +178,7 @@ export const Header = ({ onMenuClick, isCollapsed = true }: HeaderProps) => {
 
         {/* Right side - Actions */}
         <div className="flex items-center gap-2">
+          <NotificationBell />
           {/* Profile button removed (moved to sidebar profile section) */}
         </div>
       </div>

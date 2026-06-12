@@ -71,18 +71,18 @@ def _handle_duty_assignment_notification(instance):
             except Exception:
                 duty_date = str(instance.date)
 
+        full_name = getattr(user, 'full_name', user.username)
+
+        chart_name = "Duty Chart"
+        if instance.duty_chart and instance.duty_chart.name:
+            chart_name = instance.duty_chart.name
+
+        # Custom Message
+        office_name = instance.office.name if instance.office else "Unknown Office"
+        sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit https://dutychart.ntc.net.np for the detail.'
+
         # 1. SMS Notification logic
         if getattr(user, 'phone_number', None):
-            full_name = getattr(user, 'full_name', user.username)
-            
-            chart_name = "Duty Chart"
-            if instance.duty_chart and instance.duty_chart.name:
-                chart_name = instance.duty_chart.name
-            
-            # Custom Message
-            office_name = instance.office.name if instance.office else "Unknown Office"
-            sms_message = f'Dear {full_name}, You have been assigned to duty chart "{chart_name}" at "{office_name}" for the "{duty_name}" on {duty_date}. Please visit https://dutychart.ntc.net.np for the detail.'
-            
             # Idempotency: Try to create the SMSLog entry first
             try:
                 log = SMSLog.objects.create(
@@ -93,7 +93,18 @@ def _handle_duty_assignment_notification(instance):
                     reminder_type='ASSIGNMENT',
                     status='pending'
                 )
-                
+
+                # Mirror the SMS as an in-app dashboard notification.
+                # Placed after the SMSLog create so the unique constraint
+                # (user, duty, reminder_type) also dedupes the notification.
+                create_dashboard_notification(
+                    user,
+                    title="New Duty Assignment",
+                    message=sms_message,
+                    notification_type='ASSIGNMENT',
+                    link='/my-duties'
+                )
+
                 # Use a direct background thread for immediate delivery without Celery overhead for single assignments
                 def trigger_sms_task():
                     try:
@@ -111,12 +122,28 @@ def _handle_duty_assignment_notification(instance):
                     trigger_sms_task()
                 else:
                     threading.Thread(target=trigger_sms_task, daemon=True).start()
-                
+
             except IntegrityError:
                 # Already exists, skip sending again
                 logger.debug(f"Assignment SMS already sent/queued for user {user.username}, duty {instance.id}")
                 return
         else:
             logger.warning(f"User {user.username} has no phone number for SMS notification.")
+            # No SMS possible, but the user should still see it on the dashboard.
+            # Dedupe manually since there is no SMSLog row to enforce uniqueness.
+            from .models import Notification
+            already_notified = Notification.objects.filter(
+                user=user,
+                notification_type='ASSIGNMENT',
+                message=sms_message
+            ).exists()
+            if not already_notified:
+                create_dashboard_notification(
+                    user,
+                    title="New Duty Assignment",
+                    message=sms_message,
+                    notification_type='ASSIGNMENT',
+                    link='/my-duties'
+                )
     except Exception as e:
         logger.exception(f"Error in _handle_duty_assignment_notification for Duty {instance.id}")
