@@ -218,8 +218,12 @@ function HelpCenter() {
             invalidateCache();
             closeEdit();
             fetchDocuments();
-        } catch {
-            toast.error("Failed to update document.");
+        } catch (err: any) {
+            if (err?.response?.status === 413) {
+                toast.error("File is too large: the server rejected the upload. Please use a smaller file or contact the administrator.");
+            } else {
+                toast.error("Failed to update document.");
+            }
         } finally {
             setSaving(false);
         }
@@ -254,8 +258,12 @@ function HelpCenter() {
             setDialogOpen(false);
             resetForm();
             fetchDocuments();
-        } catch {
-            toast.error("Failed to upload document.");
+        } catch (err: any) {
+            if (err?.response?.status === 413) {
+                toast.error("File is too large: the server rejected the upload. Please use a smaller file or contact the administrator.");
+            } else {
+                toast.error("Failed to upload document.");
+            }
         } finally {
             setUploading(false);
         }
@@ -505,7 +513,7 @@ function HelpCenter() {
 
             {/* ================= Upload Dialog ================= */}
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md" aria-describedby={undefined}>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-primary">
                             <Upload className="h-5 w-5" />
@@ -614,7 +622,7 @@ function HelpCenter() {
 
             {/* ================= Edit Dialog ================= */}
             <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) closeEdit(); }}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md" aria-describedby={undefined}>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-primary">
                             <Pencil className="h-5 w-5" />

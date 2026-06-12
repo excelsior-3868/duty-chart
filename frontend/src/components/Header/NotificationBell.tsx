@@ -98,6 +98,8 @@ export const NotificationBell = () => {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let retryDelay = 1_000;
     let unmounted = false;
+    let everConnected = false;
+    let failedAttempts = 0;
 
     const connect = () => {
       const token = localStorage.getItem("access");
@@ -110,6 +112,8 @@ export const NotificationBell = () => {
 
       ws.onopen = () => {
         retryDelay = 1_000;
+        everConnected = true;
+        failedAttempts = 0;
       };
 
       ws.onmessage = (event) => {
@@ -126,9 +130,14 @@ export const NotificationBell = () => {
 
       ws.onclose = () => {
         if (unmounted) return;
+        // The server/proxy doesn't support WebSockets at all (never connected
+        // once): stop trying, polling carries delivery. Transient drops on a
+        // previously working connection keep reconnecting indefinitely.
+        if (!everConnected) {
+          failedAttempts += 1;
+          if (failedAttempts >= 3) return;
+        }
         retryTimer = setTimeout(connect, retryDelay);
-        // Cap at 5 min: where the proxy never upgrades /ws/ (no WebSocket
-        // support), polling carries delivery and retries are just noise.
         retryDelay = Math.min(retryDelay * 2, 300_000);
       };
 
