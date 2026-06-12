@@ -114,10 +114,11 @@ function AdoptionReport() {
         ]);
         setOfficesList(officesData || []);
         
-        const allowedDirectorateIds = [13, 14, 15, 16, 17, 18];
-        const filteredDirectorates = (directoratesData || []).filter(d =>
-          allowedDirectorateIds.includes(d.id)
-        );
+        // Only provincial directorates belong in this filter (PD Biratnagar,
+        // PD Madhesh, PD Bagmati, ...), not functional ones like ITD/COO.
+        const filteredDirectorates = (directoratesData || [])
+          .filter(d => d.name?.startsWith("PD "))
+          .sort((a, b) => a.name.localeCompare(b.name));
         setDirectoratesList(filteredDirectorates);
       } catch (err) {
         console.error("Failed to load filter options", err);
