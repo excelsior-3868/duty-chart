@@ -140,9 +140,9 @@ const Schedule = () => {
             <DutyHoursCard
               mode={editingSchedule ? "edit" : "create"}
               initialSchedule={editingSchedule}
-              activeOfficeId={canCreateAnyOffice && activeOffice ? activeOffice : user?.office_id}
+              activeOfficeId={activeOffice || user?.office_id}
               userOfficeName={user?.office_name}
-              disableOfficeSelection={!canCreateAnyOffice}
+              disableOfficeSelection={!canCreateAnyOffice && (user?.manageable_office_ids?.length ?? 0) <= 1}
               onCancelEdit={() => setEditingSchedule(null)}
               onScheduleAdded={() => {
                 if (editingSchedule) {

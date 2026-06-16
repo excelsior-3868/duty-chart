@@ -64,6 +64,7 @@ from users.permissions import (
     IsOfficeScoped,
     get_allowed_office_ids,
     get_managed_office_ids,
+    get_manageable_office_ids,
     user_has_permission_slug,
 )
 from django.core.exceptions import ValidationError, MultipleObjectsReturned
@@ -181,7 +182,7 @@ class ScheduleView(viewsets.ModelViewSet):
            not can_create_any_office:
             raise serializers.ValidationError("You do not have permission to create schedules.")
 
-        allowed = get_allowed_office_ids(self.request.user)
+        allowed = get_manageable_office_ids(self.request.user)
         if (not office_id or int(office_id) not in allowed) and not can_create_any_office:
             raise serializers.ValidationError("Not allowed to create schedule for this office.")
         serializer.save()
@@ -205,7 +206,7 @@ class ScheduleView(viewsets.ModelViewSet):
             if not user_has_permission_slug(self.request.user, 'schedules.edit'):
                  raise serializers.ValidationError("You do not have permission to update schedules.")
 
-            allowed = get_allowed_office_ids(self.request.user)
+            allowed = get_manageable_office_ids(self.request.user)
             if not office_id or int(office_id) not in allowed:
                 raise serializers.ValidationError("Not allowed to update schedule for this office.")
         
@@ -227,7 +228,7 @@ class ScheduleView(viewsets.ModelViewSet):
             if not user_has_permission_slug(self.request.user, 'schedules.delete'):
                  raise serializers.ValidationError("You do not have permission to delete schedules.")
 
-            allowed = get_allowed_office_ids(self.request.user)
+            allowed = get_manageable_office_ids(self.request.user)
             if instance.office_id and instance.office_id not in allowed:
                 raise serializers.ValidationError("Not allowed to delete schedule for this office.")
         instance.delete()
@@ -344,7 +345,7 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         if not IsSuperAdmin().has_permission(self.request, self):
             can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
             if not can_view_any:
-                allowed = get_allowed_office_ids(user)
+                allowed = get_allowed_office_ids(user) | get_manageable_office_ids(user)
                 peer_condition = Q()
                 if user_has_permission_slug(user, 'duties.create_any_office_chart'):
                     peer_condition = Q(created_by__office_id=user.office_id, created_by__role=getattr(user, 'role', None))
@@ -395,11 +396,11 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                 self.save_anusuchi_documents(chart)
                 return
 
-            allowed = get_allowed_office_ids(user)
+            allowed = get_manageable_office_ids(user)
             if int(office_id) not in allowed:
                 if not user_has_permission_slug(user, 'duties.create_any_office_chart'):
                     raise serializers.ValidationError({"detail": "Not allowed to create duty chart for this office."})
-            
+
             chart = serializer.save(created_by=user)
             self.save_anusuchi_documents(chart)
 
@@ -417,8 +418,8 @@ class DutyChartViewSet(viewsets.ModelViewSet):
         if not user_has_permission_slug(user, 'duties.edit_dutychart'):
             raise serializers.ValidationError({"detail": "You do not have permission to edit duty charts."})
 
-        # 3. Chart belongs to the user's office
-        if user.office_id and chart.office_id == user.office_id:
+        # 3. Chart belongs to the user's office (or a child office in the hierarchy)
+        if user.office_id and (chart.office_id == user.office_id or chart.office_id in get_manageable_office_ids(user)):
             serializer.save(edited_by=user)
             self.save_anusuchi_documents(chart)
             return
@@ -493,8 +494,8 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                      print(f"DEBUG: [Approve] Permission denied for user {request.user.username}", flush=True)
                      return Response({"detail": "You do not have permission to approve duty charts."}, status=status.HTTP_403_FORBIDDEN)
                 
-                # Scoped check
-                allowed_offices = get_managed_office_ids(request.user)
+                # Scoped check (own + child offices)
+                allowed_offices = get_manageable_office_ids(request.user)
                 can_approve_any = user_has_permission_slug(request.user, 'duties.create_any_office_chart')
                 is_creator = chart.created_by_id == request.user.id
                 user_role = getattr(request.user, 'role', None)
@@ -675,7 +676,7 @@ class DutyViewSet(viewsets.ModelViewSet):
         if not IsSuperAdmin().has_permission(self.request, self):
             can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
             if not can_view_any:
-                allowed = get_allowed_office_ids(user)
+                allowed = get_allowed_office_ids(user) | get_manageable_office_ids(user)
                 # Allow viewing if user belongs to the office OR if the duty chart is approved
                 queryset = queryset.filter(Q(office_id__in=allowed) | Q(duty_chart__status='approved'))
 
@@ -697,7 +698,7 @@ class DutyViewSet(viewsets.ModelViewSet):
             if not IsSuperAdmin().has_permission(self.request, self):
                 can_view_any = user_has_permission_slug(user, 'duties.view_any_office_chart')
                 if not can_view_any:
-                    allowed = get_allowed_office_ids(user)
+                    allowed = get_allowed_office_ids(user) | get_manageable_office_ids(user)
                     # Filter oids to only those user is allowed to see
                     oids = [oid for oid in oids if oid in allowed]
                     if not oids:
@@ -729,9 +730,9 @@ class DutyViewSet(viewsets.ModelViewSet):
 
         duty_chart = instance.duty_chart
         office_id = getattr(duty_chart, 'office_id', None)
-        
-        # 2. Scope-based management (Office Admin, Network Admin, etc.)
-        allowed = get_managed_office_ids(user)
+
+        # 2. Scope-based management (own + child offices)
+        allowed = get_manageable_office_ids(user)
         if office_id and office_id in allowed:
             instance.delete()
             return
@@ -766,8 +767,8 @@ class DutyViewSet(viewsets.ModelViewSet):
             if not office_id:
                 raise serializers.ValidationError("Office ID is required.")
 
-            # 1. Check if the ADMIN is allowed to manage this office
-            managed_offices = get_managed_office_ids(user)
+            # 1. Check if the ADMIN is allowed to manage this office (own + children)
+            managed_offices = get_manageable_office_ids(user)
             can_manage_office = int(office_id) in managed_offices
             
             # If not explicitly managed, check for global assignment permission
@@ -810,14 +811,14 @@ class DutyViewSet(viewsets.ModelViewSet):
                         serializer.save()
                         return
             
-            # Office Admin / Same Office handling
+            # Office Admin / Same or child office handling
             chart = getattr(serializer.instance, "duty_chart", None)
-            if chart and user.office_id and chart.office_id == user.office_id:
+            if chart and user.office_id and (chart.office_id == user.office_id or chart.office_id in get_manageable_office_ids(user)):
                 if user_has_permission_slug(user, 'duties.assign_employee'):
                     serializer.save()
                     return
 
-            allowed = get_allowed_office_ids(user)
+            allowed = get_manageable_office_ids(user)
             office_id = self.request.data.get("office") or getattr(serializer.instance, "office_id", None)
             if office_id is None:
                 chart = getattr(serializer.instance, "duty_chart", None)
@@ -874,7 +875,7 @@ class DutyViewSet(viewsets.ModelViewSet):
                 if not user_has_permission_slug(user, 'duties.assign_employee'):
                     raise serializers.ValidationError("You do not have permission to assign employees.")
                 
-                managed_offices = get_managed_office_ids(user)
+                managed_offices = get_manageable_office_ids(user)
                 can_assign_any = is_super or user_has_permission_slug(user, 'duties.assign_any_office_employee')
                 is_network_admin = user.role == 'NETWORK_ADMIN'
 

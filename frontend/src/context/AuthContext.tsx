@@ -19,6 +19,7 @@ export interface AuthUser {
   office_id: number | null;
   office_name?: string;
   secondary_offices: number[];
+  manageable_office_ids?: number[];
   permissions: string[];
 }
 
@@ -132,6 +133,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // If they are explicitly assigned to the office (primary or secondary)
     if (isAssignedToOffice(officeId)) return true;
+
+    // If the office is a child office they may manage (org hierarchy)
+    if ((user.manageable_office_ids || []).map(id => Number(id)).includes(Number(officeId))) {
+      return true;
+    }
 
     // If they have the explicit permission to manage any office's assignments
     if (user.permissions.includes('duties.assign_any_office_employee')) {

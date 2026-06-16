@@ -114,9 +114,11 @@ class OfficeViewSet(viewsets.ModelViewSet):
                           user_has_permission_slug(user, 'duties.view_any_office_chart') or \
                           user_has_permission_slug(user, 'duties.create_any_office_chart')
             
-            if not can_see_all and getattr(user, 'office_id', None):
-                queryset = queryset.filter(id=user.office_id)
-                
+            if not can_see_all:
+                from users.permissions import get_manageable_office_ids
+                manageable = get_manageable_office_ids(user)
+                queryset = queryset.filter(id__in=manageable) if manageable else queryset.none()
+
         return queryset
 
 class AccountingOfficeViewSet(viewsets.ModelViewSet):

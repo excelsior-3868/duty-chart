@@ -101,7 +101,11 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
   const visibleOffices = useMemo(() => {
     let list = offices.filter(office => {
       if (hasPermission('duties.create_any_office_chart')) return true;
-      const allowedIds = [user?.office_id, ...(user?.secondary_offices || [])].filter(Boolean).map(id => Number(id));
+      const allowedIds = [
+        user?.office_id,
+        ...(user?.secondary_offices || []),
+        ...(user?.manageable_office_ids || []),
+      ].filter(Boolean).map(id => Number(id));
       return allowedIds.includes(Number(office.id));
     });
 
