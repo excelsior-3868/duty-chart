@@ -117,11 +117,8 @@ def _handle_duty_assignment_notification(instance):
                     except Exception as e:
                         logger.error(f"Fatal error in SMS thread for {user.username}: {e}")
 
-                import sys
-                if 'test' in sys.argv:
-                    trigger_sms_task()
-                else:
-                    threading.Thread(target=trigger_sms_task, daemon=True).start()
+                from .utils import run_in_background
+                run_in_background(trigger_sms_task)
 
             except IntegrityError:
                 # Already exists, skip sending again

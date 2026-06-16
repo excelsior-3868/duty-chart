@@ -10,6 +10,29 @@ from .serializers import NotificationSerializer
 
 logger = logging.getLogger(__name__)
 
+def run_in_background(task):
+    """
+    Runs task in a daemon thread, closing the thread's DB connections when it
+    finishes so they don't linger until garbage collection and exhaust the
+    Postgres connection slots. Runs synchronously under tests (where closing
+    would wipe the in-memory test database).
+    """
+    import sys
+    import threading
+
+    if 'test' in sys.argv:
+        task()
+        return
+
+    def runner():
+        from django.db import connections
+        try:
+            task()
+        finally:
+            connections.close_all()
+
+    threading.Thread(target=runner, daemon=True).start()
+
 def send_sms(phone, message, user=None, log_id=None):
     """
     Sends SMS using the NTC SMS Gateway.
@@ -144,7 +167,6 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
     Sends a single SMS to each user in the list regarding their assignments in the chart.
     If date_range_str is provided, it's included in the message.
     """
-    import threading
     from .models import SMSLog
     
     if not users or not chart:
@@ -218,11 +240,7 @@ def send_bulk_assignment_notification(users, chart, date_range_str=None):
             except Exception as e:
                 logger.error(f"Fatal error in bulk SMS thread for {u.username}: {e}")
 
-        import sys
-        if 'test' in sys.argv:
-            trigger_sms_task(user, sms_message, log.id)
-        else:
-            threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()
+        run_in_background(lambda u=user, msg=sms_message, lid=log.id: trigger_sms_task(u, msg, lid))
 
 
 def send_pool_addition_notification(users, chart):
@@ -233,7 +251,6 @@ def send_pool_addition_notification(users, chart):
     duty), so the message and reminder_type differ from
     send_bulk_assignment_notification.
     """
-    import threading
     from .models import SMSLog
 
     if not users or not chart:
@@ -297,8 +314,4 @@ def send_pool_addition_notification(users, chart):
             except Exception as e:
                 logger.error(f"Fatal error in pool SMS thread for {u.username}: {e}")
 
-        import sys
-        if 'test' in sys.argv:
-            trigger_sms_task(user, sms_message, log.id)
-        else:
-            threading.Thread(target=trigger_sms_task, args=(user, sms_message, log.id), daemon=True).start()
+        run_in_background(lambda u=user, msg=sms_message, lid=log.id: trigger_sms_task(u, msg, lid))

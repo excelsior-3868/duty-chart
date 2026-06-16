@@ -168,6 +168,8 @@ DATABASES = {
         'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT'),
+        'CONN_MAX_AGE': int(os.getenv('DB_CONN_MAX_AGE', 60)),  # Reuse connections for 60s
+        'CONN_HEALTH_CHECKS': True,  # Auto-reconnect stale persistent connections
     }
 }
 

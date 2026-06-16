@@ -1,6 +1,4 @@
-import sys
 import logging
-import threading
 
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
@@ -79,10 +77,8 @@ def _notify_document_upload(document):
         except Exception as e:
             logger.error(f"Failed to notify users about Help Center upload '{document.title}': {e}")
 
-    if 'test' in sys.argv:
-        fan_out()
-    else:
-        threading.Thread(target=fan_out, daemon=True).start()
+    from notification_service.utils import run_in_background
+    run_in_background(fan_out)
 
 
 class HelpDocumentViewSet(viewsets.ModelViewSet):

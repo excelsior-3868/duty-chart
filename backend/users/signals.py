@@ -3,7 +3,6 @@ from django.dispatch import receiver
 from .models import User
 from notification_service.utils import send_sms, create_dashboard_notification
 import logging
-import threading
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +82,5 @@ def _trigger_status_sms(user, message):
         except Exception as e:
             logger.error(f"Error in background status SMS for {user.username}: {e}")
 
-    import sys
-    if 'test' in sys.argv:
-        trigger()
-    else:
-        threading.Thread(target=trigger, daemon=True).start()
+    from notification_service.utils import run_in_background
+    run_in_background(trigger)
