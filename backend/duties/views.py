@@ -570,9 +570,17 @@ class DutyChartViewSet(viewsets.ModelViewSet):
                     
                     transaction.on_commit(trigger_approval_sms)
 
+                # Notify pool members upon approval
+                pool_members = list(chart.pool_members.all())
+                if pool_members:
+                    def trigger_pool_sms():
+                        from notification_service.utils import send_pool_addition_notification
+                        send_pool_addition_notification(pool_members, chart)
+                    transaction.on_commit(trigger_pool_sms)
+                
             return Response({
                 "status": "approved", 
-                "detail": f"Chart approved and {len(user_duties)} employees notified.",
+                "detail": f"Chart approved. {len(user_duties)} employees and {len(pool_members)} pool members notified.",
                 "approval_document": str(chart.approval_document) if chart.approval_document else None
             })
         except Exception as e:
