@@ -77,10 +77,12 @@ const Settings = () => {
     }
   };
 
+  const appVersion = localStorage.getItem("app_version") || import.meta.env.VITE_APP_VERSION || "v1.0.0-dev";
+
   const handleBroadcastChangelog = async () => {
     setBroadcasting(true);
     try {
-      await api.post("notifications/broadcast_changelog/", { version: "v2.3.0" });
+      await api.post("notifications/broadcast_changelog/", { version: appVersion });
       toast.success("Changelog broadcasted successfully to all active users!");
     } catch (err: any) {
       console.error(err);
@@ -346,7 +348,7 @@ const Settings = () => {
                     ) : (
                       <>
                         <Bell className="h-4 w-4" />
-                        Broadcast Release Notes (v2.3.0)
+                        Broadcast Release Notes ({appVersion})
                       </>
                     )}
                   </Button>

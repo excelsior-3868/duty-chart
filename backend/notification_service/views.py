@@ -47,7 +47,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
         if not request.user.is_superuser and getattr(request.user, 'role', None) != 'SUPERADMIN':
             return Response({'detail': 'You do not have permission to perform this action.'}, status=403)
         
-        version = request.data.get('version', 'v2.3.0')
+        from django.conf import settings as django_settings
+        default_version = getattr(django_settings, 'IMAGE_VERSION', 'v1.0.0-dev')
+        version = request.data.get('version') or default_version
+        
         title = f"New Update Available: {version}"
         message = f"A new system update ({version}) has been deployed. Click here to view what's new."
         link = "/about?showChangelog=true"
