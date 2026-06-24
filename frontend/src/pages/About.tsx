@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/PageHeader";
+import { useSearchParams } from "react-router-dom";
 import {
   Info,
   Building,
@@ -12,13 +13,39 @@ import {
   Server,
   Activity,
   Heart,
+  Bell,
+  Sliders,
+  Layers,
+  Sparkles,
+  Shield,
+  Wrench,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import api from "@/services/api";
+import { changelogData } from "@/data/changelog";
 
 function About() {
   const [appVersion, setAppVersion] = React.useState<string>(
     localStorage.getItem("app_version") || import.meta.env.VITE_APP_VERSION || "v1.0.0-dev"
   );
+  const [isDialogOpen, setIsDialogOpen] = React.useState<boolean>(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  React.useEffect(() => {
+    if (searchParams.get("showChangelog") === "true") {
+      setIsDialogOpen(true);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("showChangelog");
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   React.useEffect(() => {
     api.get("system-settings/")
       .then(res => {
@@ -30,23 +57,23 @@ function About() {
       .catch(err => console.error("Failed to fetch system version in About", err));
   }, []);
 
-  const buildTimestamp = import.meta.env.VITE_BUILD_TIMESTAMP 
+  const buildTimestamp = import.meta.env.VITE_BUILD_TIMESTAMP
     ? (() => {
-        const val = import.meta.env.VITE_BUILD_TIMESTAMP;
-        if (val.length === 14) {
-          // Format YYYYMMDDHHMMSS to M/D/YYYY, H:MM:SS AM/PM
-          const year = val.substring(0, 4);
-          const month = parseInt(val.substring(4, 6), 10);
-          const day = parseInt(val.substring(6, 8), 10);
-          const hour = parseInt(val.substring(8, 10), 10);
-          const minute = val.substring(10, 12);
-          const second = val.substring(12, 14);
-          const ampm = hour >= 12 ? "PM" : "AM";
-          const formattedHour = hour % 12 || 12;
-          return `${month}/${day}/${year}, ${formattedHour}:${minute}:${second} ${ampm}`;
-        }
-        return val;
-      })()
+      const val = import.meta.env.VITE_BUILD_TIMESTAMP;
+      if (val.length === 14) {
+        // Format YYYYMMDDHHMMSS to M/D/YYYY, H:MM:SS AM/PM
+        const year = val.substring(0, 4);
+        const month = parseInt(val.substring(4, 6), 10);
+        const day = parseInt(val.substring(6, 8), 10);
+        const hour = parseInt(val.substring(8, 10), 10);
+        const minute = val.substring(10, 12);
+        const second = val.substring(12, 14);
+        const ampm = hour >= 12 ? "PM" : "AM";
+        const formattedHour = hour % 12 || 12;
+        return `${month}/${day}/${year}, ${formattedHour}:${minute}:${second} ${ampm}`;
+      }
+      return val;
+    })()
     : new Date().toLocaleString();
 
   const isProduction = import.meta.env.PROD;
@@ -69,17 +96,17 @@ function About() {
   return (
     <div className="p-6 space-y-6 flex flex-col min-h-[calc(100vh-4rem)] justify-between">
       <div className="space-y-6">
-        <PageHeader 
-          title="About System" 
-          subtitle="Detailed application metadata and deployment parameters" 
-          icon={Info} 
+        <PageHeader
+          title="About System"
+          subtitle="Detailed application metadata and deployment parameters"
+          icon={Info}
           iconColor="text-blue-500"
         />
 
         <div className="grid gap-6 md:grid-cols-5">
           {/* Left Columns - Metadata & Operational info */}
           <div className="md:col-span-3 space-y-6">
-            
+
             {/* System Overview */}
             <Card className="shadow-md border-slate-100 hover:shadow-lg transition-shadow">
               <CardHeader className="pb-2">
@@ -97,15 +124,23 @@ function About() {
 
             {/* Version & Environment Grid */}
             <div className="grid gap-6 sm:grid-cols-2">
-              <Card className="shadow-md border-slate-100 hover:shadow-lg transition-shadow">
+              <Card
+                className="shadow-md border-slate-100 hover:shadow-lg transition-all cursor-pointer hover:border-blue-200 active:scale-[0.99]"
+                onClick={() => setIsDialogOpen(true)}
+              >
                 <CardHeader className="pb-1">
-                  <CardTitle className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                    <Cpu className="h-3.5 w-3.5 text-blue-500" /> App Version
+                  <CardTitle className="text-xs font-semibold text-slate-500 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Cpu className="h-3.5 w-3.5 text-blue-500" /> App Version
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-50">
+                      Changelog
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-normal text-slate-900 leading-none">{appVersion}</div>
-                  <p className="text-xs text-muted-foreground mt-2 font-normal">Currently deployed application version</p>
+                  <p className="text-xs text-muted-foreground mt-2 font-normal">Currently deployed application version (Click to view changes)</p>
                 </CardContent>
               </Card>
 
@@ -162,7 +197,7 @@ function About() {
           <div className="md:col-span-2">
             <Card className="shadow-md border-slate-100 h-full">
               <CardContent className="p-6 space-y-6">
-                
+
                 {/* Org node */}
                 <div className="flex gap-4 items-start">
                   <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shadow-sm border border-blue-100">
@@ -187,7 +222,7 @@ function About() {
 
                 {/* Team Hierarchy */}
                 <div className="space-y-5">
-                  
+
                   {/* Deputy Managers */}
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
@@ -256,15 +291,83 @@ function About() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t pt-4 text-center space-y-1 mt-6">
-        <p className="text-[10px] text-slate-400 font-semibold">
-          © {new Date().getFullYear()} Duty Chart Management System - Nepal Telecom. All rights reserved.
-        </p>
-        <p className="text-[9px] text-slate-400 font-bold">
-          Developed By: <span className="text-blue-700">ITD, Software and Security Wing</span>
-        </p>
-      </footer>
+
+
+      {/* Release Notes Changelog Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <Sparkles className="h-5 w-5 text-amber-500 animate-pulse" />
+              What's New in {appVersion}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Recent features, optimizations, and system enhancements.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-8">
+            {changelogData.map((release) => (
+              <div key={release.version} className="space-y-4">
+                {changelogData.length > 1 && (
+                  <div className="flex items-center gap-2 border-b pb-1.5">
+                    <span className="text-sm font-bold text-slate-900">{release.version}</span>
+                    <span className="text-xs text-slate-400">({release.releaseDate})</span>
+                  </div>
+                )}
+                
+                <div className="space-y-6">
+                  {release.features.map((feature, idx) => {
+                    const IconComponent = () => {
+                      switch (feature.iconName) {
+                        case "bell": return <Bell className="h-4 w-4" />;
+                        case "sliders": return <Sliders className="h-4 w-4" />;
+                        case "layers": return <Layers className="h-4 w-4" />;
+                        case "shield": return <Shield className="h-4 w-4" />;
+                        case "wrench": return <Wrench className="h-4 w-4" />;
+                        default: return <Sparkles className="h-4 w-4" />;
+                      }
+                    };
+
+                    const iconColorClass = (() => {
+                      switch (feature.iconName) {
+                        case "bell": return "bg-blue-50 text-blue-600";
+                        case "sliders": return "bg-indigo-50 text-indigo-600";
+                        case "layers": return "bg-emerald-50 text-emerald-600";
+                        case "shield": return "bg-amber-50 text-amber-600";
+                        case "wrench": return "bg-slate-100 text-slate-600";
+                        default: return "bg-slate-50 text-slate-500";
+                      }
+                    })();
+
+                    return (
+                      <div key={idx} className="space-y-3">
+                        <div className="flex items-center gap-2 border-b pb-1">
+                          <div className={`p-1.5 rounded-lg ${iconColorClass}`}>
+                            <IconComponent />
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-800">{feature.title}</h4>
+                          <Badge 
+                            variant={feature.badgeVariant} 
+                            className={`ml-auto text-[9px] px-1.5 py-0 ${feature.badgeClass || ""}`}
+                          >
+                            {feature.badgeText}
+                          </Badge>
+                        </div>
+                        <ul className="list-disc pl-5 space-y-1 text-xs text-slate-600 leading-relaxed">
+                          {feature.bullets.map((bullet, bIdx) => (
+                            <li key={bIdx}>{bullet}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

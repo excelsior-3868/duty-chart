@@ -42,6 +42,30 @@ class NotificationViewSet(viewsets.ModelViewSet):
         count = self.get_queryset().filter(is_read=False).count()
         return Response({'count': count})
 
+    @action(detail=False, methods=['post'])
+    def broadcast_changelog(self, request):
+        if not request.user.is_superuser and getattr(request.user, 'role', None) != 'SUPERADMIN':
+            return Response({'detail': 'You do not have permission to perform this action.'}, status=403)
+        
+        version = request.data.get('version', 'v2.3.0')
+        title = f"New Update Available: {version}"
+        message = f"A new system update ({version}) has been deployed. Click here to view what's new."
+        link = "/about?showChangelog=true"
+        
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        active_users = User.objects.filter(is_active=True)
+        
+        from .utils import create_bulk_dashboard_notifications
+        create_bulk_dashboard_notifications(
+            users=active_users,
+            title=title,
+            message=message,
+            notification_type='SYSTEM',
+            link=link
+        )
+        return Response({'status': f'changelog notification broadcasted for version {version}'})
+
 class SMSLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Super Admins to view all sent SMS logs.

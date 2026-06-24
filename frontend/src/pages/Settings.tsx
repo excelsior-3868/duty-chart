@@ -16,10 +16,11 @@ import { HolidayManager } from "@/components/settings/HolidayManager";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 
 const Settings = () => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [broadcasting, setBroadcasting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState({
     id: null,
@@ -73,6 +74,19 @@ const Settings = () => {
       toast.error("Failed to update settings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleBroadcastChangelog = async () => {
+    setBroadcasting(true);
+    try {
+      await api.post("notifications/broadcast_changelog/", { version: "v2.3.0" });
+      toast.success("Changelog broadcasted successfully to all active users!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || "Failed to broadcast changelog");
+    } finally {
+      setBroadcasting(false);
     }
   };
 
@@ -301,6 +315,41 @@ const Settings = () => {
                       )}
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Changelog Broadcast - Super Admin Only */}
+            {user?.role === 'SUPERADMIN' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-indigo-500" />
+                    Changelog Broadcast
+                  </CardTitle>
+                  <CardDescription>Notify all active users about system updates</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Sends an in-app dashboard notification containing a link to the release notes modal to all active users.
+                  </p>
+                  <Button 
+                    onClick={handleBroadcastChangelog} 
+                    disabled={broadcasting}
+                    className="w-full flex items-center justify-center gap-2"
+                  >
+                    {broadcasting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Broadcasting Update...
+                      </>
+                    ) : (
+                      <>
+                        <Bell className="h-4 w-4" />
+                        Broadcast Release Notes (v2.3.0)
+                      </>
+                    )}
+                  </Button>
                 </CardContent>
               </Card>
             )}
