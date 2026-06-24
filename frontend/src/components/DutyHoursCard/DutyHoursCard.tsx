@@ -389,10 +389,13 @@ export const DutyHoursCard: React.FC<AddScheduleCardProps> = ({
                           {offices
                             .filter(office => {
                               if (disableOfficeSelection) {
-                                // If selection is disabled (no 'create_any' permission), only show the active/assigned office
                                 return String(office.id) === String(activeOfficeId || user?.office_id);
                               }
-                              // Otherwise show all offices they can manage
+                              // Use manageable_office_ids (backend-computed org-hierarchy scope)
+                              const manageableIds = (user?.manageable_office_ids || []).map(id => Number(id));
+                              if (manageableIds.length > 0) {
+                                return manageableIds.includes(Number(office.id));
+                              }
                               return canManageOffice(office.id);
                             })
                             .map((office) => (

@@ -190,3 +190,36 @@ class NotificationLogicTest(TransactionTestCase):
         daily_logs = SMSLog.objects.filter(reminder_type='DAILY_10AM')
         self.assertEqual(daily_logs.count(), 1)
         self.assertIn("Night Shift", daily_logs[0].message)
+
+    def test_clean_notification_message(self):
+        """Test that the helper cleans the dutychart URL patterns for dashboard notification messages."""
+        from notification_service.utils import clean_notification_message
+        
+        # Test case 1: Assignment with link
+        msg1 = 'Dear John Doe, You have been assigned to duty chart "Admin" at "CTO" for "Morning Shift" on 2083-01-26. Please visit https://dutychart.ntc.net.np for details.'
+        self.assertEqual(
+            clean_notification_message(msg1),
+            'Dear John Doe, You have been assigned to duty chart "Admin" at "CTO" for "Morning Shift" on 2083-01-26.'
+        )
+
+        # Test case 2: Activation / Password Reset link
+        msg2 = 'Dear John Doe, your DCMS account has been created. Please visit https://dutychart.ntc.net.np and use the Forgot Password option to set your new password.'
+        self.assertEqual(
+            clean_notification_message(msg2),
+            'Dear John Doe, your DCMS account has been created. Please use the Forgot Password option to set your new password.'
+        )
+
+        # Test case 3: Role update link
+        msg3 = "Dear John Doe, your system role of DCMS has been updated to 'Admin'. Please visit https://dutychart.ntc.net.np for details."
+        self.assertEqual(
+            clean_notification_message(msg3),
+            "Dear John Doe, your system role of DCMS has been updated to 'Admin'."
+        )
+
+        # Test case 4: Simple visit URL
+        msg4 = "Visit dutychart.ntc.net.np"
+        self.assertEqual(
+            clean_notification_message(msg4),
+            ""
+        )
+

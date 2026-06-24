@@ -49,6 +49,19 @@ const typeIcon = (type: AppNotification["notification_type"]) => {
   }
 };
 
+const cleanNotificationMessage = (msg: string) => {
+  if (!msg) return "";
+  let cleaned = msg;
+  // Handle password reset/account creation cases:
+  // "Please visit https://dutychart.ntc.net.np and use the Forgot Password option..." -> "Please use the Forgot Password option..."
+  cleaned = cleaned.replace(/(?:Please\s+)?(?:visit|Visit)\s+(?:https?:\/\/)?dutychart\.ntc\.net\.np\s+and\s+/gi, "Please ");
+  // Remove general "Please visit..." patterns:
+  cleaned = cleaned.replace(/\s*(?:Please\s+)?(?:visit|Visit)\s+(?:https?:\/\/)?dutychart\.ntc\.net\.np(?:\/)?(?:\s+for\s+the\s+details?|\s+for\s+details?|\s+for\s+the\s+detail?|\s+for\s+detail?)?\.?/gi, "");
+  // Clean up double periods or extra spaces/dots:
+  cleaned = cleaned.replace(/\s*\.\s*\./g, ".").trim();
+  return cleaned;
+};
+
 export const NotificationBell = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -256,7 +269,7 @@ export const NotificationBell = () => {
                       )}
                     </span>
                     <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-                      {notification.message}
+                      {cleanNotificationMessage(notification.message)}
                     </span>
                     <span className="mt-1 block text-[11px] text-muted-foreground/80">
                       {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}

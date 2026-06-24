@@ -114,16 +114,44 @@ def broadcast_notification(notification):
     except Exception as e:
         logger.error(f"Failed to broadcast notification {notification.pk}: {e}")
 
+import re
+
+def clean_notification_message(message):
+    if not message:
+        return ""
+    # Handle the password reset case:
+    # "Please visit https://dutychart.ntc.net.np and use the Forgot Password option..." -> "Please use the Forgot Password option..."
+    cleaned = re.sub(
+        r'(?:Please\s+)?(?:visit|Visit)\s+(?:https?://)?dutychart\.ntc\.net\.np\s+and\s+',
+        'Please ',
+        message
+    )
+    cleaned = re.sub(
+        r'(?:please\s+)?(?:visit|visit)\s+(?:https?://)?dutychart\.ntc\.net\.np\s+and\s+',
+        'please ',
+        cleaned
+    )
+    # Remove general "Please visit..." patterns
+    cleaned = re.sub(
+        r'\s*(?:Please\s+)?(?:visit|Visit)\s+(?:https?://)?dutychart\.ntc\.net\.np(?:/)?(?:\s+for\s+the\s+details?|\s+for\s+details?|\s+for\s+the\s+detail?|\s+for\s+detail?)?\.?',
+        '',
+        cleaned
+    )
+    # Clean up double periods or extra trailing spaces/dots
+    cleaned = re.sub(r'\s*\.\s*\.', '.', cleaned)
+    return cleaned.strip()
+
 def create_dashboard_notification(user, title, message, notification_type='SYSTEM', link=None):
     """
     Creates an in-app dashboard notification for a single user.
     Never raises: a notification failure must not break the calling flow (SMS, signals, tasks).
     """
     try:
+        cleaned_message = clean_notification_message(message)
         notification = Notification.objects.create(
             user=user,
             title=title,
-            message=message,
+            message=cleaned_message,
             notification_type=notification_type,
             link=link
         )
@@ -142,11 +170,12 @@ def create_bulk_dashboard_notifications(users, title, message, notification_type
     Uses bulk_create to avoid per-row save/audit overhead on large fan-outs.
     """
     try:
+        cleaned_message = clean_notification_message(message)
         notifications = [
             Notification(
                 user=user,
                 title=title,
-                message=message,
+                message=cleaned_message,
                 notification_type=notification_type,
                 link=link
             )
@@ -254,6 +283,11 @@ def send_pool_addition_notification(users, chart):
     from .models import SMSLog
 
     if not users or not chart:
+        return
+
+    # ONLY notify if the chart is APPROVED
+    if chart.status != 'approved':
+        logger.info(f"Skipping pool notifications for Chart {chart.id}: Status is {chart.status}")
         return
 
     chart_name = chart.name or "Duty Chart"

@@ -60,6 +60,12 @@ class MeView(APIView):
         if user.image:
             image_url = request.build_absolute_uri(user.image.url)
 
+        try:
+            from users.permissions import get_manageable_office_ids
+            manageable_office_ids = sorted(get_manageable_office_ids(user))
+        except Exception:
+            manageable_office_ids = []
+
         return Response({
             "id": user.id,
             "username": user.username,
@@ -74,6 +80,7 @@ class MeView(APIView):
             "position_id": getattr(user, "position_id", None),
             "phone_number": user.phone_number,
             "secondary_offices": list(user.secondary_offices.values_list('id', flat=True)) if hasattr(user, 'secondary_offices') else [],
+            "manageable_office_ids": manageable_office_ids,
             "permissions": permissions,
         })
 

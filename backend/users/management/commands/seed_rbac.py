@@ -18,6 +18,7 @@ class Command(BaseCommand):
             {"slug": "duties.edit_dutychart", "name": "Edit Duty Chart", "description": "Can edit existing duty charts"}, # 3
             {"slug": "duties.delete_chart", "name": "Delete Duty Chart", "description": "Can delete duty charts"}, # 4
             {"slug": "duties.create_any_office_chart", "name": "Create Duty Chart (Any Office)", "description": "Can create duty charts in any office"}, # New
+            {"slug": "duties.create_child_office_chart", "name": "Create Child Office Chart", "description": "Can create/view/edit duty charts for child offices in the org hierarchy"},
             {"slug": "duties.generate_rotation", "name": "Generate Rotation", "description": "Can trigger automated duty rotation"}, # 5
             {"slug": "users.view_employee", "name": "View Employee", "description": "Can view employee details"}, # 6
             {"slug": "users.create_employee", "name": "Create Employee", "description": "Can create new employees"}, # 7
@@ -119,7 +120,7 @@ class Command(BaseCommand):
                 "duties.export_chart", "duties.manage_schedule", "schedules.create", "schedules.view",
                 "system.view_settings", "schedules.view_office_schedule", "duties.view_available_shifts",
                 "schedule_templates.view", "duties.assign_employee", "duties.assign_any_office_employee", "schedules.delete",
-                "duties.delete", "duties.approve_dutychart"
+                "duties.delete", "duties.approve_dutychart", "duties.create_child_office_chart"
             ],
 
 
