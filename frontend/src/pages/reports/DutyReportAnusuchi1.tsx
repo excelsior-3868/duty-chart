@@ -100,6 +100,7 @@ function DutyReportAnusuchi1() {
     const [groupByEmployee, setGroupByEmployee] = useState(false);
     const [includePool, setIncludePool] = useState(false);
     const [showResponsibility, setShowResponsibility] = useState(false);
+    const [includeSifarish, setIncludeSifarish] = useState(false);
 
     // Set document title
     useEffect(() => {
@@ -246,6 +247,7 @@ function DutyReportAnusuchi1() {
                 group_by_employee: groupByEmployee,
                 include_pool: includePool,
                 show_responsibility: showResponsibility,
+                include_sifarish: includeSifarish,
             } as any);
 
             const url = window.URL.createObjectURL(blob);
@@ -374,10 +376,10 @@ function DutyReportAnusuchi1() {
 
     return (
         <div className="p-6 space-y-4">
-            <PageHeader 
-                title="Duty Report (अनुसूची - १)" 
-                subtitle="Generate and export report in अनुसूची - १ format." 
-                icon={FileText} 
+            <PageHeader
+                title="Duty Report (अनुसूची - १)"
+                subtitle="Generate and export report in अनुसूची - १ format."
+                icon={FileText}
                 iconColor="text-rose-500"
             />
 
@@ -661,64 +663,84 @@ function DutyReportAnusuchi1() {
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-                      <div className="flex flex-col sm:flex-row gap-4 items-center">
-                        {/* Group by Employee Toggle (Moved here) */}
-                        <div
-                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
-                            onClick={() => setGroupByEmployee(!groupByEmployee)}
-                        >
-                            <Checkbox
-                                id="groupByEmployee"
-                                checked={groupByEmployee}
-                                onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
-                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-                            <div className="flex flex-col">
-                                <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
-                                    Group by Employee
-                                </Label>
-                                <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                            {/* Group by Employee Toggle (Moved here) */}
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
+                                onClick={() => setGroupByEmployee(!groupByEmployee)}
+                            >
+                                <Checkbox
+                                    id="groupByEmployee"
+                                    checked={groupByEmployee}
+                                    onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Group by Employee
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Consolidate multiple dates in download</span>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Add Pool Members Toggle */}
-                        <div
-                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
-                            onClick={() => setIncludePool(!includePool)}
-                        >
-                            <Checkbox
-                                id="includePool"
-                                checked={includePool}
-                                onCheckedChange={(checked) => setIncludePool(!!checked)}
-                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-                            <div className="flex flex-col">
-                                <Label htmlFor="includePool" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
-                                    Add Pool Members
-                                </Label>
-                                <span className="text-[9px] text-slate-400 font-medium">Append Standby pool members</span>
+                            {/* Show Responsibility Toggle */}
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
+                                onClick={() => setShowResponsibility(!showResponsibility)}
+                            >
+                                <Checkbox
+                                    id="showResponsibility"
+                                    checked={showResponsibility}
+                                    onCheckedChange={(checked) => setShowResponsibility(!!checked)}
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="showResponsibility" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Show Responsibility
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Show employee responsibility in कामको बिवरण
+                                    </span>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Show Responsibility Toggle */}
-                        <div
-                            className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
-                            onClick={() => setShowResponsibility(!showResponsibility)}
-                        >
-                            <Checkbox
-                                id="showResponsibility"
-                                checked={showResponsibility}
-                                onCheckedChange={(checked) => setShowResponsibility(!!checked)}
-                                className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                            />
-                            <div className="flex flex-col">
-                                <Label htmlFor="showResponsibility" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
-                                    Show Responsibility
-                                </Label>
-                                <span className="text-[9px] text-slate-400 font-medium">Show employee responsibility in work description</span>
+                            {/* Add Sifarish Section Toggle */}
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
+                                onClick={() => setIncludeSifarish(!includeSifarish)}
+                            >
+                                <Checkbox
+                                    id="includeSifarish"
+                                    checked={includeSifarish}
+                                    onCheckedChange={(checked) => setIncludeSifarish(!!checked)}
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="includeSifarish" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Add Sifarish Section
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Append सिफारिस गर्ने / स्वीकृत गर्ने signature block</span>
+                                </div>
+                            </div>
+
+                            {/* Add Pool Members Toggle */}
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
+                                onClick={() => setIncludePool(!includePool)}
+                            >
+                                <Checkbox
+                                    id="includePool"
+                                    checked={includePool}
+                                    onCheckedChange={(checked) => setIncludePool(!!checked)}
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="includePool" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Add Pool Members
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Append Standby pool members</span>
+                                </div>
                             </div>
                         </div>
-                      </div>
 
                         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                             <Button
@@ -899,7 +921,7 @@ function DutyReportAnusuchi1() {
                                                 const isCompleted = String(val).toLowerCase().includes("true") ||
                                                     String(val).toLowerCase().includes("comp") ||
                                                     val === 1 || val === true;
-                                                
+
                                                 const dateVal = getVal(row, "date");
                                                 const rowDate = new Date(dateVal);
                                                 const today = new Date();

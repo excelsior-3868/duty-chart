@@ -252,7 +252,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         } as any);
       }
       toast.success("Duty Chart Imported Successfully from Excel");
-      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [] });
+      setFormData({ name: "", effective_date: "", end_date: "", office: "", shiftIds: [], status: "draft" });
       setImportFile(null);
       setShowPreview(false);
     } catch (error: any) {
@@ -274,7 +274,7 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
         schedules: formData.shiftIds.map((id) => parseInt(id)),
         status: formData.status,
       } as any;
-      
+
       let payload: any = newChartData;
 
       // If there are files, we MUST use FormData
@@ -666,6 +666,8 @@ export const DutyChartCard: React.FC<DutyChartCardProps> = ({
             </div>
           </div>
         </div>
+
+
 
         <div className="border-t border-[hsl(var(--gray-200))] pt-6 mt-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

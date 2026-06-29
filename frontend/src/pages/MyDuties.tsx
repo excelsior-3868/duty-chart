@@ -10,6 +10,7 @@ import {
     LayoutGrid,
     ChevronLeft,
     ChevronRight,
+    ChevronsUpDown,
 } from 'lucide-react';
 import { useAuth } from "@/context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,8 @@ import { getSchedules } from "@/services/schedule";
 import NepaliDate from "nepali-date-converter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     Table,
     TableBody,
@@ -418,7 +421,8 @@ const MyDuties = () => {
 
     // Filters
     const [selectedChartId, setSelectedChartId] = useState<string>("all");
-    const [selectedShiftId, setSelectedShiftId] = useState<string>("all");
+    const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
+    const [shiftFilterOpen, setShiftFilterOpen] = useState(false);
     const [isFirstLoad, setIsFirstLoad] = useState(true);
 
     // Pagination
@@ -443,9 +447,9 @@ const MyDuties = () => {
     const [dateFrom, setDateFrom] = useState<string>("");
     const [dateTo, setDateTo] = useState<string>("");
 
-    // Auto-update date range filters when duty chart changes, and reset selected shift
+    // Auto-update date range filters when duty chart changes, and reset selected shifts
     React.useEffect(() => {
-        setSelectedShiftId("all");
+        setSelectedShiftIds([]);
         if (selectedChart) {
             setDateFrom(selectedChart.effective_date);
             setDateTo(selectedChart.end_date || "");
@@ -498,8 +502,8 @@ const MyDuties = () => {
         if (selectedChartId !== "all") {
             result = result.filter(d => String(d.duty_chart) === selectedChartId);
         }
-        if (selectedShiftId !== "all") {
-            result = result.filter(d => String(d.schedule) === selectedShiftId);
+        if (selectedShiftIds.length > 0) {
+            result = result.filter(d => selectedShiftIds.includes(String(d.schedule)));
         }
         if (dateFrom) {
             result = result.filter(d => d.date >= dateFrom);
@@ -508,7 +512,7 @@ const MyDuties = () => {
             result = result.filter(d => d.date <= dateTo);
         }
         return result;
-    }, [duties, selectedChartId, selectedShiftId, dateFrom, dateTo]);
+    }, [duties, selectedChartId, selectedShiftIds, dateFrom, dateTo]);
 
     const sortedDuties = useMemo(() =>
         [...filteredDuties].sort((a, b) => b.date.localeCompare(a.date))
@@ -572,15 +576,51 @@ const MyDuties = () => {
                         </SelectContent>
                     </Select>
 
-                    <Select value={selectedShiftId} onValueChange={setSelectedShiftId}>
-                        <SelectTrigger className="h-9 text-xs w-[220px] border-primary/20 bg-primary/5">
-                            <SelectValue placeholder="All Shifts" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Shifts</SelectItem>
-                            {uniqueShifts.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={shiftFilterOpen} onOpenChange={setShiftFilterOpen}>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                role="combobox"
+                                className="h-9 text-xs w-[220px] justify-between border-primary/20 bg-primary/5 font-normal"
+                            >
+                                <span className="truncate">
+                                    {selectedShiftIds.length === 0
+                                        ? "All Shifts"
+                                        : selectedShiftIds.length === 1
+                                            ? uniqueShifts.find(s => String(s.id) === selectedShiftIds[0])?.name ?? "1 Shift"
+                                            : `${selectedShiftIds.length} Shifts`}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
+                            <div className="space-y-0.5">
+                                <div
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-slate-100 cursor-pointer text-sm"
+                                    onClick={() => setSelectedShiftIds([])}
+                                >
+                                    <Checkbox checked={selectedShiftIds.length === 0} className="pointer-events-none" />
+                                    <span className="font-medium">All Shifts</span>
+                                </div>
+                                {uniqueShifts.map(s => {
+                                    const id = String(s.id);
+                                    const checked = selectedShiftIds.includes(id);
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-slate-100 cursor-pointer text-sm"
+                                            onClick={() => setSelectedShiftIds(prev =>
+                                                checked ? prev.filter(x => x !== id) : [...prev, id]
+                                            )}
+                                        >
+                                            <Checkbox checked={checked} className="pointer-events-none" />
+                                            <span className="truncate">{s.name}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
 
                     {viewMode === "list" && (
                         <>

@@ -151,7 +151,8 @@ const DutyCalendar = () => {
 
     // --- State: Schedules (Available Shifts) ---
     const [schedules, setSchedules] = useState<Schedule[]>([]);
-    const [selectedScheduleId, setSelectedScheduleId] = useState<string>("all");
+    const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
+    const [scheduleFilterOpen, setScheduleFilterOpen] = useState(false);
 
     // --- State: Holidays ---
     const [holidays, setHolidays] = useState<any[]>([]);
@@ -264,7 +265,7 @@ const DutyCalendar = () => {
         if (!selectedDutyChartId) {
             setSelectedDutyChartInfo(null);
             setSchedules([]);
-            setSelectedScheduleId("all");
+            setSelectedScheduleIds([]);
             return;
         }
 
@@ -287,8 +288,8 @@ const DutyCalendar = () => {
             const fetchedSchedules = res || [];
             setSchedules(fetchedSchedules);
 
-            // Always default to "all" shifts as requested
-            setSelectedScheduleId("all");
+            // Always default to all shifts
+            setSelectedScheduleIds([]);
         } catch (e) {
             console.error("Failed to load duty chart info:", e);
             setSelectedDutyChartInfo(null);
@@ -410,9 +411,9 @@ const DutyCalendar = () => {
     const modalAssignments = useMemo(() => {
         if (!selectedDateForDetail) return [];
         return assignments
-            .filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId))
+            .filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleIds.length === 0 || selectedScheduleIds.includes(String(a.schedule_id))))
             .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
-    }, [assignments, selectedDateForDetail, selectedScheduleId]);
+    }, [assignments, selectedDateForDetail, selectedScheduleIds]);
 
     // Close day detail modal logic (only clear selection when closed manually or by external triggers)
     useEffect(() => {
@@ -786,9 +787,9 @@ const DutyCalendar = () => {
                                 <Button className="gap-2 text-xs h-9 bg-[#E6B646] hover:bg-[#E6B646]/90 text-white border-0" disabled={isExportingExcel} onClick={async () => {
                                     setIsExportingExcel(true);
                                     try {
-                                        const exportAssignments = selectedScheduleId === "all"
+                                        const exportAssignments = selectedScheduleIds.length === 0
                                             ? assignments
-                                            : assignments.filter(a => String(a.schedule_id) === selectedScheduleId);
+                                            : assignments.filter(a => selectedScheduleIds.includes(String(a.schedule_id)));
 
                                         if (exportAssignments.length === 0) {
                                             toast.error("No duties to export");
@@ -1106,20 +1107,53 @@ const DutyCalendar = () => {
                             </PopoverContent>
                         </Popover>
 
-                        {/* Shift Filter - Always visible now */}
-                        <Select value={selectedScheduleId} onValueChange={setSelectedScheduleId} disabled={!selectedDutyChartId}>
-                            <SelectTrigger className="flex-1 min-w-0 h-9 text-xs border-primary/20 bg-primary/5">
-                                <SelectValue placeholder="All Shifts" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Shifts</SelectItem>
-                                {schedules.map((s) => (
-                                    <SelectItem key={s.id} value={String(s.id)}>
-                                        {s.name} ({s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {/* Shift Filter - Multi-select */}
+                        <Popover open={scheduleFilterOpen} onOpenChange={setScheduleFilterOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    disabled={!selectedDutyChartId}
+                                    className="flex-1 min-w-0 justify-between h-9 text-xs border-primary/20 bg-primary/5 font-normal"
+                                >
+                                    <span className="truncate">
+                                        {selectedScheduleIds.length === 0
+                                            ? "All Shifts"
+                                            : selectedScheduleIds.length === 1
+                                                ? schedules.find(s => String(s.id) === selectedScheduleIds[0])?.name ?? "1 Shift"
+                                                : `${selectedScheduleIds.length} Shifts`}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-1" align="start">
+                                <div className="space-y-0.5">
+                                    <div
+                                        className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-slate-100 cursor-pointer text-sm"
+                                        onClick={() => setSelectedScheduleIds([])}
+                                    >
+                                        <Checkbox checked={selectedScheduleIds.length === 0} className="pointer-events-none" />
+                                        <span className="font-medium">All Shifts</span>
+                                    </div>
+                                    {schedules.map((s) => {
+                                        const id = String(s.id);
+                                        const checked = selectedScheduleIds.includes(id);
+                                        return (
+                                            <div
+                                                key={s.id}
+                                                className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-slate-100 cursor-pointer text-sm"
+                                                onClick={() => setSelectedScheduleIds(prev =>
+                                                    checked ? prev.filter(x => x !== id) : [...prev, id]
+                                                )}
+                                            >
+                                                <Checkbox checked={checked} className="pointer-events-none" />
+                                                <span className="truncate">{s.name} <span className="text-[10px] text-slate-400">({s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)})</span></span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
 
                         {/* Display Chart Dates */}
                         {selectedDutyChartInfo && (
@@ -1237,7 +1271,7 @@ const DutyCalendar = () => {
                                         const dayAssignments = assignments
                                             .filter(a =>
                                                 isSameDay(a.date, date) &&
-                                                (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)
+                                                (selectedScheduleIds.length === 0 || selectedScheduleIds.includes(String(a.schedule_id)))
                                             )
                                             .map(a => {
                                                 const now = new Date();
@@ -1472,7 +1506,7 @@ const DutyCalendar = () => {
                         dutyChartId={parseInt(selectedDutyChartId)}
                         startDateISO={format(calendarDays[0], "yyyy-MM-dd")}
                         endDateISO={format(calendarDays[calendarDays.length - 1], "yyyy-MM-dd")}
-                        scheduleId={selectedScheduleId}
+                        scheduleId={selectedScheduleIds.length === 1 ? selectedScheduleIds[0] : "all"}
                     />
                 )}
 
@@ -1580,7 +1614,7 @@ const DutyCalendar = () => {
                                 <span>Assignments for {selectedDateForDetail ? (dateMode === "BS" ? new NepaliDate(selectedDateForDetail).format("MMMM D, YYYY") : format(selectedDateForDetail, "MMMM d, yyyy")) : ""}</span>
                             </DialogTitle>
                             <DialogDescription>
-                                Total {selectedDateForDetail ? assignments.filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleId === "all" || String(a.schedule_id) === selectedScheduleId)).length : 0} employees assigned.
+                                Total {selectedDateForDetail ? assignments.filter(a => isSameDay(a.date, selectedDateForDetail) && (selectedScheduleIds.length === 0 || selectedScheduleIds.includes(String(a.schedule_id)))).length : 0} employees assigned.
                             </DialogDescription>
                         </DialogHeader>
 

@@ -51,6 +51,7 @@ export interface ExportFileParams {
   group_by_employee?: boolean;
   include_pool?: boolean;
   show_responsibility?: boolean;
+  include_sifarish?: boolean;
 }
 
 export const downloadDutyChartExportFile = async (

@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side
 
@@ -570,6 +570,7 @@ class DutyReportNewFileView(APIView):
         group_by_employee = request.GET.get("group_by_employee") == "true"
         include_pool = request.GET.get("include_pool") == "true"
         show_responsibility = request.GET.get("show_responsibility") == "true"
+        include_sifarish = request.GET.get("include_sifarish") == "true"
 
         chart = None
         if duty_id:
@@ -716,25 +717,27 @@ class DutyReportNewFileView(APIView):
         run_desc = p_desc.add_run("सम्पन्न भएको कामको बिवरण:-")
         run_desc.bold = True
 
-        table = doc.add_table(rows=2, cols=8)
+        table = doc.add_table(rows=2, cols=9)
         table.style = "Table Grid"
 
-        # Adjust Column Widths
-        table.columns[0].width = Inches(0.25) # S.N.
+        # Adjust Column Widths to fit page width (margins 0.75" left/right = 7.0" total width)
+        table.columns[0].width = Inches(0.3)  # S.N.
         table.columns[1].width = Inches(0.5)  # Position
-        table.columns[2].width = Inches(2.45) # Name
+        table.columns[2].width = Inches(1.5)  # Name
         table.columns[3].width = Inches(0.8)  # Contact
         table.columns[4].width = Inches(0.8)  # Work
-        table.columns[5].width = Inches(0.6)  # Target
-        table.columns[6].width = Inches(1.3)  # Achievement/Time
-        table.columns[7].width = Inches(0.6)  # Remarks
+        table.columns[5].width = Inches(0.7)  # Target
+        table.columns[6].width = Inches(0.8)  # Achievement
+        table.columns[7].width = Inches(1.0)  # Time
+        table.columns[8].width = Inches(0.6)  # Remarks
 
-        table.cell(0, 0).merge(table.cell(1, 0))
-        table.cell(0, 4).merge(table.cell(1, 4))
-        table.cell(0, 5).merge(table.cell(1, 5))
-        table.cell(0, 6).merge(table.cell(1, 6))
-        table.cell(0, 7).merge(table.cell(1, 7))
-        table.cell(0, 1).merge(table.cell(0, 3))
+        table.cell(0, 0).merge(table.cell(1, 0)) # S.N.
+        table.cell(0, 4).merge(table.cell(1, 4)) # Work Description
+        table.cell(0, 5).merge(table.cell(1, 5)) # Target
+        table.cell(0, 6).merge(table.cell(1, 6)) # Achievement
+        table.cell(0, 7).merge(table.cell(1, 7)) # Time Taken
+        table.cell(0, 8).merge(table.cell(1, 8)) # Remarks
+        table.cell(0, 1).merge(table.cell(0, 3)) # Employee Info
 
         def set_cell_text(cell, text, bold=True):
             cell.text = text
@@ -749,7 +752,6 @@ class DutyReportNewFileView(APIView):
         set_cell_text(table.cell(0, 4), "कामको विवरण")
         set_cell_text(table.cell(0, 5), "लक्ष्य")
         set_cell_text(table.cell(0, 6), "उपलब्धि")
-        set_cell_text(table.cell(0, 7), "काम सम्पादन नभएमा सो को कारण")
 
         timeline_header = "काम सम्पादन गर्न लागेको समय"
         is_single_schedule = unique_schedules and len(unique_schedules) == 1
@@ -758,7 +760,9 @@ class DutyReportNewFileView(APIView):
             st = s.start_time.strftime("%H:%M")
             et = s.end_time.strftime("%H:%M")
             timeline_header += f"\n({nep(st)} - {nep(et)})"
-        set_cell_text(table.cell(1, 6), timeline_header) # achievement subheader essentially
+        set_cell_text(table.cell(0, 7), timeline_header)
+
+        set_cell_text(table.cell(0, 8), "काम सम्पादन नभएमा सो को कारण")
 
         set_cell_text(table.cell(1, 1), "पद")
         set_cell_text(table.cell(1, 2), "नाम")
@@ -805,7 +809,8 @@ class DutyReportNewFileView(APIView):
             if show_responsibility and d.user and d.user.responsibility:
                 resp_str = d.user.responsibility.name
             cells[4].text = resp_str
-            cells[5].text = ""
+            cells[5].text = "" # Target
+            cells[6].text = "" # Achievement
             
             # Date / Timeline in Nepali
             date_parts = [dp.strip() for dp in date_input.split(',')]
@@ -818,10 +823,10 @@ class DutyReportNewFileView(APIView):
                 except:
                     nepali_dates.append(d_str.replace("-", "/"))
             
-            cells[6].text = nep(", ".join(nepali_dates))
-            cells[7].text = ""
+            cells[7].text = nep(", ".join(nepali_dates))
+            cells[8].text = ""
 
-            for i in range(8):
+            for i in range(9):
                 cells[i].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 cells[i].paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.LEFT if i in [2, 4] else WD_PARAGRAPH_ALIGNMENT.CENTER
             sn += 1
@@ -850,30 +855,38 @@ class DutyReportNewFileView(APIView):
 
         doc.add_paragraph("")
         doc.add_paragraph("काम सम्पादन भएको प्रमाणित गर्ने पदाधिकारीको विवरण :-")
-        
-        # Create a 2-column table for signatures
-        sig_table = doc.add_table(rows=5, cols=2)
-        sig_table.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-        
-        # Column 1: पेश गर्ने
-        sig_table.cell(0, 0).paragraphs[0].add_run("पेश गर्ने:").underline = True
-        sig_table.cell(1, 0).text = "नाम :-"
-        sig_table.cell(2, 0).text = "पद :-"
-        sig_table.cell(3, 0).text = "दस्तखत:-"
-        sig_table.cell(4, 0).text = "मिति :-"
 
-        # Column 2: प्रमाणित गर्ने
-        sig_table.cell(0, 1).paragraphs[0].add_run("प्रमाणित गर्ने:").underline = True
-        sig_table.cell(1, 1).text = "नाम :-"
-        sig_table.cell(2, 1).text = "पद :-"
-        sig_table.cell(3, 1).text = "दस्तखत:-"
-        sig_table.cell(4, 1).text = "मिति :-"
+        if include_sifarish:
+            sig_table = doc.add_table(rows=5, cols=2)
+            sig_table.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-        # Set left indentation for signature fields within columns
-        for row in sig_table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    p.paragraph_format.left_indent = Inches(0.5)
+            sig_table.cell(0, 0).paragraphs[0].add_run("पेश गर्ने:").underline = True
+            sig_table.cell(1, 0).text = "नाम :-"
+            sig_table.cell(2, 0).text = "पद :-"
+            sig_table.cell(3, 0).text = "दस्तखत:-"
+            sig_table.cell(4, 0).text = "मिति :-"
+
+            sig_table.cell(0, 1).paragraphs[0].add_run("प्रमाणित गर्ने:").underline = True
+            sig_table.cell(1, 1).text = "नाम :-"
+            sig_table.cell(2, 1).text = "पद :-"
+            sig_table.cell(3, 1).text = "दस्तखत:-"
+            sig_table.cell(4, 1).text = "मिति :-"
+
+            for row in sig_table.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        p.paragraph_format.left_indent = Inches(0.5)
+        else:
+            sig_table = doc.add_table(rows=5, cols=2)
+            sig_table.alignment = WD_TABLE_ALIGNMENT.RIGHT
+            sig_table.columns[0].width = Inches(3)
+            
+            
+            
+            sig_table.cell(1, 1).text = "नाम :-"
+            sig_table.cell(2, 1).text = "पद :-"
+            sig_table.cell(3, 1).text = "दस्तखत:-"
+            sig_table.cell(4, 1).text = "मिति :-"
 
         bio = io.BytesIO()
         doc.save(bio)

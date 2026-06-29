@@ -5,7 +5,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Open backend in a new Terminal window
 osascript -e "
 tell application \"Terminal\"
-    do script \"cd '$PROJECT_DIR/backend' && source env/bin/activate && python manage.py runserver\"
+    do script \"cd '$PROJECT_DIR/backend' && source env/bin/activate && python manage.py runserver 8000\"
     activate
 end tell
 "

@@ -1,6 +1,6 @@
 const http = require('http');
 
-http.get('http://localhost:8000/api/users/?page_size=200', (res) => {
+http.get('http://localhost:8001/api/users/?page_size=200', (res) => {
   let data = '';
   res.on('data', chunk => data += chunk);
   res.on('end', () => {

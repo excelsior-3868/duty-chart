@@ -118,6 +118,7 @@ function UserWiseReportNew() {
     const [groupByEmployee, setGroupByEmployee] = useState(false);
     const [includePool, setIncludePool] = useState(false);
     const [showResponsibility, setShowResponsibility] = useState(false);
+    const [includeSifarish, setIncludeSifarish] = useState(false);
 
     // Set document title
     useEffect(() => {
@@ -470,6 +471,7 @@ function UserWiseReportNew() {
             params["group_by_employee"] = groupByEmployee;
             params["include_pool"] = includePool;
             params["show_responsibility"] = showResponsibility;
+            params["include_sifarish"] = includeSifarish;
 
             const response = await api.get("/reports/duties/file-new/", {
                 params,
@@ -504,10 +506,10 @@ function UserWiseReportNew() {
 
     return (
         <div className="p-6 space-y-4">
-            <PageHeader 
-                title="Duty Report (अनुसूची - २)" 
-                subtitle="Generate and export report in अनुसूची - २ format." 
-                icon={FileText} 
+            <PageHeader
+                title="Duty Report (अनुसूची - २)"
+                subtitle="Generate and export report in अनुसूची - २ format."
+                icon={FileText}
                 iconColor="text-pink-500"
             />
 
@@ -794,63 +796,81 @@ function UserWiseReportNew() {
                             </div>
                         </div>
                     </div>
-
                     <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-                        <div className="flex flex-col sm:flex-row gap-4 items-center">
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
                             {/* Group by Employee Toggle */}
-                            <div 
-                                className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
                                 onClick={() => setGroupByEmployee(!groupByEmployee)}
                             >
                                 <Checkbox
                                     id="groupByEmployee"
                                     checked={groupByEmployee}
                                     onCheckedChange={(checked) => setGroupByEmployee(!!checked)}
-                                    className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                 />
                                 <div className="flex flex-col">
                                     <Label htmlFor="groupByEmployee" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
                                         Group by Employee
                                     </Label>
-                                    <span className="text-[9px] text-slate-400 font-medium">Consolidate multiple dates in download</span>
-                                </div>
-                            </div>
-
-                            {/* Add Pool Members Toggle */}
-                            <div 
-                                className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
-                                onClick={() => setIncludePool(!includePool)}
-                            >
-                                <Checkbox
-                                    id="includePool"
-                                    checked={includePool}
-                                    onCheckedChange={(checked) => setIncludePool(!!checked)}
-                                    className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                                />
-                                <div className="flex flex-col">
-                                    <Label htmlFor="includePool" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
-                                        Add Pool Members
-                                    </Label>
-                                    <span className="text-[9px] text-slate-400 font-medium">Append Standby pool members</span>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Consolidate multiple dates in download</span>
                                 </div>
                             </div>
 
                             {/* Show Responsibility Toggle */}
-                            <div 
-                                className="flex items-center space-x-3 bg-slate-50/80 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/30 transition-all cursor-pointer group shadow-sm"
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
                                 onClick={() => setShowResponsibility(!showResponsibility)}
                             >
                                 <Checkbox
                                     id="showResponsibility"
                                     checked={showResponsibility}
                                     onCheckedChange={(checked) => setShowResponsibility(!!checked)}
-                                    className="h-4 w-4 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                 />
                                 <div className="flex flex-col">
                                     <Label htmlFor="showResponsibility" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
                                         Show Responsibility
                                     </Label>
-                                    <span className="text-[9px] text-slate-400 font-medium">Show employee responsibility in work description</span>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Show employee responsibility in work description</span>
+                                </div>
+                            </div>
+
+                            {/* Add Sifarish Section Toggle */}
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
+                                onClick={() => setIncludeSifarish(!includeSifarish)}
+                            >
+                                <Checkbox
+                                    id="includeSifarishNew"
+                                    checked={includeSifarish}
+                                    onCheckedChange={(checked) => setIncludeSifarish(!!checked)}
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="includeSifarishNew" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Add Sifarish Section
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Append पेश गर्ने / प्रमाणित गर्ने signature block</span>
+                                </div>
+                            </div>
+
+                            {/* Add Pool Members Toggle */}
+                            <div
+                                className="flex items-start space-x-3 cursor-pointer group"
+                                onClick={() => setIncludePool(!includePool)}
+                            >
+                                <Checkbox
+                                    id="includePool"
+                                    checked={includePool}
+                                    onCheckedChange={(checked) => setIncludePool(!!checked)}
+                                    className="h-4 w-4 mt-0.5 border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <div className="flex flex-col">
+                                    <Label htmlFor="includePool" className="text-[11px] font-bold cursor-pointer text-slate-700 group-hover:text-primary transition-colors leading-none">
+                                        Add Pool Members
+                                    </Label>
+                                    <span className="text-[9px] text-slate-400 font-medium mt-1">Append Standby pool members</span>
                                 </div>
                             </div>
                         </div>
@@ -896,9 +916,10 @@ function UserWiseReportNew() {
             </Card>
 
             <div className="space-y-4 pt-1">
-                <h3 className="text-2xl font-bold text-primary flex items-center gap-2">
+                <h3 className="text-xl font-bold text-primary">
                     Report Preview
                 </h3>
+
 
                 {firstLoad ? (
                     <div className="p-16 border-2 border-dashed border-muted-foreground/20 rounded-xl bg-muted/5 text-center transition-all">

@@ -53,7 +53,14 @@ if not DEBUG:
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOW_CREDENTIALS = True
-    CSRF_TRUSTED_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8083", "http://127.0.0.1:8083"]
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+        "http://localhost:8083",
+        "http://127.0.0.1:8083"
+    ]
 else:
     cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "https://dutychart.ntc.net.np")
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(",")]

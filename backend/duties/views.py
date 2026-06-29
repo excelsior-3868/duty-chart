@@ -23,7 +23,7 @@ import pandas as pd
 from docx import Document
 from docx.shared import Pt, Cm, Inches
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 
 from django.shortcuts import render, get_object_or_404
 from django.core.exceptions import ValidationError
@@ -49,6 +49,60 @@ import openpyxl
 # WeasyPrint import moved to lazy loading (only when PDF export is requested)
 # to avoid Windows compatibility issues with GTK libraries
 WEASYPRINT_AVAILABLE = False
+
+
+def add_docx_watermark(doc, text: str) -> None:
+    """
+    Add a non-editable footer stamp on every page via a locked content control.
+    Times New Roman 10pt, centred.  sdtContentLocked prevents editing/deletion
+    in Word without requiring full document protection.
+    """
+    from docx.oxml import parse_xml  # noqa: PLC0415
+
+    safe = (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
+
+    # Locked Structured Document Tag (content control).
+    # sdtContentLocked = content cannot be edited or deleted.
+    sdt_xml = (
+        '<w:sdt xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:sdtPr>"
+        '<w:lock w:val="sdtContentLocked"/>'
+        "</w:sdtPr>"
+        "<w:sdtContent>"
+        "<w:p>"
+        "<w:pPr><w:jc w:val=\"center\"/></w:pPr>"
+        "<w:r>"
+        "<w:rPr>"
+        '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>'
+        '<w:sz w:val="20"/><w:szCs w:val="20"/>'
+        "</w:rPr>"
+        f"<w:t>{safe}</w:t>"
+        "</w:r>"
+        "</w:p>"
+        "</w:sdtContent>"
+        "</w:sdt>"
+    )
+
+    # Minimal empty paragraph — OOXML requires <w:ftr> to end with <w:p>.
+    empty_p_xml = '<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'
+
+    for section in doc.sections:
+        footer = section.footer
+        footer.is_linked_to_previous = False
+
+        # Clear all existing footer children, then add locked SDT + trailing paragraph.
+        for child in list(footer._element):
+            footer._element.remove(child)
+
+        footer._element.append(parse_xml(sdt_xml.encode("utf-8")))
+        footer._element.append(parse_xml(empty_p_xml.encode("utf-8")))
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -1430,6 +1484,7 @@ class DutyChartExportFile(APIView):
         group_by_employee = request.query_params.get("group_by_employee") == "true"
         include_pool = request.query_params.get("include_pool") == "true"
         show_responsibility = request.query_params.get("show_responsibility") == "true"
+        include_sifarish = request.query_params.get("include_sifarish") == "true"
 
         if not chart_id:
             return Response({"detail": "chart_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1681,23 +1736,10 @@ class DutyChartExportFile(APIView):
                     उक्त कार्य सम्पन्न गरे पश्चात् अनुसूची-२ बमोजिम कार्य सम्पन्न गरेको प्रमाणित गराई पेश गर्नुहुन अनुरोध छ |
                 </div>
 
-                <div class="sign-title">काममा खटाउने अधिकार प्राप्त पदाधिकारीको विवरण :-</div>
-                <div class="sign-container">
-                    <div class="sign-block">
-                        <div class="u">सिफारिस गर्ने:</div>
-                        <div>नाम :-</div>
-                        <div>पद :-</div>
-                        <div>दस्तखत:-</div>
-                        <div>मिति :-</div>
-                    </div>
-                    <div class="sign-block">
-                        <div class="u">स्वीकृत गर्ने:</div>
-                        <div>नाम :-</div>
-                        <div>पद :-</div>
-                        <div>दस्तखत:-</div>
-                        <div>मिति :-</div>
-                    </div>
-                </div>
+                '<div class="sign-title">काममा खटाउने अधिकार प्राप्त पदाधिकारीको विवरण :-</div>' +
+                ('<div class="sign-container"><div class="sign-block"><div class="u">सिफारिस गर्ने:</div><div>नाम :-</div><div>पद :-</div><div>दस्तखत:-</div><div>मिति :-</div></div><div class="sign-block"><div class="u">स्वीकृत गर्ने:</div><div>नाम :-</div><div>पद :-</div><div>दस्तखत:-</div><div>मिति :-</div></div></div>'
+                 if include_sifarish else
+                 '<div class="sign-block" style="text-align:right;margin-top:12px;line-height:2.2;"><div class="u">स्वीकृत गर्ने:</div><div>नाम :-</div><div>पद :-</div><div>दस्तखत:-</div><div>मिति :-</div></div>')
             </body>
             </html>
             """
@@ -1935,34 +1977,57 @@ class DutyChartExportFile(APIView):
 
             doc.add_paragraph("")
             doc.add_paragraph("काममा खटाउने अधिकार प्राप्त पदाधिकारीको विवरण :-")
-            
-            # Create a 2-column table for signatures
-            sig_table = doc.add_table(rows=5, cols=2)
-            sig_table.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            
-            # Column 1: सिफारिस गर्ने
-            sig_table.cell(0, 0).paragraphs[0].add_run("सिफारिस गर्ने:").underline = True
-            sig_table.cell(1, 0).text = "नाम :-"
-            sig_table.cell(2, 0).text = "पद :-"
-            sig_table.cell(3, 0).text = "दस्तखत:-"
-            sig_table.cell(4, 0).text = "मिति :-"
 
-            # Column 2: स्वीकृत गर्ने
-            sig_table.cell(0, 1).paragraphs[0].add_run("स्वीकृत गर्ने:").underline = True
-            sig_table.cell(1, 1).text = "नाम :-"
-            sig_table.cell(2, 1).text = "पद :-"
-            sig_table.cell(3, 1).text = "दस्तखत:-"
-            sig_table.cell(4, 1).text = "मिति :-"
+            if include_sifarish:
+                sig_table = doc.add_table(rows=5, cols=2)
+                sig_table.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-            # Set alignment for all signature cells to match the image (mostly left within their columns)
-            # but we can indent the columns as needed.
-            for row in sig_table.rows:
-                for cell in row.cells:
-                    for p in cell.paragraphs:
-                        # Add some left padding/indent to make it look like the image
-                        p.paragraph_format.left_indent = Inches(0.5)
+                sig_table.cell(0, 0).paragraphs[0].add_run("सिफारिस गर्ने:").underline = True
+                sig_table.cell(1, 0).text = "नाम :-"
+                sig_table.cell(2, 0).text = "पद :-"
+                sig_table.cell(3, 0).text = "दस्तखत:-"
+                sig_table.cell(4, 0).text = "मिति :-"
+
+                sig_table.cell(0, 1).paragraphs[0].add_run("स्वीकृत गर्ने:").underline = True
+                sig_table.cell(1, 1).text = "नाम :-"
+                sig_table.cell(2, 1).text = "पद :-"
+                sig_table.cell(3, 1).text = "दस्तखत:-"
+                sig_table.cell(4, 1).text = "मिति :-"
+
+                for row in sig_table.rows:
+                    for cell in row.cells:
+                        for p in cell.paragraphs:
+                            p.paragraph_format.left_indent = Inches(0.5)
+            else:
+                sig_table = doc.add_table(rows=5, cols=2)
+                sig_table.alignment = WD_TABLE_ALIGNMENT.RIGHT
+                sig_table.columns[0].width = Inches(3)
+
+                # sig_table.cell(0, 1).paragraphs[0].add_run("स्वीकृत गर्ने:").underline = True
+                sig_table.cell(1, 1).text = "नाम :-"
+                sig_table.cell(2, 1).text = "पद :-"
+                sig_table.cell(3, 1).text = "दस्तखत:-"
+                sig_table.cell(4, 1).text = "मिति :-"
 
             bio = BytesIO()
+            _full_name = (
+                getattr(request.user, "get_full_name", lambda: "")()
+                or getattr(request.user, "username", "Unknown")
+            )
+            _emp_id = getattr(request.user, "employee_id", "") or ""
+            user_display = f"{_full_name} ({_emp_id})" if _emp_id else _full_name
+            _now = datetime.datetime.now()
+            ad_date = _now.strftime("%d %B %Y")
+            bs_date = ""
+            if nepali_datetime:
+                try:
+                    _bs_month_names = ["बैशाख","जेठ","असार","साउन","भदौ","असोज","कार्तिक","मंसिर","पुष","माघ","फागुन","चैत्र"]
+                    _nd = nepali_datetime.date.from_datetime_date(_now.date())
+                    bs_date = f" / {to_nepali_digits(_nd.year)} {_bs_month_names[_nd.month - 1]} {to_nepali_digits(_nd.day)}"
+                except Exception:
+                    pass
+            watermark_text = f"{chart.name} — Prepared by {user_display} via DCMS on {ad_date}{bs_date}"
+            add_docx_watermark(doc, watermark_text)
             doc.save(bio)
             bio.seek(0)
 
