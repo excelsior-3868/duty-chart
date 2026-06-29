@@ -576,7 +576,12 @@ function UserWiseReportNew() {
                                                 {dutyOptions
                                                     .filter(opt => {
                                                         if (hasPermission("duties.create_any_office_chart")) return true;
-                                                        return Number(opt.office_id) === Number(authUser?.office_id);
+                                                        const allowedIds = [
+                                                            authUser?.office_id,
+                                                            ...(authUser?.secondary_offices || []),
+                                                            ...(authUser?.manageable_office_ids || []),
+                                                        ].filter(Boolean).map(id => Number(id));
+                                                        return allowedIds.includes(Number(opt.office_id));
                                                     })
                                                     .map((opt) => (
                                                         <CommandItem

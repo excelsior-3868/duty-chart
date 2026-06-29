@@ -9,7 +9,7 @@ def get_allowed_office_ids(user):
        user_has_permission_slug(user, 'duties.create_any_office_chart'):
         return set(WorkingOffice.objects.values_list('id', flat=True))
 
-    return get_managed_office_ids(user)
+    return _expand_with_children(user, get_managed_office_ids(user))
 
 def get_managed_office_ids(user):
     """Returns ONLY the offices the user is explicitly assigned to (primary + secondary)"""
